@@ -41,7 +41,11 @@ async function callClaudeGrounded(prompt: string, maxTokens: number): Promise<un
 
   if (!text) throw new Error("Empty response from Claude API");
 
-  const cleaned = text.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
+  // Sonnet with web search injects <cite index="...">...</cite> tags into its output.
+  // Strip them so the raw name/value lands in the JSON, not the markup.
+  const stripped = text.replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "$1");
+
+  const cleaned = stripped.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
 
   try {
     return JSON.parse(cleaned);
