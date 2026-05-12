@@ -5,16 +5,184 @@ const client = new Anthropic({
 });
 
 // ─── Models ───────────────────────────────────────────────────────────────────
-// MODEL_GROUNDED: used only for the lean CEO lookup (web search, max_tokens: 200) .
-// MODEL_FAST: used for all main report generation — no web search, low token cost.
 const MODEL_GROUNDED = "claude-haiku-4-5-20251001";
 const MODEL_FAST     = "claude-haiku-4-5-20251001";
 
+// ─── Alpha Vantage ────────────────────────────────────────────────────────────
+const AV_KEY  = process.env.ALPHA_VANTAGE_API_KEY ?? "";
+const AV_BASE = "https://www.alphavantage.co/query";
+
+export interface AVFinancials {
+  ticker:          string;
+  fiscalYear:      string;
+  revenue:         string;
+  revenueGrowth:   string;
+  netIncome:       string;
+  ebitda:          string;
+  marketCap:       string;
+  stockPrice:      string;
+  peRatio:         string;
+  epsAnnual:       string;
+  grossMargin:     string;
+  operatingMargin: string;
+  analystTarget:   string;
+  analystRating:   string;
+  revenueHistory:  { year: string; revenue: string; growth: string }[];
+}
+
+// ─── Alpha Vantage: resolve company name → best-match ticker ──────────────────
+
+async function resolveTickerSymbol(companyName: string): Promise<string | null> {
+  if (!AV_KEY) {
+    console.warn("ALPHA_VANTAGE_API_KEY not set — skipping AV lookup");
+    return null;
+  }
+  try {
+    const url  = `${AV_BASE}?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(companyName)}&apikey=${AV_KEY}`;
+    const res  = await fetch(url);
+    const data = await res.json() as {
+      bestMatches?: { "1. symbol": string; "3. type": string; "4. region": string }[];
+    };
+
+    if (!data.bestMatches?.length) return null;
+
+    // Prefer US equity — first matching entry wins
+    const equity = data.bestMatches.find(
+      m => m["3. type"] === "Equity" && m["4. region"] === "United States"
+    ) ?? data.bestMatches[0];
+
+    const ticker = equity["1. symbol"];
+    console.log(`📈 Resolved "${companyName}" → ${ticker}`);
+    return ticker;
+  } catch (err) {
+    console.warn(`Ticker resolution failed for "${companyName}":`, err);
+    return null;
+  }
+}
+
+// ─── Alpha Vantage: fetch OVERVIEW + INCOME_STATEMENT in parallel ─────────────
+
+async function fetchAVFinancials(ticker: string): Promise<AVFinancials | null> {
+  if (!AV_KEY) return null;
+  try {
+    const [ovRes, incRes] = await Promise.all([
+      fetch(`${AV_BASE}?function=OVERVIEW&symbol=${ticker}&apikey=${AV_KEY}`),
+      fetch(`${AV_BASE}?function=INCOME_STATEMENT&symbol=${ticker}&apikey=${AV_KEY}`),
+    ]);
+
+    const ov  = await ovRes.json()  as Record<string, string>;
+    const inc = await incRes.json() as { annualReports?: Record<string, string>[] };
+
+    // AV returns {"Note":"..."} or {"Information":"..."} on rate-limit / bad key
+    if (ov["Note"] || ov["Information"] || !ov["Symbol"]) {
+      console.warn(`AV OVERVIEW unavailable for ${ticker}:`, ov["Note"] ?? ov["Information"]);
+      return null;
+    }
+
+    const reports = inc.annualReports ?? [];
+
+    // ── Format raw number strings → readable "$X.XB / $X.XM" ────────────────
+    const fmt = (raw: string | undefined): string => {
+      const n = parseFloat(raw ?? "");
+      if (isNaN(n)) return "N/A";
+      if (Math.abs(n) >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+      if (Math.abs(n) >= 1e9)  return `$${(n / 1e9).toFixed(1)}B`;
+      if (Math.abs(n) >= 1e6)  return `$${(n / 1e6).toFixed(0)}M`;
+      return `$${n.toLocaleString()}`;
+    };
+
+    const fmtPct = (raw: string | undefined): string => {
+      const n = parseFloat(raw ?? "");
+      return isNaN(n) ? "N/A" : `${(n * 100).toFixed(1)}%`;
+    };
+
+    const fmtPE = (raw: string | undefined): string => {
+      const n = parseFloat(raw ?? "");
+      return isNaN(n) ? "N/A" : `${n.toFixed(1)}x`;
+    };
+
+    // ── Revenue history — most recent 4 years, returned chronologically ───────
+    const revenueHistory = reports.slice(0, 4).map((r, i) => {
+      const year    = r["fiscalDateEnding"]?.slice(0, 4) ?? "N/A";
+      const rev     = parseFloat(r["totalRevenue"] ?? "");
+      const prevRev = parseFloat(reports[i + 1]?.["totalRevenue"] ?? "");
+      const growth  = (!isNaN(rev) && !isNaN(prevRev) && prevRev !== 0)
+        ? `${rev > prevRev ? "+" : ""}${(((rev - prevRev) / prevRev) * 100).toFixed(1)}%`
+        : "N/A";
+      return { year, revenue: fmt(r["totalRevenue"]), growth };
+    }).reverse();
+
+    // ── YoY revenue growth (latest vs prior year) ────────────────────────────
+    const latestRev = parseFloat(reports[0]?.["totalRevenue"] ?? "");
+    const priorRev  = parseFloat(reports[1]?.["totalRevenue"] ?? "");
+    const yoyGrowth = (!isNaN(latestRev) && !isNaN(priorRev) && priorRev !== 0)
+      ? `${latestRev > priorRev ? "+" : ""}${(((latestRev - priorRev) / priorRev) * 100).toFixed(1)}% YoY`
+      : "N/A";
+
+    // ── Fiscal year label ────────────────────────────────────────────────────
+    const fiscalYear = reports[0]?.["fiscalDateEnding"]
+      ? `FY${reports[0]["fiscalDateEnding"].slice(0, 4)}`
+      : `FY${ov["LatestQuarter"]?.slice(0, 4) ?? new Date().getFullYear()}`;
+
+    // ── Analyst rating summary ────────────────────────────────────────────────
+    const sb    = parseInt(ov["AnalystRatingStrongBuy"]  ?? "0");
+    const b     = parseInt(ov["AnalystRatingBuy"]        ?? "0");
+    const h     = parseInt(ov["AnalystRatingHold"]       ?? "0");
+    const s     = parseInt(ov["AnalystRatingSell"]       ?? "0")
+                + parseInt(ov["AnalystRatingStrongSell"] ?? "0");
+    const total = sb + b + h + s;
+    const analystRating = total > 0
+      ? (() => {
+          const bullPct = ((sb + b) / total) * 100;
+          if (bullPct >= 70) return `Buy (${Math.round(bullPct)}% bullish, ${total} analysts)`;
+          if (bullPct >= 50) return `Hold/Buy (${Math.round(bullPct)}% bullish, ${total} analysts)`;
+          return `Hold (${Math.round(bullPct)}% bullish, ${total} analysts)`;
+        })()
+      : "N/A";
+
+    // ── Gross margin derived from TTM figures ─────────────────────────────────
+    const grossProfitTTM = parseFloat(ov["GrossProfitTTM"] ?? "");
+    const revenueTTM     = parseFloat(ov["RevenueTTM"]     ?? "");
+    const grossMarginRaw = (!isNaN(grossProfitTTM) && !isNaN(revenueTTM) && revenueTTM !== 0)
+      ? String(grossProfitTTM / revenueTTM)
+      : ov["ProfitMargin"];
+
+    return {
+      ticker,
+      fiscalYear,
+      revenue:         fmt(reports[0]?.["totalRevenue"]),
+      revenueGrowth:   yoyGrowth,
+      netIncome:       fmt(reports[0]?.["netIncome"]),
+      ebitda:          fmt(reports[0]?.["ebitda"]),
+      marketCap:       fmt(ov["MarketCapitalization"]),
+      stockPrice:      ov["50DayMovingAverage"]
+                         ? `$${parseFloat(ov["50DayMovingAverage"]).toFixed(2)}`
+                         : "N/A",
+      peRatio:         fmtPE(ov["PERatio"]),
+      epsAnnual:       ov["EPS"] ? `$${parseFloat(ov["EPS"]).toFixed(2)}` : "N/A",
+      grossMargin:     fmtPct(grossMarginRaw),
+      operatingMargin: fmtPct(ov["OperatingMarginTTM"]),
+      analystTarget:   ov["AnalystTargetPrice"]
+                         ? `$${parseFloat(ov["AnalystTargetPrice"]).toFixed(2)}`
+                         : "N/A",
+      analystRating,
+      revenueHistory,
+    };
+  } catch (err) {
+    console.warn(`AV financials fetch failed for ${ticker}:`, err);
+    return null;
+  }
+}
+
+// ─── Public: resolve ticker + fetch financials ────────────────────────────────
+
+export async function lookupFinancials(companyName: string): Promise<AVFinancials | null> {
+  const ticker = await resolveTickerSymbol(companyName);
+  if (!ticker) return null;
+  return fetchAVFinancials(ticker);
+}
+
 // ─── System Prompt ────────────────────────────────────────────────────────────
-// Merges Andrew's rewritten SYSTEM with the existing schema/prompt structure.
-// His MISSING DATA POLICY, EXECUTIVE VALIDATION RULES, and NORMALIZATION RULES
-// are adopted wholesale. The schema section is removed — schema is enforced in
-// each prompt directly to preserve the full Part A / Part B report structure.
 
 const SYSTEM = `ROLE
 You are an elite strategic intelligence analyst specialising in company research, executive intelligence, market positioning, financial analysis, and operational profiling.
@@ -32,6 +200,7 @@ PRIMARY RULES
 - Prefer omission over speculation.
 - Never mix executives between companies.
 - Use concise factual language only.
+- When financial data is supplied in the prompt, treat it as authoritative and use it verbatim.
 
 DATA QUALITY RULES
 - Use real verified data for public and well-known companies.
@@ -76,8 +245,6 @@ OUTPUT REQUIREMENTS
 - Analytical, dense, neutral, executive-grade tone.`;
 
 // ─── CEO lookup via web search (minimal token footprint) ──────────────────────
-// Fires a tiny targeted search returning only the CEO name (~200 tokens).
-// A full web-search Part A call consumes ~40-50k tokens and blows the build-tier limit.
 
 async function lookupCEO(companyName: string): Promise<string> {
   try {
@@ -96,7 +263,6 @@ async function lookupCEO(companyName: string): Promise<string> {
       .replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "$1")
       .trim();
 
-    // Accept only a clean name — reject prose, JSON fragments, or multi-line responses
     if (text && text.length < 80 && !text.includes("{") && !text.includes("\n")) {
       return text;
     }
@@ -124,7 +290,6 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
   const text = message.content[0].type === "text" ? message.content[0].text : "";
   if (!text) throw new Error("Empty response from Claude API");
 
-  // Strip code fences in case the model emits them despite instructions
   const cleaned = text.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
 
   try {
@@ -138,7 +303,35 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
 // ─── Report Part A: overview + financials + strategy + market ─────────────────
 
 async function generatePartA(companyName: string): Promise<unknown> {
-  const currentCEO = await lookupCEO(companyName);
+  // CEO lookup (web search) and AV financials are both external calls —
+  // run in parallel since neither touches the Anthropic token bucket.
+  const [currentCEO, avData] = await Promise.all([
+    lookupCEO(companyName),
+    lookupFinancials(companyName),
+  ]);
+
+  // Build verified financial injection block
+  const finBlock = avData
+    ? `VERIFIED FINANCIAL DATA (Alpha Vantage — use verbatim, do not alter):
+- Ticker:               ${avData.ticker}
+- Fiscal Year:          ${avData.fiscalYear}
+- Revenue:              ${avData.revenue}
+- Revenue Growth (YoY): ${avData.revenueGrowth}
+- Net Income:           ${avData.netIncome}
+- EBITDA:               ${avData.ebitda}
+- Market Cap:           ${avData.marketCap}
+- Stock Price (50d MA): ${avData.stockPrice}
+- P/E Ratio:            ${avData.peRatio}
+- EPS (Annual):         ${avData.epsAnnual}
+- Gross Margin:         ${avData.grossMargin}
+- Operating Margin:     ${avData.operatingMargin}
+- Analyst Target Price: ${avData.analystTarget}
+- Analyst Rating:       ${avData.analystRating}
+- Revenue History (chronological):
+${avData.revenueHistory.map(r => `  ${r.year}: ${r.revenue} (${r.growth})`).join("\n")}
+
+Use ALL of the above values verbatim in the financials object. Do not substitute your own estimates for any field that has been provided above.`
+    : `No verified financial data available (private or unlisted company). Use best estimates from training data where confident; return null for any value you cannot verify.`;
 
   const prompt = `Generate strategic intelligence PART A for: ${companyName}
 
@@ -146,6 +339,8 @@ EXECUTIVE INSTRUCTIONS
 - Set executiveSummary.ceo to exactly: ${currentCEO}
 - Do NOT include the CEO in keyExecutives.
 - keyExecutives: 3–8 other verified senior leaders (CFO, COO, CTO, division presidents). Real names only. Omit anyone you cannot verify. Never invent or recombine names.
+
+${finBlock}
 
 Return ONLY this JSON:
 {
@@ -311,11 +506,12 @@ Return ONLY this JSON:
 export async function generateReport(companyName: string): Promise<unknown> {
   const start = Date.now();
 
-  // Sequential — parallel calls compete for the 50k input token/min bucket and rate-limit.
+  // Part A pre-fetches CEO (web search) + AV financials in parallel before
+  // calling Haiku. Part B runs sequentially after to respect token rate limits.
   const partA = await generatePartA(companyName);
   const partB = await generatePartB(companyName);
 
-  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (CEO lookup + Haiku x2)`);
+  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (AV + CEO + Haiku x2)`);
 
   return { ...(partA as object), ...(partB as object) };
 }
