@@ -4,28 +4,118 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// ─── Model ────────────────────────────────────────────────────────────────────
-// haiku-4-5: ~5-10s per call vs ~25-40s for sonnet. Same quality for structured JSON.
-const MODEL = "claude-haiku-4-5";
+// ─── Models ───────────────────────────────────────────────────────────────────
+// MODEL_GROUNDED: used only for the lean CEO lookup (web search, max_tokens: 200) .
+// MODEL_FAST: used for all main report generation — no web search, low token cost.
+const MODEL_GROUNDED = "claude-haiku-4-5-20251001";
+const MODEL_FAST     = "claude-haiku-4-5-20251001";
 
-const SYSTEM = `You are an elite strategic intelligence analyst.
-Respond with ONLY valid JSON — no prose, no markdown fences, no explanation.
-Use real accurate data for well-known companies. Estimates for smaller ones.
-All currency in USD unless the company primarily operates in another currency.
-Dates in dd/mm/yyyy format.
-Be concise — keep string values short (1-2 sentences max), keep arrays to 3-5 items max.`;
+// ─── System Prompt ────────────────────────────────────────────────────────────
+// Merges Andrew's rewritten SYSTEM with the existing schema/prompt structure.
+// His MISSING DATA POLICY, EXECUTIVE VALIDATION RULES, and NORMALIZATION RULES
+// are adopted wholesale. The schema section is removed — schema is enforced in
+// each prompt directly to preserve the full Part A / Part B report structure.
 
-// ─── Shared caller ────────────────────────────────────────────────────────────
+const SYSTEM = `ROLE
+You are an elite strategic intelligence analyst specialising in company research, executive intelligence, market positioning, financial analysis, and operational profiling.
+
+OBJECTIVE
+Extract the most accurate, current, and verifiable company intelligence possible and return it as strict machine-parseable JSON.
+
+PRIMARY RULES
+- Respond with ONLY valid JSON.
+- Do NOT output markdown, prose, explanations, notes, or code fences.
+- Output must parse successfully with JSON.parse().
+- Never narrate reasoning or search activity.
+- Never invent data.
+- If data cannot be verified with high confidence, return null for scalars, [] for arrays, {} for objects.
+- Prefer omission over speculation.
+- Never mix executives between companies.
+- Use concise factual language only.
+
+DATA QUALITY RULES
+- Use real verified data for public and well-known companies.
+- Use directional estimates only for smaller or private companies.
+- CEO and executive names must only be included when highly confident and current.
+- If executive data is uncertain: set "ceo" to "See company website for current CEO".
+- Treat employee counts, revenue, valuation, growth rates, and funding data as time-sensitive.
+- Evaluate sources internally by confidence but NEVER expose that reasoning in output.
+
+MISSING DATA POLICY
+- Unknown scalar values → null
+- Unknown arrays → []
+- Unknown objects → {}
+- Never fabricate: funding amounts, acquisition dates, executive names, office locations, customer counts, or revenue figures.
+
+EXECUTIVE VALIDATION RULES
+Before returning any executive name:
+1. Verify they belong to the correct company.
+2. Verify role recency — exclude former executives.
+3. Exclude any name you cannot verify with high confidence.
+4. Never recombine or invent names from partial recall.
+Quality over quantity — 4 accurate entries is better than 8 with errors.
+
+NORMALIZATION RULES
+- Currency default: USD unless the company primarily operates in another currency.
+- Dates format: dd/mm/yyyy.
+- Country names: full official English names.
+- Arrays: maximum 5 items unless the schema specifies otherwise.
+- keyExecutives: maximum 8 verified entries, minimum 3 (or [] if fewer than 3 can be verified).
+- String values: concise and information-dense. No marketing language or hype.
+
+DEDUPLICATION RULES
+- Do not repeat semantically identical facts.
+- Consolidate overlapping descriptions.
+- Avoid repeating the company name excessively.
+
+OUTPUT REQUIREMENTS
+- Return exactly one JSON object.
+- No trailing commas.
+- No comments inside JSON.
+- No additional keys outside the requested schema.
+- Analytical, dense, neutral, executive-grade tone.`;
+
+// ─── CEO lookup via web search (minimal token footprint) ──────────────────────
+// Fires a tiny targeted search returning only the CEO name (~200 tokens).
+// A full web-search Part A call consumes ~40-50k tokens and blows the build-tier limit.
+
+async function lookupCEO(companyName: string): Promise<string> {
+  try {
+    const message = await client.messages.create({
+      model: MODEL_GROUNDED,
+      max_tokens: 200,
+      system: "You are a factual lookup assistant. Respond with ONLY the current CEO's full name — no punctuation, no explanation, nothing else.",
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{ role: "user", content: `Who is the current CEO of ${companyName}? Search the web and return only their full name.` }],
+    });
+
+    const text = message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map(b => b.text)
+      .join("")
+      .replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "$1")
+      .trim();
+
+    // Accept only a clean name — reject prose, JSON fragments, or multi-line responses
+    if (text && text.length < 80 && !text.includes("{") && !text.includes("\n")) {
+      return text;
+    }
+  } catch (err) {
+    console.warn(`CEO lookup failed for ${companyName}:`, err);
+  }
+  return "See company website for current CEO";
+}
+
+// ─── Core caller (Haiku, no tools) ───────────────────────────────────────────
 
 async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
   const message = await client.messages.create({
-    model: MODEL,
+    model: MODEL_FAST,
     max_tokens: maxTokens,
     system: SYSTEM,
     messages: [{ role: "user", content: prompt }],
   });
 
-  // Detect truncation before trying to parse
   if (message.stop_reason === "max_tokens") {
     console.error(`Response truncated at ${maxTokens} tokens — increase max_tokens`);
     throw new Error("Response was too long and got cut off. Please try again.");
@@ -34,6 +124,7 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
   const text = message.content[0].type === "text" ? message.content[0].text : "";
   if (!text) throw new Error("Empty response from Claude API");
 
+  // Strip code fences in case the model emits them despite instructions
   const cleaned = text.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
 
   try {
@@ -47,7 +138,14 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
 // ─── Report Part A: overview + financials + strategy + market ─────────────────
 
 async function generatePartA(companyName: string): Promise<unknown> {
+  const currentCEO = await lookupCEO(companyName);
+
   const prompt = `Generate strategic intelligence PART A for: ${companyName}
+
+EXECUTIVE INSTRUCTIONS
+- Set executiveSummary.ceo to exactly: ${currentCEO}
+- Do NOT include the CEO in keyExecutives.
+- keyExecutives: 3–8 other verified senior leaders (CFO, COO, CTO, division presidents). Real names only. Omit anyone you cannot verify. Never invent or recombine names.
 
 Return ONLY this JSON:
 {
@@ -56,23 +154,23 @@ Return ONLY this JSON:
   "executiveSummary": {
     "companyOverview": "2-3 sentence overview",
     "headquarters": "City, Country",
-    "founded": "Year",
-    "employees": "e.g. 250,000",
+    "founded": "Year or null",
+    "employees": "e.g. 250,000 or null",
     "ceo": "Full name",
-    "keyExecutives": [{"name": "Name", "title": "Title"}],
-    "stockExchange": "e.g. NYSE: AAPL or N/A if private",
+    "keyExecutives": [{"name": "Name", "title": "Title"}, {"name": "Name", "title": "Title"}, {"name": "Name", "title": "Title"}],
+    "stockExchange": "e.g. NYSE: AAPL or null if private",
     "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3", "Key highlight 4"],
-    "analystRating": "e.g. Buy / Overweight / Hold",
+    "analystRating": "e.g. Buy / Overweight / Hold or null",
     "lastUpdated": "Today dd/mm/yyyy"
   },
   "financials": {
-    "revenue": "e.g. $391.0B",
-    "revenueGrowth": "e.g. +8.1% YoY",
-    "netIncome": "e.g. $93.7B",
-    "ebitda": "e.g. $125.8B",
-    "marketCap": "e.g. $3.4T",
-    "stockTicker": "e.g. AAPL",
-    "stockPrice": "e.g. $225.00",
+    "revenue": "e.g. $391.0B or null",
+    "revenueGrowth": "e.g. +8.1% YoY or null",
+    "netIncome": "e.g. $93.7B or null",
+    "ebitda": "e.g. $125.8B or null",
+    "marketCap": "e.g. $3.4T or null",
+    "stockTicker": "e.g. AAPL or null",
+    "stockPrice": "e.g. $225.00 or null",
     "fiscalYear": "e.g. FY2024",
     "keyMetrics": [
       {"label": "Gross Margin", "value": "45.2%", "trend": "up"},
@@ -86,20 +184,20 @@ Return ONLY this JSON:
       {"year": "2023", "revenue": "$X.XB", "growth": "+X%"},
       {"year": "2024", "revenue": "$X.XB", "growth": "+X%"}
     ],
-    "outlook": "2-sentence financial outlook"
+    "outlook": "2-sentence financial outlook or null"
   },
   "strategy": {
-    "vision": "Company vision statement",
-    "mission": "Company mission statement",
+    "vision": "Company vision statement or null",
+    "mission": "Company mission statement or null",
     "coreInitiatives": [{"title": "Initiative name", "description": "Brief description", "timeline": "e.g. 2024-2026"}],
     "geographicFocus": ["Region 1", "Region 2", "Region 3"],
-    "mAndA": "M&A strategy description",
-    "capitalAllocation": "Capital allocation priorities",
+    "mAndA": "M&A strategy description or null",
+    "capitalAllocation": "Capital allocation priorities or null",
     "summary": "2-3 sentence strategy summary"
   },
   "marketAnalysis": {
-    "totalAddressableMarket": "e.g. $2.1T",
-    "marketShare": "e.g. 18.5%",
+    "totalAddressableMarket": "e.g. $2.1T or null",
+    "marketShare": "e.g. 18.5% or null",
     "marketPosition": "e.g. Market leader / Strong #2",
     "competitors": [{"name": "Competitor name", "strength": "Brief strength", "threat": "high|medium|low"}],
     "customerSegments": ["Segment 1", "Segment 2", "Segment 3"],
@@ -124,22 +222,22 @@ async function generatePartB(companyName: string): Promise<unknown> {
 Return ONLY this JSON:
 {
   "techSpend": {
-    "annualITBudget": "e.g. $4.2B",
-    "itBudgetAsPercentRevenue": "e.g. 4.8%",
+    "annualITBudget": "e.g. $4.2B or null",
+    "itBudgetAsPercentRevenue": "e.g. 4.8% or null",
     "cloudPlatforms": ["AWS", "Azure", "GCP"],
     "keyVendors": [{"vendor": "Vendor name", "category": "Category", "relationship": "Strategic partner / key vendor / etc"}],
-    "dataInfrastructure": "Description of data infrastructure",
-    "securityPosture": "Description of security approach",
+    "dataInfrastructure": "Description or null",
+    "securityPosture": "Description or null",
     "emergingTech": ["AI/ML", "Blockchain", "IoT"],
     "summary": "2-3 sentence tech summary"
   },
   "esg": {
-    "overallRating": "e.g. AA (MSCI) / Strong",
-    "netZeroTarget": "e.g. 2030 / 2050 / Not committed",
+    "overallRating": "e.g. AA (MSCI) / Strong or null",
+    "netZeroTarget": "e.g. 2030 / 2050 / Not committed or null",
     "environmentalInitiatives": ["Initiative 1", "Initiative 2"],
     "socialInitiatives": ["Initiative 1", "Initiative 2"],
-    "governanceRating": "e.g. Strong / Average",
-    "boardDiversity": "e.g. 45% diverse board members",
+    "governanceRating": "e.g. Strong / Average or null",
+    "boardDiversity": "e.g. 45% diverse board members or null",
     "esgRisks": ["Risk 1", "Risk 2"],
     "summary": "2-3 sentence ESG summary"
   },
@@ -172,12 +270,12 @@ Return ONLY this JSON:
       {
         "title": "Opportunity title",
         "description": "Detailed description",
-        "potentialValue": "e.g. $50-100B",
+        "potentialValue": "e.g. $50-100B or null",
         "timeframe": "e.g. 2025-2027",
         "confidence": "high|medium|low"
       }
     ],
-    "totalOpportunityValue": "e.g. $200-400B across identified opportunities",
+    "totalOpportunityValue": "e.g. $200-400B across identified opportunities or null",
     "summary": "2-3 sentence growth summary"
   },
   "riskAssessment": {
@@ -198,8 +296,8 @@ Return ONLY this JSON:
     "maturityLevel": "leading|advanced|developing|early",
     "maturityScore": 8,
     "keyInitiatives": [{"title": "Initiative", "description": "Description", "status": "live|in_progress|planned"}],
-    "aiAdoption": "Description of AI adoption",
-    "dataStrategy": "Description of data strategy",
+    "aiAdoption": "Description or null",
+    "dataStrategy": "Description or null",
     "challenges": ["Challenge 1", "Challenge 2"],
     "summary": "2-3 sentence DX summary"
   }
@@ -208,18 +306,16 @@ Return ONLY this JSON:
   return callClaude(prompt, 5000);
 }
 
-// ─── Public: generate full report (parallel) ──────────────────────────────────
+// ─── Public: generate full report ─────────────────────────────────────────────
 
 export async function generateReport(companyName: string): Promise<unknown> {
   const start = Date.now();
 
-  // Fire both halves simultaneously — total time = max(A, B) not A+B
-  const [partA, partB] = await Promise.all([
-    generatePartA(companyName),
-    generatePartB(companyName),
-  ]);
+  // Sequential — parallel calls compete for the 50k input token/min bucket and rate-limit.
+  const partA = await generatePartA(companyName);
+  const partB = await generatePartB(companyName);
 
-  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (parallel Haiku)`);
+  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (CEO lookup + Haiku x2)`);
 
   return { ...(partA as object), ...(partB as object) };
 }
@@ -269,7 +365,7 @@ Return ONLY this JSON:
   ]
 }`;
 
-  return callClaude(prompt, 2500);
+  return callClaude(prompt, 4000);
 }
 
 // ─── Investor Presentation ────────────────────────────────────────────────────
@@ -302,5 +398,5 @@ Return ONLY this JSON:
 
 Include 10-12 slides: cover, investment thesis, company overview, financial highlights, market opportunity, competitive position, strategic initiatives, SWOT, growth catalysts, risk factors, valuation summary, conclusion.`;
 
-  return callClaude(prompt, 2500);
+  return callClaude(prompt, 7000);
 }
