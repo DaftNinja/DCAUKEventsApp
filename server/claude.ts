@@ -5,8 +5,10 @@ const client = new Anthropic({
 });
 
 // ─── Models ───────────────────────────────────────────────────────────────────
-const MODEL_GROUNDED = "claude-sonnet-4-20250514"; // web search needs Sonnet
-const MODEL_FAST = "claude-haiku-4-5-20251001";    // Part B — no factual recall needed
+// Haiku 4.5 supports web search and stays well within the 30k input token/min limit.
+// Sonnet was blowing the entire quota on a single Part A call due to search result payloads.
+const MODEL_GROUNDED = "claude-haiku-4-5-20251001"; // web search — Haiku keeps token usage low
+const MODEL_FAST = "claude-haiku-4-5-20251001";     // Part B — no web search needed
 
 const SYSTEM = `You are an elite strategic intelligence analyst.
 Respond with ONLY valid JSON — no prose, no markdown fences, no explanation.
