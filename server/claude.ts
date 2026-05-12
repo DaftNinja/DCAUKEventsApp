@@ -5,10 +5,10 @@ const client = new Anthropic({
 });
 
 // ─── Models ───────────────────────────────────────────────────────────────────
-// Haiku 4.5 supports web search and stays well within the 30k input token/min limit.
-// Sonnet was blowing the entire quota on a single Part A call due to search result payloads.
-const MODEL_GROUNDED = "claude-haiku-4-5-20251001"; // web search — Haiku keeps token usage low
-const MODEL_FAST = "claude-haiku-4-5-20251001";     // Part B — no web search needed
+// MODEL_GROUNDED: used only for the lean CEO lookup (web search, max_tokens: 200).
+// MODEL_FAST: used for all main report generation — no web search, low token cost.
+const MODEL_GROUNDED = "claude-haiku-4-5-20251001";
+const MODEL_FAST = "claude-haiku-4-5-20251001";
 
 const SYSTEM = `You are an elite strategic intelligence analyst.
 Respond with ONLY valid JSON — no prose, no markdown fences, no explanation.
@@ -21,48 +21,35 @@ All currency in USD unless the company primarily operates in another currency.
 Dates in dd/mm/yyyy format.
 Be concise — keep string values short (1-2 sentences max), keep arrays to 3-5 items max.`;
 
-// ─── Grounded caller (Sonnet + web search) — used for Part A ─────────────────
+// ─── CEO lookup via web search (minimal token footprint) ──────────────────────
+// Uses web search only to resolve the current CEO, then discards the search context.
+// A full web-search Part A call consumes ~40-50k tokens and blows the build-tier limit.
 
-async function callClaudeGrounded(prompt: string, maxTokens: number): Promise<unknown> {
-  const message = await client.messages.create({
-    model: MODEL_GROUNDED,
-    max_tokens: maxTokens,
-    system: SYSTEM,
-    tools: [{ type: "web_search_20250305", name: "web_search" }],
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  if (message.stop_reason === "max_tokens") {
-    throw new Error("Response was too long and got cut off. Please try again.");
-  }
-
-  // Extract text blocks only — web search adds tool_use/tool_result blocks too
-  const text = message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map(b => b.text)
-    .join("");
-
-  if (!text) throw new Error("Empty response from Claude API");
-
-  // Strip citation tags injected by web search (e.g. <cite index="...">value</cite> → value)
-  const stripped = text.replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "$1");
-
-  // Model may emit preamble prose before the JSON fence — extract only the JSON block
-  const fenceMatch = stripped.match(/```json\s*([\s\S]*?)```/);
-  const jsonStr = fenceMatch
-    ? fenceMatch[1].trim()                          // content inside ```json ... ```
-    : stripped.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim(); // fallback
-
-  // Last-resort: if there's still preamble, find the first { and parse from there
-  const firstBrace = jsonStr.indexOf("{");
-  const cleaned = firstBrace > 0 ? jsonStr.slice(firstBrace) : jsonStr;
-
+async function lookupCEO(companyName: string): Promise<string> {
   try {
-    return JSON.parse(cleaned);
-  } catch {
-    console.error("JSON parse failed. Raw:", cleaned.slice(0, 500));
-    throw new Error("Failed to parse API response. Please try again.");
+    const message = await client.messages.create({
+      model: MODEL_GROUNDED,
+      max_tokens: 200,
+      system: "You are a factual lookup assistant. Respond with ONLY the current CEO's full name — no punctuation, no explanation, nothing else.",
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{ role: "user", content: `Who is the current CEO of ${companyName}? Search the web and return only their full name.` }],
+    });
+
+    const text = message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map(b => b.text)
+      .join("")
+      .replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "$1")
+      .trim();
+
+    // Should be just a name — reject if it looks like prose
+    if (text && text.length < 80 && !text.includes("{") && !text.includes("\n")) {
+      return text;
+    }
+  } catch (err) {
+    console.warn(`CEO lookup failed for ${companyName}:`, err);
   }
+  return "See company website for current CEO";
 }
 
 // ─── Fast caller (Haiku, no tools) — used for Part B ─────────────────────────
@@ -96,9 +83,12 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
 // ─── Report Part A: overview + financials + strategy + market ─────────────────
 
 async function generatePartA(companyName: string): Promise<unknown> {
+  // Resolve CEO via a tiny targeted web search (low token cost) before the main call
+  const currentCEO = await lookupCEO(companyName);
+
   const prompt = `Generate strategic intelligence PART A for: ${companyName}
 
-Search the web for the current CEO, key executives, and recent financial data before responding.
+The current CEO is: ${currentCEO} — use this exact name in the executiveSummary.ceo field.
 
 Return ONLY this JSON:
 {
@@ -164,7 +154,7 @@ Return ONLY this JSON:
   }
 }`;
 
-  return callClaudeGrounded(prompt, 8000); // ← grounded: Haiku + web search; extra headroom for search result context
+  return callClaude(prompt, 5000); // ← fast Haiku; CEO already resolved via lookupCEO()
 }
 
 // ─── Report Part B: tech + ESG + SWOT + growth + risk + digital ──────────────
@@ -269,7 +259,7 @@ export async function generateReport(companyName: string): Promise<unknown> {
   const partA = await generatePartA(companyName);
   const partB = await generatePartB(companyName);
 
-  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s`);
+  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (CEO lookup + Haiku x2)`);
 
   return { ...(partA as object), ...(partB as object) };
 }
