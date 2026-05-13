@@ -119,6 +119,9 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials | null>
   type CashFlowReport = {
     depreciationAndAmortization?: number;
   };
+  type ProfileData2 = {
+    sector?: string; industry?: string;
+  };
   type ProfileData = {
     mktCap?: number; price?: number; pe?: number; eps?: number;
   };
@@ -137,11 +140,15 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials | null>
     fmpGet<PriceTargetData[]>(`/v4/price-target-consensus?symbol=${ticker}&`),
   ]);
 
-  const reports  = incomeRaw ?? [];
+  const reports  = incomeRaw    ?? [];
   const cashFlow = cashFlowRaw?.[0] ?? {};
   const profile  = profileRaw?.[0]  ?? {};
   const rating   = ratingRaw?.[0]   ?? {};
   const target   = targetRaw?.[0]   ?? {};
+
+  // Detect financial sector — EBITDA is not meaningful for banks/insurance
+  const sector = (profile as any).sector ?? "";
+  const isFinancial = /bank|financ|insurance|capital|invest/i.test(sector);
 
   if (!reports.length && !profile.mktCap) {
     console.warn(`FMP: no financial data for ${ticker}`);
@@ -181,12 +188,14 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials | null>
     revenueGrowth:   yoyGrowth,
     netIncome:       fmt(reports[0]?.netIncome),
     ebitda:          (() => {
-      // FMP income statement often returns ebitda as null.
-      // Fallback: operatingIncome + D&A from cash flow statement.
+      // Banks and financial institutions don't use EBITDA — return "N/A (financial sector)"
+      if (isFinancial) return "N/A (financial sector)";
+      // Try direct FMP field first
       const direct = reports[0]?.ebitda;
       if (direct != null && direct !== 0) return fmt(direct);
+      // Fallback: operatingIncome + D&A from cash flow statement
       const opIncome = reports[0]?.operatingIncome ?? 0;
-      const da       = cashFlow.depreciationAndAmortization ?? 0;
+      const da       = (cashFlow as CashFlowReport).depreciationAndAmortization ?? 0;
       return (opIncome || da) ? fmt(opIncome + da) : "N/A";
     })(),
     grossMargin:     fmtPct(reports[0]?.grossProfitRatio),
@@ -374,8 +383,8 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
 
 // ─── Report Part A: overview + financials + strategy + market ─────────────────
 
-async function generatePartA(companyName: string, fmpFinancials?: FMPFinancials | null): Promise<unknown> {
-  const currentCEO = await lookupCEO(companyName);
+async function generatePartA(companyName: string, fmpFinancials?: FMPFinancials | null, currentCEO?: string): Promise<unknown> {
+  const ceo = currentCEO ?? await lookupCEO(companyName);
 
   // Build verified financial injection block from FMP data
   const fin = fmpFinancials;
@@ -404,7 +413,7 @@ Use ALL of the above values verbatim in the financials object. Do not substitute
   const prompt = `Generate strategic intelligence PART A for: ${companyName}
 
 EXECUTIVE INSTRUCTIONS
-- Set executiveSummary.ceo to exactly: ${currentCEO}
+- Set executiveSummary.ceo to exactly: ${ceo}
 - Do NOT include the CEO in keyExecutives.
 - keyExecutives: 3–8 other verified senior leaders (CFO, COO, CTO, division presidents). Real names only. Omit anyone you cannot verify. Never invent or recombine names.
 
@@ -474,7 +483,7 @@ Return ONLY this JSON:
   }
 }`;
 
-  return callClaude(prompt, 5000);
+  return callClaude(prompt, 6000);
 }
 
 // ─── Report Part B: tech + ESG + SWOT + growth + risk + digital ──────────────
@@ -497,8 +506,6 @@ Use ALL values verbatim in the esg object. Set overallRating to "${esgData.esgRa
   const prompt = `Generate strategic intelligence PART B for: ${companyName}
 
 ${esgBlock}
-
-Return ONLY this JSON:
 
 Return ONLY this JSON:
 {
@@ -525,9 +532,6 @@ Return ONLY this JSON:
     "esgRisks": ["Risk 1", "Risk 2"],
     "dataSource": "Financial Modeling Prep",
     "summary": "2-3 sentence ESG summary incorporating rating, risk level, pillar scores, and key risks"
-  },
-    "dataSource": "ESG Enterprise",
-    "summary": "2-3 sentence ESG summary incorporating grade, pillar scores, and key risks"
   },
   "swot": {
     "strengths": [
@@ -599,9 +603,6 @@ Return ONLY this JSON:
 export async function generateReport(companyName: string): Promise<unknown> {
   const start = Date.now();
 
-  // Part A: CEO lookup + AV financials (external, parallel, no token cost)
-  // MSCI ESG: runs in parallel with Part A — also external, no token cost
-  // Part B: sequential after Part A to respect Anthropic token rate limits
   // FMP lookup (financials + ESG) and CEO lookup run in parallel —
   // both are external HTTP calls with no Anthropic token cost.
   const [fmpData, currentCEO] = await Promise.all([
@@ -611,7 +612,7 @@ export async function generateReport(companyName: string): Promise<unknown> {
 
   // Part A and Part B run sequentially to respect Anthropic token rate limits.
   // CEO is passed in to avoid a second web search call inside generatePartA.
-  const partA = await generatePartA(companyName, fmpData.financials);
+  const partA = await generatePartA(companyName, fmpData.financials, currentCEO);
   const partB = await generatePartB(companyName, fmpData.esg);
 
   console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (FMP + CEO + Haiku x2)`);
