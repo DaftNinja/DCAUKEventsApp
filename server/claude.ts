@@ -141,9 +141,6 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials | null>
   ]);
 
   const reports  = incomeRaw    ?? [];
-  // DEBUGGING LINE BELOW
-console.log(`FMP [${ticker}] income reports: ${reports.length} | years: ${reports.map(r => r.calendarYear ?? r.date?.slice(0,4) ?? 'null').join(', ')}`);
-
   const cashFlow = cashFlowRaw?.[0] ?? {};
   const profile  = profileRaw?.[0]  ?? {};
   const rating   = ratingRaw?.[0]   ?? {};
@@ -420,6 +417,15 @@ EXECUTIVE INSTRUCTIONS
 - Do NOT include the CEO in keyExecutives.
 - keyExecutives: 3–8 other verified senior leaders (CFO, COO, CTO, division presidents). Real names only. Omit anyone you cannot verify. Never invent or recombine names.
 
+STRATEGY INSTRUCTIONS
+- vision and mission must be populated for all well-known public companies — this data is always available in annual reports, investor relations pages, or company websites.
+- Never return "" (empty string) for vision or mission. Use the company's actual stated purpose, tagline, or strategic intent.
+- For financial institutions specifically: Barclays purpose → "Deploying finance responsibly to support people and businesses acting with empathy and integrity"; HSBC purpose → "Opening up a world of opportunity"; Lloyds → "Helping Britain Prosper"; JPMorgan → "Making dreams possible for everyone everywhere".
+- For tech: Apple → "To make the best products on earth"; Microsoft → "To empower every person and organisation on the planet to achieve more"; Google → "To organise the world's information and make it universally accessible".
+- If the exact statement is uncertain, derive a concise purpose statement from the company's known business model, market position, and sector — do not leave blank.
+- For any company you know enough about to generate a report, you know enough to write a one-sentence vision and mission. Treat these as required fields.
+- Only return null for genuinely unknown private companies where you have minimal information.
+
 ${finBlock}
 
 Return ONLY this JSON:
@@ -462,8 +468,8 @@ Return ONLY this JSON:
     "outlook": "2-sentence financial outlook or null"
   },
   "strategy": {
-    "vision": "Company vision statement or null",
-    "mission": "Company mission statement or null",
+    "vision": "Company's stated vision or purpose (e.g. from annual report, website, investor docs) — never empty string, use null only if genuinely undiscoverable",
+    "mission": "Company's stated mission or strategic purpose — never empty string, use null only if genuinely undiscoverable",
     "coreInitiatives": [{"title": "Initiative name", "description": "Brief description", "timeline": "e.g. 2024-2026"}],
     "geographicFocus": ["Region 1", "Region 2", "Region 3"],
     "mAndA": "M&A strategy description or null",
