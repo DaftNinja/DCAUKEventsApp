@@ -141,6 +141,9 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials | null>
   ]);
 
   const reports  = incomeRaw    ?? [];
+  // DEBUGGING LINE BELOW
+console.log(`FMP [${ticker}] income reports: ${reports.length} | years: ${reports.map(r => r.calendarYear ?? r.date?.slice(0,4) ?? 'null').join(', ')}`);
+
   const cashFlow = cashFlowRaw?.[0] ?? {};
   const profile  = profileRaw?.[0]  ?? {};
   const rating   = ratingRaw?.[0]   ?? {};
