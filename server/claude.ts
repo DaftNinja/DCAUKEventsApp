@@ -384,8 +384,8 @@ async function generatePartA(companyName: string, fmpFinancials?: FMPFinancials 
 - Revenue History (chronological):
 ${fin.revenueHistory.map(r => `  ${r.year}: ${r.revenue} (${r.growth})`).join("\n")}
 
-Use ALL of the above values verbatim in the financials object. Do not substitute your own estimates for any field that has been provided.\`
-    : \`No verified financial data available (private or unlisted company). Use best estimates from training data where confident; return null for any value you cannot verify.\`;
+Use ALL of the above values verbatim in the financials object. Do not substitute your own estimates for any field that has been provided.`
+    : `No verified financial data available (private or unlisted company). Use best estimates from training data where confident; return null for any value you cannot verify.`;
 
   const prompt = `Generate strategic intelligence PART A for: ${companyName}
 
