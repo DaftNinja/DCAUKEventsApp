@@ -6,7 +6,7 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "build": "cd frontend && npm install && npm run build && cd ..",
+    "build": "cd frontend && npm install && npm run build && cd .. && echo 'Build complete'",
     "start": "node src/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/db/migrate.js",
