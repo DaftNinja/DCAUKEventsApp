@@ -80,17 +80,17 @@ router.get("/linkedin/callback", async (req, res) => {
     let user = await db
       .select()
       .from(users)
-      .where(eq(users.linkedin_id, linkedinId));
+      .where(eq(users.linkedinId, linkedinId));
 
     if (user.length === 0) {
       console.log("🆕 Creating new user...");
       const result = await db
         .insert(users)
         .values({
-          linkedin_id: linkedinId,
+          linkedinId,
           email,
           name,
-          avatar_url: avatarUrl,
+          avatarUrl,
         })
         .returning();
       user = result;
@@ -102,21 +102,20 @@ router.get("/linkedin/callback", async (req, res) => {
         .set({
           email,
           name,
-          avatar_url: avatarUrl,
-          updated_at: new Date(),
+          avatarUrl,
+          updatedAt: new Date(),
         })
-        .where(eq(users.linkedin_id, linkedinId));
+        .where(eq(users.linkedinId, linkedinId));
       user = await db
         .select()
         .from(users)
-        .where(eq(users.linkedin_id, linkedinId));
+        .where(eq(users.linkedinId, linkedinId));
       console.log("✓ User updated:", user[0].id);
     }
 
     const token = generateToken(user[0].id);
     console.log("🎫 JWT generated");
 
-    // Build redirect URL with https://
     const frontendUrl = process.env.FRONTEND_URL.startsWith('http') 
       ? process.env.FRONTEND_URL 
       : `https://${process.env.FRONTEND_URL}`;
