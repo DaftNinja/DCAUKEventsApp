@@ -3,7 +3,6 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { db } from "./db/index.js";
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import eventsRoutes from "./routes/events.js";
@@ -15,17 +14,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-// Test database connection
-async function testDatabase() {
-  try {
-    const result = await db.execute("SELECT NOW()");
-    console.log("✓ Database connected:", result.rows[0]);
-  } catch (error) {
-    console.error("✗ Database connection failed:", error.message);
-    throw error;
-  }
-}
 
 // Health check
 app.get("/health", (req, res) => {
@@ -51,18 +39,7 @@ app.get("*", (req, res) => {
 
 const PORT = process.env.PORT || 8080;
 
-// Start server
-(async () => {
-  try {
-    await testDatabase();
-    
-    app.listen(PORT, () => {
-      console.log(`✓ Server running on port ${PORT}`);
-      console.log(`  Frontend URL: ${process.env.FRONTEND_URL}`);
-      console.log(`  Backend URL: ${process.env.BACKEND_URL}`);
-    });
-  } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
-  }
-})();
+app.listen(PORT, () => {
+  console.log(`✓ Server running on port ${PORT}`);
+  console.log(`  Frontend URL: ${process.env.FRONTEND_URL}`);
+});
