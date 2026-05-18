@@ -55,7 +55,6 @@ router.get("/linkedin/callback", async (req, res) => {
     const accessToken = tokenResponse.data.access_token;
 
     console.log("🔐 Step 2: Fetching user info via OpenID Connect...");
-    // Use /v2/userinfo endpoint for OpenID Connect
     const userInfoResponse = await axios.get(
       "https://api.linkedin.com/v2/userinfo",
       {
@@ -81,17 +80,17 @@ router.get("/linkedin/callback", async (req, res) => {
     let user = await db
       .select()
       .from(users)
-      .where(eq(users.linkedinId, linkedinId));
+      .where(eq(users.linkedin_id, linkedinId));
 
     if (user.length === 0) {
       console.log("🆕 Creating new user...");
       const result = await db
         .insert(users)
         .values({
-          linkedinId,
+          linkedin_id: linkedinId,
           email,
           name,
-          avatarUrl,
+          avatar_url: avatarUrl,
         })
         .returning();
       user = result;
@@ -103,21 +102,26 @@ router.get("/linkedin/callback", async (req, res) => {
         .set({
           email,
           name,
-          avatarUrl,
-          updatedAt: new Date(),
+          avatar_url: avatarUrl,
+          updated_at: new Date(),
         })
-        .where(eq(users.linkedinId, linkedinId));
+        .where(eq(users.linkedin_id, linkedinId));
       user = await db
         .select()
         .from(users)
-        .where(eq(users.linkedinId, linkedinId));
+        .where(eq(users.linkedin_id, linkedinId));
       console.log("✓ User updated:", user[0].id);
     }
 
     const token = generateToken(user[0].id);
     console.log("🎫 JWT generated");
 
-    const redirectUrl = `${process.env.FRONTEND_URL}/auth/success?token=${token}&userId=${user[0].id}`;
+    // Build redirect URL with https://
+    const frontendUrl = process.env.FRONTEND_URL.startsWith('http') 
+      ? process.env.FRONTEND_URL 
+      : `https://${process.env.FRONTEND_URL}`;
+    
+    const redirectUrl = `${frontendUrl}/auth/success?token=${token}&userId=${user[0].id}`;
     console.log("🔀 Redirecting to:", redirectUrl);
     res.redirect(redirectUrl);
   } catch (error) {
