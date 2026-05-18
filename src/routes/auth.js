@@ -54,18 +54,10 @@ router.get("/linkedin/callback", async (req, res) => {
     console.log("✓ Token received");
     const accessToken = tokenResponse.data.access_token;
 
-    console.log("🔐 Step 2: Fetching user profile...");
-    const profileResponse = await axios.get("https://api.linkedin.com/v2/me", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    console.log("✓ Profile received");
-
-    console.log("🔐 Step 3: Fetching email...");
-    const emailResponse = await axios.get(
-      "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
+    console.log("🔐 Step 2: Fetching user info via OpenID Connect...");
+    // Use /v2/userinfo endpoint for OpenID Connect
+    const userInfoResponse = await axios.get(
+      "https://api.linkedin.com/v2/userinfo",
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -73,14 +65,12 @@ router.get("/linkedin/callback", async (req, res) => {
       }
     );
 
-    console.log("✓ Email received");
+    console.log("✓ User info received");
 
-    const linkedinId = profileResponse.data.id;
-    const name =
-      `${profileResponse.data.localizedFirstName} ${profileResponse.data.localizedLastName}`.trim();
-    const email =
-      emailResponse.data.elements[0]?.["handle~"]?.emailAddress || null;
-    const avatarUrl = profileResponse.data.profilePicture?.displayImage || null;
+    const linkedinId = userInfoResponse.data.sub;
+    const name = userInfoResponse.data.name || "";
+    const email = userInfoResponse.data.email || null;
+    const avatarUrl = userInfoResponse.data.picture || null;
 
     console.log("📝 User data:", { linkedinId, name, email });
 
