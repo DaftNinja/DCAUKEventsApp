@@ -77,13 +77,23 @@ router.get("/linkedin/callback", async (req, res) => {
       return res.status(400).json({ error: "Could not retrieve email from LinkedIn" });
     }
 
+    console.log("🔐 Step 3: Checking if user exists...");
     let user = await db
       .select()
       .from(users)
       .where(eq(users.linkedinId, linkedinId));
 
+    console.log("User query result:", user);
+
     if (user.length === 0) {
       console.log("🆕 Creating new user...");
+      console.log("Insert values:", {
+        linkedinId,
+        email,
+        name,
+        avatarUrl,
+      });
+      
       const result = await db
         .insert(users)
         .values({
@@ -93,6 +103,7 @@ router.get("/linkedin/callback", async (req, res) => {
           avatarUrl,
         })
         .returning();
+      
       user = result;
       console.log("✓ User created:", user[0].id);
     } else {
@@ -106,10 +117,12 @@ router.get("/linkedin/callback", async (req, res) => {
           updatedAt: new Date(),
         })
         .where(eq(users.linkedinId, linkedinId));
+      
       user = await db
         .select()
         .from(users)
         .where(eq(users.linkedinId, linkedinId));
+      
       console.log("✓ User updated:", user[0].id);
     }
 
@@ -125,11 +138,16 @@ router.get("/linkedin/callback", async (req, res) => {
     res.redirect(redirectUrl);
   } catch (error) {
     console.error("❌ OAuth callback error:", error.message);
+    console.error("Full stack:", error.stack);
     if (error.response) {
       console.error("Response status:", error.response.status);
       console.error("Response data:", JSON.stringify(error.response.data));
     }
-    res.status(500).json({ error: "Authentication failed", details: error.message });
+    res.status(500).json({ 
+      error: "Authentication failed", 
+      details: error.message,
+      stack: error.stack 
+    });
   }
 });
 
