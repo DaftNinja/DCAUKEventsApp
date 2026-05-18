@@ -1,61 +1,46 @@
-import { pgTable, text, varchar, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { pgTable, text, timestamp, uuid, boolean, check } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  linkedinId: varchar("linkedin_id", { length: 255 }).notNull().unique(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  name: varchar("name", { length: 255 }).notNull(),
-  headline: varchar("headline", { length: 255 }), // Job title from LinkedIn
-  company: varchar("company", { length: 255 }), // Company from LinkedIn
-  avatarUrl: text("avatar_url"), // LinkedIn avatar
-  bio: text("bio"), // Optional user-added bio
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  linkedinId: text("linkedinId").unique().notNull(),
+  email: text("email").unique().notNull(),
+  name: text("name"),
+  headline: text("headline"),
+  company: text("company"),
+  avatarUrl: text("avatarUrl"),
+  bio: text("bio"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
 });
 
 export const events = pgTable("events", {
   id: uuid("id").primaryKey().defaultRandom(),
-  title: varchar("title", { length: 255 }).notNull(),
+  title: text("title").notNull(),
   description: text("description"),
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date"),
-  location: varchar("location", { length: 255 }), // NULL if virtual
-  isVirtual: boolean("is_virtual").default(false),
-  organiser: varchar("organiser", { length: 255 }).default("DCA"),
-  eventUrl: text("event_url"), // Link to event page
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  location: text("location"),
+  isVirtual: boolean("isVirtual").default(false),
+  organiser: text("organiser"),
+  eventUrl: text("eventUrl"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
 });
 
-export const rsvps = pgTable("rsvps", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  eventId: uuid("event_id")
-    .notNull()
-    .references(() => events.id, { onDelete: "cascade" }),
-  status: varchar("status", { length: 50 }).default("interested"), // 'interested' or 'going'
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// Relations
-export const usersRelations = relations(users, ({ many }) => ({
-  rsvps: many(rsvps),
-}));
-
-export const eventsRelations = relations(events, ({ many }) => ({
-  rsvps: many(rsvps),
-}));
-
-export const rsvpsRelations = relations(rsvps, ({ one }) => ({
-  user: one(users, {
-    fields: [rsvps.userId],
-    references: [users.id],
-  }),
-  event: one(events, {
-    fields: [rsvps.eventId],
-    references: [events.id],
-  }),
-}));
+export const rsvps = pgTable(
+  "rsvps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    eventId: uuid("eventId")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    createdAt: timestamp("createdAt").defaultNow(),
+  },
+  (table) => [
+    check("status_check", `"status" IN ('interested', 'going')`),
+  ]
+);
