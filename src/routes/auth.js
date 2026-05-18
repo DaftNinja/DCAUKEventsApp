@@ -13,7 +13,7 @@ router.get("/linkedin", (req, res) => {
     response_type: "code",
     client_id: process.env.LINKEDIN_CLIENT_ID,
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
-    scope: "openid profile email",
+    scope: "profile email",
     state: Math.random().toString(36).substring(7),
   });
 
@@ -95,7 +95,6 @@ router.get("/linkedin/callback", async (req, res) => {
 
     if (user.length === 0) {
       console.log("🆕 Creating new user...");
-      // Create new user
       const result = await db
         .insert(users)
         .values({
@@ -109,7 +108,6 @@ router.get("/linkedin/callback", async (req, res) => {
       console.log("✓ User created:", user[0].id);
     } else {
       console.log("🔄 Updating existing user...");
-      // Update existing user
       await db
         .update(users)
         .set({
@@ -126,20 +124,17 @@ router.get("/linkedin/callback", async (req, res) => {
       console.log("✓ User updated:", user[0].id);
     }
 
-    // Generate JWT
     const token = generateToken(user[0].id);
     console.log("🎫 JWT generated");
 
-    // Redirect to frontend with token
     const redirectUrl = `${process.env.FRONTEND_URL}/auth/success?token=${token}&userId=${user[0].id}`;
     console.log("🔀 Redirecting to:", redirectUrl);
     res.redirect(redirectUrl);
   } catch (error) {
     console.error("❌ OAuth callback error:", error.message);
-    console.error("Full error:", error);
     if (error.response) {
       console.error("Response status:", error.response.status);
-      console.error("Response data:", error.response.data);
+      console.error("Response data:", JSON.stringify(error.response.data));
     }
     res.status(500).json({ error: "Authentication failed", details: error.message });
   }
