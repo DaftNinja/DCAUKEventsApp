@@ -7,7 +7,6 @@ import { generateToken } from "../middleware/auth.js";
 
 const router = Router();
 
-// Step 1: Redirect user to LinkedIn authorization
 router.get("/linkedin", (req, res) => {
   const params = new URLSearchParams({
     response_type: "code",
@@ -22,7 +21,6 @@ router.get("/linkedin", (req, res) => {
   );
 });
 
-// Step 2: Handle LinkedIn callback
 router.get("/linkedin/callback", async (req, res) => {
   const { code, error } = req.query;
 
@@ -37,15 +35,20 @@ router.get("/linkedin/callback", async (req, res) => {
   try {
     console.log("🔐 Step 1: Exchanging code for token...");
     
-    // Exchange code for access token
+    // Exchange code for access token - use form-urlencoded, NOT JSON
     const tokenResponse = await axios.post(
       "https://www.linkedin.com/oauth/v2/accessToken",
-      {
+      new URLSearchParams({
         grant_type: "authorization_code",
         code,
         client_id: process.env.LINKEDIN_CLIENT_ID,
         client_secret: process.env.LINKEDIN_CLIENT_SECRET,
         redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
       }
     );
 
@@ -53,14 +56,13 @@ router.get("/linkedin/callback", async (req, res) => {
     const accessToken = tokenResponse.data.access_token;
 
     console.log("🔐 Step 2: Fetching user profile...");
-    // Fetch user profile from LinkedIn
     const profileResponse = await axios.get("https://api.linkedin.com/v2/me", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     });
 
-    console.log("✓ Profile received:", profileResponse.data);
+    console.log("✓ Profile received");
 
     console.log("🔐 Step 3: Fetching email...");
     const emailResponse = await axios.get(
@@ -72,7 +74,7 @@ router.get("/linkedin/callback", async (req, res) => {
       }
     );
 
-    console.log("✓ Email received:", emailResponse.data);
+    console.log("✓ Email received");
 
     const linkedinId = profileResponse.data.id;
     const name =
@@ -81,13 +83,12 @@ router.get("/linkedin/callback", async (req, res) => {
       emailResponse.data.elements[0]?.["handle~"]?.emailAddress || null;
     const avatarUrl = profileResponse.data.profilePicture?.displayImage || null;
 
-    console.log("📝 User data:", { linkedinId, name, email, avatarUrl });
+    console.log("📝 User data:", { linkedinId, name, email });
 
     if (!email) {
       return res.status(400).json({ error: "Could not retrieve email from LinkedIn" });
     }
 
-    // Upsert user
     let user = await db
       .select()
       .from(users)
@@ -105,7 +106,7 @@ router.get("/linkedin/callback", async (req, res) => {
         })
         .returning();
       user = result;
-      console.log("✓ User created:", user[0].id);
+      console.log("✓ User created");
     } else {
       console.log("🔄 Updating existing user...");
       await db
@@ -121,7 +122,7 @@ router.get("/linkedin/callback", async (req, res) => {
         .select()
         .from(users)
         .where(eq(users.linkedinId, linkedinId));
-      console.log("✓ User updated:", user[0].id);
+      console.log("✓ User updated");
     }
 
     const token = generateToken(user[0].id);
