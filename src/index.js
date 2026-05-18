@@ -16,26 +16,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Run migrations on startup
-async function runMigrations() {
+// Test database connection
+async function testDatabase() {
   try {
-    console.log("🔄 Running database migrations...");
-    const result = await db.execute("SELECT version FROM __drizzle_migrations__");
-    console.log("✓ Migrations table exists");
+    const result = await db.execute("SELECT NOW()");
+    console.log("✓ Database connected:", result.rows[0]);
   } catch (error) {
-    console.log("⚠️  First run - creating migrations table...");
-    try {
-      await db.execute(`
-        CREATE TABLE IF NOT EXISTS __drizzle_migrations__ (
-          id SERIAL PRIMARY KEY,
-          hash TEXT NOT NULL,
-          created_at BIGINT NOT NULL
-        )
-      `);
-      console.log("✓ Migrations table created");
-    } catch (e) {
-      console.error("Migration setup failed:", e.message);
-    }
+    console.error("✗ Database connection failed:", error.message);
+    throw error;
   }
 }
 
@@ -66,7 +54,7 @@ const PORT = process.env.PORT || 8080;
 // Start server
 (async () => {
   try {
-    await runMigrations();
+    await testDatabase();
     
     app.listen(PORT, () => {
       console.log(`✓ Server running on port ${PORT}`);
