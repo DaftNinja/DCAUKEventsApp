@@ -12,7 +12,7 @@ router.get("/linkedin", (req, res) => {
     response_type: "code",
     client_id: process.env.LINKEDIN_CLIENT_ID,
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
-    scope: "profile email",
+    scope: "openid profile email",
     state: Math.random().toString(36).substring(7),
   });
 
@@ -35,7 +35,6 @@ router.get("/linkedin/callback", async (req, res) => {
   try {
     console.log("🔐 Step 1: Exchanging code for token...");
     
-    // Exchange code for access token - use form-urlencoded, NOT JSON
     const tokenResponse = await axios.post(
       "https://www.linkedin.com/oauth/v2/accessToken",
       new URLSearchParams({
@@ -106,7 +105,7 @@ router.get("/linkedin/callback", async (req, res) => {
         })
         .returning();
       user = result;
-      console.log("✓ User created");
+      console.log("✓ User created:", user[0].id);
     } else {
       console.log("🔄 Updating existing user...");
       await db
@@ -122,7 +121,7 @@ router.get("/linkedin/callback", async (req, res) => {
         .select()
         .from(users)
         .where(eq(users.linkedinId, linkedinId));
-      console.log("✓ User updated");
+      console.log("✓ User updated:", user[0].id);
     }
 
     const token = generateToken(user[0].id);
