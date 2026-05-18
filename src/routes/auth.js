@@ -14,7 +14,7 @@ router.get("/linkedin", (req, res) => {
     client_id: process.env.LINKEDIN_CLIENT_ID,
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
     scope: "openid profile email",
-    state: Math.random().toString(36).substring(7), // Basic state for CSRF protection
+    state: Math.random().toString(36).substring(7),
   });
 
   res.redirect(
@@ -35,6 +35,8 @@ router.get("/linkedin/callback", async (req, res) => {
   }
 
   try {
+    console.log("🔐 Step 1: Exchanging code for token...");
+    
     // Exchange code for access token
     const tokenResponse = await axios.post(
       "https://www.linkedin.com/oauth/v2/accessToken",
@@ -47,8 +49,10 @@ router.get("/linkedin/callback", async (req, res) => {
       }
     );
 
+    console.log("✓ Token received");
     const accessToken = tokenResponse.data.access_token;
 
+    console.log("🔐 Step 2: Fetching user profile...");
     // Fetch user profile from LinkedIn
     const profileResponse = await axios.get("https://api.linkedin.com/v2/me", {
       headers: {
@@ -56,6 +60,9 @@ router.get("/linkedin/callback", async (req, res) => {
       },
     });
 
+    console.log("✓ Profile received:", profileResponse.data);
+
+    console.log("🔐 Step 3: Fetching email...");
     const emailResponse = await axios.get(
       "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
       {
@@ -65,12 +72,16 @@ router.get("/linkedin/callback", async (req, res) => {
       }
     );
 
+    console.log("✓ Email received:", emailResponse.data);
+
     const linkedinId = profileResponse.data.id;
     const name =
       `${profileResponse.data.localizedFirstName} ${profileResponse.data.localizedLastName}`.trim();
     const email =
       emailResponse.data.elements[0]?.["handle~"]?.emailAddress || null;
     const avatarUrl = profileResponse.data.profilePicture?.displayImage || null;
+
+    console.log("📝 User data:", { linkedinId, name, email, avatarUrl });
 
     if (!email) {
       return res.status(400).json({ error: "Could not retrieve email from LinkedIn" });
@@ -83,6 +94,7 @@ router.get("/linkedin/callback", async (req, res) => {
       .where(eq(users.linkedinId, linkedinId));
 
     if (user.length === 0) {
+      console.log("🆕 Creating new user...");
       // Create new user
       const result = await db
         .insert(users)
@@ -94,7 +106,9 @@ router.get("/linkedin/callback", async (req, res) => {
         })
         .returning();
       user = result;
+      console.log("✓ User created:", user[0].id);
     } else {
+      console.log("🔄 Updating existing user...");
       // Update existing user
       await db
         .update(users)
@@ -109,18 +123,25 @@ router.get("/linkedin/callback", async (req, res) => {
         .select()
         .from(users)
         .where(eq(users.linkedinId, linkedinId));
+      console.log("✓ User updated:", user[0].id);
     }
 
     // Generate JWT
     const token = generateToken(user[0].id);
+    console.log("🎫 JWT generated");
 
     // Redirect to frontend with token
-    res.redirect(
-      `${process.env.FRONTEND_URL}/auth/success?token=${token}&userId=${user[0].id}`
-    );
+    const redirectUrl = `${process.env.FRONTEND_URL}/auth/success?token=${token}&userId=${user[0].id}`;
+    console.log("🔀 Redirecting to:", redirectUrl);
+    res.redirect(redirectUrl);
   } catch (error) {
-    console.error("OAuth callback error:", error.message);
-    res.status(500).json({ error: "Authentication failed" });
+    console.error("❌ OAuth callback error:", error.message);
+    console.error("Full error:", error);
+    if (error.response) {
+      console.error("Response status:", error.response.status);
+      console.error("Response data:", error.response.data);
+    }
+    res.status(500).json({ error: "Authentication failed", details: error.message });
   }
 });
 
