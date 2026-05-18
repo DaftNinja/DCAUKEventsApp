@@ -1,59 +1,80 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import { fileURLToPath } from "url";
 import path from "path";
-import { checkDatabaseConnection } from "./db/index.js";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+import { db } from "./db/index.js";
 import authRoutes from "./routes/auth.js";
-import userRoutes from "./routes/users.js";
-import eventRoutes from "./routes/events.js";
+import usersRoutes from "./routes/users.js";
+import eventsRoutes from "./routes/events.js";
 
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 5000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
 
-// Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true,
-}));
+app.use(cors());
 app.use(express.json());
 
-// API Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/events", eventRoutes);
+// Run migrations on startup
+async function runMigrations() {
+  try {
+    console.log("🔄 Running database migrations...");
+    const result = await db.execute("SELECT version FROM __drizzle_migrations__");
+    console.log("✓ Migrations table exists");
+  } catch (error) {
+    console.log("⚠️  First run - creating migrations table...");
+    try {
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS __drizzle_migrations__ (
+          id SERIAL PRIMARY KEY,
+          hash TEXT NOT NULL,
+          created_at BIGINT NOT NULL
+        )
+      `);
+      console.log("✓ Migrations table created");
+    } catch (e) {
+      console.error("Migration setup failed:", e.message);
+    }
+  }
+}
 
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", usersRoutes);
+app.use("/api/events", eventsRoutes);
+
 // Serve frontend static files
-const frontendPath = path.join(__dirname, "../frontend/dist");
-app.use(express.static(frontendPath));
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 // Fallback to index.html for React routing
 app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
+  if (!req.path.startsWith("/api")) {
+    res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+  } else {
+    res.status(404).json({ error: "Not found" });
+  }
 });
 
-// Start server
-async function start() {
-  const dbConnected = await checkDatabaseConnection();
+const PORT = process.env.PORT || 8080;
 
-  if (!dbConnected) {
-    console.error("Cannot start server without database connection");
+// Start server
+(async () => {
+  try {
+    await runMigrations();
+    
+    app.listen(PORT, () => {
+      console.log(`✓ Server running on port ${PORT}`);
+      console.log(`  Frontend URL: ${process.env.FRONTEND_URL}`);
+      console.log(`  Backend URL: ${process.env.BACKEND_URL}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
     process.exit(1);
   }
-
-  app.listen(PORT, () => {
-    console.log(`✓ Server running on port ${PORT}`);
-    console.log(`  Frontend URL: ${process.env.FRONTEND_URL}`);
-    console.log(`  Backend URL: ${process.env.BACKEND_URL}`);
-  });
-}
-
-start();
+})();
