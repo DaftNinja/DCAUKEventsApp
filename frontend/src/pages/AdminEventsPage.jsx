@@ -61,20 +61,41 @@ export default function AdminEventsPage() {
         sponsors: form.sponsors,
         description: form.description
       };
-      const res = await fetch("/api/events", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify(eventData)
-      });
+
+      let res;
+      if (editingId) {
+        res = await fetch(`/api/events/${editingId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("token")}`
+          },
+          body: JSON.stringify(eventData)
+        });
+      } else {
+        res = await fetch("/api/events", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("token")}`
+          },
+          body: JSON.stringify(eventData)
+        });
+      }
+
       if (!res.ok) throw new Error("Failed");
-      const newEvent = await res.json();
-      setEvents(prev => [...prev, newEvent]);
+      const result = await res.json();
+      
+      if (editingId) {
+        setEvents(prev => prev.map(e => e.id === editingId ? result : e));
+        alert("✓ Event updated!");
+      } else {
+        setEvents(prev => [...prev, result]);
+        alert("✓ Event created!");
+      }
+      
       resetForm();
       setShowForm(false);
-      alert("✓ Event created!");
     } catch (err) {
       alert("Error: " + err.message);
     }
