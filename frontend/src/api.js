@@ -1,30 +1,41 @@
-import axios from 'axios';
+const API_URL = `https://${process.env.REACT_APP_API_URL || window.location.hostname}/api`;
 
-// Use relative paths so it works in both dev (via proxy) and production (same origin)
-const api = axios.create({
-  baseURL: '/api',
-});
+async function request(method, endpoint, body = null) {
+  const token = localStorage.getItem("token");
+  const headers = {
+    "Content-Type": "application/json",
+  };
 
-// Add JWT token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
-  return config;
-});
 
-// Handle auth errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('userId');
-      window.location.href = '/';
-    }
-    return Promise.reject(error);
+  const options = { method, headers };
+  if (body) {
+    options.body = JSON.stringify(body);
   }
-);
 
-export default api;
+  const response = await fetch(`${API_URL}${endpoint}`, options);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export const getEvents = () => request("GET", "/events");
+
+export const getEventDetail = (id) => request("GET", `/events/${id}`);
+
+export const rsvpEvent = (eventId, status = "going") =>
+  request("POST", `/events/${eventId}/rsvp`, { status });
+
+export const unrsvpEvent = (eventId) =>
+  request("DELETE", `/events/${eventId}/rsvp`);
+
+export const getCurrentUser = () => request("GET", "/users/me");
+
+export const updateProfile = (data) =>
+  request("PUT", "/users/me", data);
