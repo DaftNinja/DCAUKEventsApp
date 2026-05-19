@@ -20,6 +20,7 @@ export default function AdminEventsPage() {
     endDate: "",
     endTime: "",
     organiser: "",
+    organizerEmail: "",
     sponsors: "",
     description: "",
   });
@@ -67,6 +68,7 @@ export default function AdminEventsPage() {
         startDate: startDateTime.toISOString(),
         endDate: endDateTime.toISOString(),
         organiser: formData.organiser,
+        organizerEmail: formData.organizerEmail,
         sponsors: formData.sponsors,
         description: formData.description,
         isVirtual: formData.location.toLowerCase() === "virtual",
@@ -96,11 +98,12 @@ export default function AdminEventsPage() {
         endDate: "",
         endTime: "",
         organiser: "",
+        organizerEmail: "",
         sponsors: "",
         description: "",
       });
       setShowForm(false);
-      alert("✓ Event created successfully!");
+      alert("✓ Event created! Organizer notification sent for approval.");
     } catch (error) {
       console.error("Failed to create event:", error);
       alert("Failed to create event: " + error.message);
@@ -120,7 +123,7 @@ export default function AdminEventsPage() {
 
       if (!response.ok) throw new Error("Failed to delete event");
       setEvents((prev) => prev.filter((e) => e.id !== eventId));
-      alert("✓ Event deleted successfully!");
+      alert("✓ Event deleted!");
     } catch (error) {
       console.error("Failed to delete event:", error);
       alert("Failed to delete event: " + error.message);
@@ -209,9 +212,16 @@ export default function AdminEventsPage() {
 
             <div className="form-row">
               <div className="form-group">
-                <label>Organiser *</label>
+                <label>Organiser Name *</label>
                 <input type="text" name="organiser" value={formData.organiser} onChange={handleInputChange} required placeholder="e.g., DCA EMEA" />
               </div>
+              <div className="form-group">
+                <label>Organiser Email *</label>
+                <input type="email" name="organizerEmail" value={formData.organizerEmail} onChange={handleInputChange} required placeholder="organizer@example.com" />
+              </div>
+            </div>
+
+            <div className="form-row">
               <div className="form-group">
                 <label>Sponsors</label>
                 <input type="text" name="sponsors" value={formData.sponsors} onChange={handleInputChange} placeholder="e.g., Company A, Company B" />
@@ -238,12 +248,16 @@ export default function AdminEventsPage() {
               <div key={event.id} className="event-admin-card">
                 <div className="event-header">
                   <h4>{event.title}</h4>
-                  <button className="btn-delete" onClick={() => handleDeleteEvent(event.id)}>🗑️</button>
+                  <div className="event-meta-inline">
+                    <span className={`status-badge status-${event.status}`}>{event.status.toUpperCase()}</span>
+                    <button className="btn-delete" onClick={() => handleDeleteEvent(event.id)}>🗑️</button>
+                  </div>
                 </div>
                 <p><strong>📍 Location:</strong> {event.location}</p>
                 <p><strong>📅 Date:</strong> {new Date(event.startDate).toLocaleDateString("en-GB")}</p>
                 <p><strong>⏰ Time:</strong> {new Date(event.startDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} - {new Date(event.endDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</p>
                 <p><strong>🎤 Organiser:</strong> {event.organiser}</p>
+                <p><strong>📧 Organiser Email:</strong> {event.organizerEmail}</p>
                 {event.eventUrl && <p><strong>💼 Sponsors:</strong> {event.eventUrl}</p>}
                 {event.description && <p><strong>📝 Description:</strong> {event.description}</p>}
                 <p className="attendees"><strong>👥 Attendees:</strong> {event.attendees?.length || 0}</p>
