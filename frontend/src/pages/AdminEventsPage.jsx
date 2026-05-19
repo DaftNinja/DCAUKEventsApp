@@ -26,26 +26,33 @@ export default function AdminEventsPage() {
   });
 
   useEffect(() => {
+    console.log("🔄 AdminEventsPage mounted");
     checkAdminAccess();
   }, []);
 
   const checkAdminAccess = async () => {
     try {
+      console.log("🔍 Checking admin access...");
       setLoading(true);
       const userData = await getCurrentUser();
-      console.log("User data:", userData);
+      console.log("✓ Got user:", userData);
       setUser(userData);
 
-      if (userData.email === ADMIN_EMAIL) {
+      const isUserAdmin = userData.email === ADMIN_EMAIL;
+      console.log(`📧 Email: ${userData.email}, Is admin: ${isUserAdmin}`);
+
+      if (isUserAdmin) {
+        console.log("✓ User is admin, fetching events...");
         setIsAdmin(true);
         await fetchEvents();
       } else {
+        console.log("❌ User is not admin");
         setError("Access denied: not an admin");
         setTimeout(() => navigate("/events"), 2000);
       }
     } catch (error) {
-      console.error("Failed to check admin access:", error);
-      setError("Failed to verify admin status");
+      console.error("❌ Failed to check admin access:", error);
+      setError("Failed to verify admin status: " + error.message);
       setTimeout(() => navigate("/"), 2000);
     } finally {
       setLoading(false);
@@ -54,6 +61,7 @@ export default function AdminEventsPage() {
 
   const fetchEvents = async () => {
     try {
+      console.log("📥 Fetching events...");
       const token = localStorage.getItem("token");
       const response = await fetch("/api/events", {
         headers: {
@@ -61,16 +69,18 @@ export default function AdminEventsPage() {
         }
       });
       
+      console.log("📊 Events response status:", response.status);
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch events: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log("✓ Events loaded:", data.length);
       setEvents(data);
-      console.log("Events loaded:", data.length);
     } catch (error) {
-      console.error("Failed to fetch events:", error);
-      setError("Failed to load events");
+      console.error("❌ Failed to fetch events:", error);
+      setError("Failed to load events: " + error.message);
     }
   };
 
@@ -100,7 +110,7 @@ export default function AdminEventsPage() {
         isVirtual: formData.location.toLowerCase() === "virtual",
       };
 
-      console.log("Creating event:", eventData);
+      console.log("📝 Creating event:", eventData);
 
       const response = await fetch("/api/events", {
         method: "POST",
@@ -132,8 +142,8 @@ export default function AdminEventsPage() {
       setShowForm(false);
       alert("✓ Event created successfully!");
     } catch (error) {
-      console.error("Failed to create event:", error);
-      alert("❌ Failed to create event: " + error.message);
+      console.error("❌ Failed to create event:", error);
+      alert("Failed to create event: " + error.message);
     }
   };
 
@@ -155,15 +165,19 @@ export default function AdminEventsPage() {
       setEvents((prev) => prev.filter((e) => e.id !== eventId));
       alert("✓ Event deleted successfully!");
     } catch (error) {
-      console.error("Failed to delete event:", error);
-      alert("❌ Failed to delete event: " + error.message);
+      console.error("❌ Failed to delete event:", error);
+      alert("Failed to delete event: " + error.message);
     }
   };
+
+  console.log("🎨 Rendering admin page - loading:", loading, "isAdmin:", isAdmin, "error:", error);
 
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-container">Loading...</div>
+        <div className="admin-container">
+          <p style={{ color: "white", textAlign: "center", paddingTop: "100px" }}>Loading admin panel...</p>
+        </div>
       </div>
     );
   }
