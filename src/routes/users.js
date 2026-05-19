@@ -2,48 +2,55 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-import { authMiddleware } from "../middleware/auth.js";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = Router();
 
-// Get current user profile
-router.get("/me", authMiddleware, async (req, res) => {
+// GET current user
+router.get("/me", authenticateToken, async (req, res) => {
   try {
     const user = await db
       .select()
       .from(users)
       .where(eq(users.id, req.userId));
 
-    if (!user.length) {
+    if (user.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
     res.json(user[0]);
   } catch (error) {
-    console.error("Error fetching user:", error);
+    console.error("Failed to fetch user:", error);
     res.status(500).json({ error: "Failed to fetch user" });
   }
 });
 
-// Update user profile
-router.put("/me", authMiddleware, async (req, res) => {
+// PUT update user profile
+router.put("/me", authenticateToken, async (req, res) => {
   try {
-    const { bio, headline, company } = req.body;
+    const { name, headline, company, bio, avatarUrl } = req.body;
 
     const updated = await db
       .update(users)
       .set({
-        bio: bio || undefined,
+        name: name || undefined,
         headline: headline || undefined,
         company: company || undefined,
+        bio: bio || undefined,
+        avatarUrl: avatarUrl || undefined,
         updatedAt: new Date(),
       })
       .where(eq(users.id, req.userId))
       .returning();
 
+    if (updated.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log("✓ User updated:", req.userId);
     res.json(updated[0]);
   } catch (error) {
-    console.error("Error updating user:", error);
+    console.error("Failed to update user:", error);
     res.status(500).json({ error: "Failed to update user" });
   }
 });
