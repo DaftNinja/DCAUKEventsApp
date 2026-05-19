@@ -48,8 +48,7 @@ export default function AdminEventsPage() {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
@@ -81,7 +80,7 @@ export default function AdminEventsPage() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to create event");
+        throw new Error(err.error || "Failed");
       }
 
       const newEvent = await res.json();
@@ -92,6 +91,54 @@ export default function AdminEventsPage() {
       });
       setShowForm(false);
       alert("✓ Event created!");
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this event?")) return;
+    try {
+      await fetch(`/api/events/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      });
+      setEvents(prev => prev.filter(e => e.id !== id));
+      alert("✓ Deleted!");
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  const handleApprove = async (id) => {
+    try {
+      const res = await fetch(`/api/events/${id}/approve`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      });
+      const updated = await res.json();
+      setEvents(prev => prev.map(e => e.id === id ? updated : e));
+      alert("✓ Approved!");
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  const handleReject = async (id) => {
+    const reason = prompt("Reason for rejection:");
+    if (!reason) return;
+    try {
+      const res = await fetch(`/api/events/${id}/reject`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify({ reason })
+      });
+      const updated = await res.json();
+      setEvents(prev => prev.map(e => e.id === id ? updated : e));
+      alert("✓ Rejected!");
     } catch (err) {
       alert("Error: " + err.message);
     }
@@ -182,35 +229,57 @@ export default function AdminEventsPage() {
 
         <div style={{marginTop: "30px"}}>
           {events.map(e => (
-            <div key={e.id} style={{background: "white", color: "#333", padding: "20px", marginBottom: "15px", borderRadius: "8px", border: `3px solid ${e.status === "approved" ? "#10b981" : e.status === "rejected" ? "#ef4444" : "#fbbf24"}`}}>
-              <div style={{display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "10px"}}>
-                <div>
-                  <h3 style={{margin: "0 0 8px 0"}}>{e.title}</h3>
-                  <span style={{display: "inline-block", padding: "4px 12px", borderRadius: "20px", fontSize: "0.85em", fontWeight: "600", background: e.status === "approved" ? "#d1fae5" : e.status === "rejected" ? "#fee2e2" : "#fef3c7", color: e.status === "approved" ? "#065f46" : e.status === "rejected" ? "#7f1d1d" : "#92400e"}}>
-                    {e.status.toUpperCase()}
-                  </span>
-                </div>
-                {isAdmin && <button onClick={() => { if (confirm("Delete this event?")) { fetch(`/api/events/${e.id}`, {method: "DELETE", headers: {"Authorization": `Bearer ${localStorage.getItem("token")}`}}).then(() => { setEvents(prev => prev.filter(ev => ev.id !== e.id)); alert("✓ Deleted!"); }); } }} style={{padding: "8px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer"}}>🗑️ Delete</button>}
-              </div>
-
-              <p><strong>📍 Location:</strong> {e.location}</p>
-              <p><strong>📅 Date:</strong> {new Date(e.startDate).toLocaleDateString("en-GB")}</p>
-              <p><strong>⏰ Time:</strong> {new Date(e.startDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} - {new Date(e.endDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</p>
-              <p><strong>🎤 Organiser:</strong> {e.organiser}</p>
-              <p><strong>📧 Email:</strong> {e.organizerEmail}</p>
-              {e.description && <p><strong>📝 Description:</strong> {e.description}</p>}
-              <p><strong>👥 Attendees:</strong> {e.attendees?.length || 0}</p>
-
-              {e.status === "pending" && user?.email === e.organizerEmail && (
-                <div style={{display: "flex", gap: "10px", marginTop: "15px", paddingTop: "15px", borderTop: "1px solid #e0e0e0"}}>
-                  <button onClick={() => { fetch(`/api/events/${e.id}/approve`, {method: "PUT", headers: {"Authorization": `Bearer ${localStorage.getItem("token")}`}}).then(res => res.json()).then(updated => { setEvents(prev => prev.map(ev => ev.id === e.id ? updated : ev)); alert("✓ Approved!"); }); }} style={{padding: "10px 16px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>✅ Approve</button>
-                  <button onClick={() => { const reason = prompt("Reason for rejection:"); if (reason) { fetch(`/api/events/${e.id}/reject`, {method: "PUT", headers: {"Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}`}, body: JSON.stringify({reason})}).then(res => res.json()).then(updated => { setEvents(prev => prev.map(ev => ev.id === e.id ? updated : ev)); alert("✓ Rejected!"); }); } }} style={{padding: "10px 16px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>❌ Reject</button>
-                </div>
-              )}
-            </div>
+            <EventCard key={e.id} event={e} user={user} isAdmin={isAdmin} onDelete={handleDelete} onApprove={handleApprove} onReject={handleReject} />
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function EventCard({ event, user, isAdmin, onDelete, onApprove, onReject }) {
+  const getBorderColor = () => {
+    if (event.status === "approved") return "#10b981";
+    if (event.status === "rejected") return "#ef4444";
+    return "#fbbf24";
+  };
+
+  const getStatusColor = () => {
+    if (event.status === "approved") return { bg: "#d1fae5", text: "#065f46" };
+    if (event.status === "rejected") return { bg: "#fee2e2", text: "#7f1d1d" };
+    return { bg: "#fef3c7", text: "#92400e" };
+  };
+
+  const showApprovalButtons = event.status === "pending" && user?.email === event.organizerEmail;
+
+  return (
+    <div style={{background: "white", color: "#333", padding: "20px", marginBottom: "15px", borderRadius: "8px", border: `3px solid ${getBorderColor()}`}}>
+      <div style={{display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "10px"}}>
+        <div>
+          <h3 style={{margin: "0 0 8px 0"}}>{event.title}</h3>
+          <span style={{display: "inline-block", padding: "4px 12px", borderRadius: "20px", fontSize: "0.85em", fontWeight: "600", background: getStatusColor().bg, color: getStatusColor().text}}>
+            {event.status.toUpperCase()}
+          </span>
+        </div>
+        {isAdmin && (
+          <button onClick={() => onDelete(event.id)} style={{padding: "8px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer"}}>🗑️ Delete</button>
+        )}
+      </div>
+
+      <p><strong>📍 Location:</strong> {event.location}</p>
+      <p><strong>📅 Date:</strong> {new Date(event.startDate).toLocaleDateString("en-GB")}</p>
+      <p><strong>⏰ Time:</strong> {new Date(event.startDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} - {new Date(event.endDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</p>
+      <p><strong>🎤 Organiser:</strong> {event.organiser}</p>
+      <p><strong>📧 Email:</strong> {event.organizerEmail}</p>
+      {event.description && <p><strong>📝 Description:</strong> {event.description}</p>}
+      <p><strong>👥 Attendees:</strong> {event.attendees?.length || 0}</p>
+
+      {showApprovalButtons && (
+        <div style={{display: "flex", gap: "10px", marginTop: "15px", paddingTop: "15px", borderTop: "1px solid #e0e0e0"}}>
+          <button onClick={() => onApprove(event.id)} style={{padding: "10px 16px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>✅ Approve</button>
+          <button onClick={() => onReject(event.id)} style={{padding: "10px 16px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>❌ Reject</button>
+        </div>
+      )}
     </div>
   );
 }
