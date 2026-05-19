@@ -12,7 +12,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check if token exists in localStorage
     const token = localStorage.getItem("token");
+    console.log("🔍 Checking auth status, token exists:", !!token);
     setIsAuthenticated(!!token);
     setLoading(false);
   }, []);
@@ -28,15 +30,15 @@ export default function App() {
         <Route path="/auth/success" element={<AuthCallback />} />
         <Route
           path="/events"
-          element={isAuthenticated ? <EventsPage /> : <Navigate to="/" />}
+          element={isAuthenticated ? <EventsPage /> : <Navigate to="/" replace />}
         />
         <Route
           path="/my-events"
-          element={isAuthenticated ? <MyEventsPage /> : <Navigate to="/" />}
+          element={isAuthenticated ? <MyEventsPage /> : <Navigate to="/" replace />}
         />
         <Route
           path="/profile"
-          element={isAuthenticated ? <ProfilePage /> : <Navigate to="/" />}
+          element={isAuthenticated ? <ProfilePage /> : <Navigate to="/" replace />}
         />
       </Routes>
     </Router>
