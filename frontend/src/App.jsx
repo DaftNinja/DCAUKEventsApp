@@ -8,15 +8,22 @@ import ProfilePage from "./pages/ProfilePage";
 import "./App.css";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    // Check on initial load
+    return !!localStorage.getItem("token");
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check if token exists in localStorage
-    const token = localStorage.getItem("token");
-    console.log("🔍 Checking auth status, token exists:", !!token);
-    setIsAuthenticated(!!token);
-    setLoading(false);
+    // Listen for storage changes (when AuthCallback saves token)
+    const handleStorageChange = () => {
+      const token = localStorage.getItem("token");
+      console.log("📡 Storage changed, token exists:", !!token);
+      setIsAuthenticated(!!token);
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   if (loading) {
@@ -27,7 +34,7 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/auth/success" element={<AuthCallback />} />
+        <Route path="/auth/success" element={<AuthCallback setIsAuthenticated={setIsAuthenticated} />} />
         <Route
           path="/events"
           element={isAuthenticated ? <EventsPage /> : <Navigate to="/" replace />}

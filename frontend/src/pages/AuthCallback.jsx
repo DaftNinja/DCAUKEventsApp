@@ -1,43 +1,53 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
-export default function AuthCallback() {
-  const [searchParams] = useSearchParams();
+export default function AuthCallback({ setIsAuthenticated }) {
   const navigate = useNavigate();
-  const [error, setError] = useState(null);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const userId = searchParams.get('userId');
+    const token = searchParams.get("token");
+    const userId = searchParams.get("userId");
 
     if (token && userId) {
-      // Store token in localStorage
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('userId', userId);
+      console.log("✓ Token from URL:", token.substring(0, 20) + "...");
+      console.log("✓ UserId from URL:", userId);
+
+      // Store token and user ID
+      localStorage.setItem("token", token);
+      localStorage.setItem("userId", userId);
       
-      console.log('✓ Auth successful, redirecting to events...');
-      // Redirect to events page
-      navigate('/events', { replace: true });
+      console.log("✓ Saved to localStorage");
+
+      // Update parent component state
+      if (setIsAuthenticated) {
+        setIsAuthenticated(true);
+      }
+
+      // Navigate to events after a brief delay to ensure state updates
+      setTimeout(() => {
+        console.log("🔀 Navigating to /events");
+        navigate("/events", { replace: true });
+      }, 50);
     } else {
-      setError('Missing auth token');
-      setTimeout(() => navigate('/', { replace: true }), 2000);
+      console.error("❌ No token or userId in URL");
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 50);
     }
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, setIsAuthenticated]);
 
   return (
-    <div style={{ textAlign: 'center', padding: '2rem' }}>
-      {error ? (
-        <div>
-          <h1>❌ Auth Error</h1>
-          <p>{error}</p>
-          <p>Redirecting...</p>
-        </div>
-      ) : (
-        <div>
-          <h1>✓ Logging you in...</h1>
-          <p>Redirecting to events...</p>
-        </div>
-      )}
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      color: "white",
+      fontSize: "1.2em"
+    }}>
+      ✓ You're logged in. Redirecting...
     </div>
   );
 }
