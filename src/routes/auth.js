@@ -7,9 +7,6 @@ import { generateToken } from "../middleware/auth.js";
 
 const router = Router();
 
-// Add request timeout
-const TIMEOUT = 30000; // 30 seconds
-
 router.get("/linkedin", (req, res) => {
   const params = new URLSearchParams({
     response_type: "code",
@@ -25,27 +22,18 @@ router.get("/linkedin", (req, res) => {
 });
 
 router.get("/linkedin/callback", async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, error_description } = req.query;
 
-  // Set timeout
-  const timeout = setTimeout(() => {
-    if (!res.headersSent) {
-      console.error("❌ Request timeout after 30s");
-      res.status(500).json({ error: "Authentication timeout" });
-    }
-  }, TIMEOUT);
+  if (error) {
+    console.log("❌ LinkedIn OAuth error:", error, error_description);
+    return res.redirect(`/?error=${encodeURIComponent(error_description || "LinkedIn auth failed")}`);
+  }
+
+  if (!code) {
+    return res.redirect("/?error=Missing%20authorization%20code");
+  }
 
   try {
-    if (error) {
-      clearTimeout(timeout);
-      return res.status(400).json({ error: "LinkedIn auth failed" });
-    }
-
-    if (!code) {
-      clearTimeout(timeout);
-      return res.status(400).json({ error: "Missing authorization code" });
-    }
-
     console.log("🔐 Step 1: Exchanging code for token...");
     
     const tokenResponse = await axios.post(
@@ -61,7 +49,6 @@ router.get("/linkedin/callback", async (req, res) => {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        timeout: 10000,
       }
     );
 
@@ -75,7 +62,6 @@ router.get("/linkedin/callback", async (req, res) => {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-        timeout: 10000,
       }
     );
 
@@ -89,19 +75,18 @@ router.get("/linkedin/callback", async (req, res) => {
     console.log("📝 User data:", { linkedinId, name, email });
 
     if (!email) {
-      clearTimeout(timeout);
-      return res.status(400).json({ error: "Could not retrieve email from LinkedIn" });
+      return res.redirect("/?error=Could%20not%20retrieve%20email%20from%20LinkedIn");
     }
 
     console.log("🔐 Step 3: Checking if user exists...");
-    let user = await db
+    let existingUser = await db
       .select()
       .from(users)
       .where(eq(users.linkedinId, linkedinId));
 
-    console.log("✓ User query completed, result length:", user.length);
+    console.log("✓ User query completed, result length:", existingUser.length);
 
-    if (user.length === 0) {
+    if (existingUser.length === 0) {
       console.log("🆕 Creating new user...");
       const result = await db
         .insert(users)
@@ -110,11 +95,12 @@ router.get("/linkedin/callback", async (req, res) => {
           email,
           name,
           avatarUrl,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         })
         .returning();
-      
-      user = result;
-      console.log("✓ User created:", user[0].id);
+      existingUser = result;
+      console.log("✓ User created:", result[0].id);
     } else {
       console.log("🔄 Updating existing user...");
       await db
@@ -126,42 +112,26 @@ router.get("/linkedin/callback", async (req, res) => {
           updatedAt: new Date(),
         })
         .where(eq(users.linkedinId, linkedinId));
-      
-      user = await db
-        .select()
-        .from(users)
-        .where(eq(users.linkedinId, linkedinId));
-      
-      console.log("✓ User updated:", user[0].id);
+      console.log("✓ User updated:", existingUser[0].id);
     }
 
-    const token = generateToken(user[0].id);
+    const token = generateToken(existingUser[0].id);
     console.log("🎫 JWT generated");
 
-    const frontendUrl = process.env.FRONTEND_URL.startsWith('http') 
+    const frontendUrl = process.env.FRONTEND_URL.startsWith("http") 
       ? process.env.FRONTEND_URL 
       : `https://${process.env.FRONTEND_URL}`;
     
-    const redirectUrl = `${frontendUrl}/auth/success?token=${token}&userId=${user[0].id}`;
+    const redirectUrl = `${frontendUrl}/auth/success?token=${token}&userId=${existingUser[0].id}`;
     console.log("🔀 Redirecting to:", redirectUrl);
-    
-    clearTimeout(timeout);
     res.redirect(redirectUrl);
   } catch (error) {
-    clearTimeout(timeout);
     console.error("❌ OAuth callback error:", error.message);
-    console.error("Full stack:", error.stack);
     if (error.response) {
       console.error("Response status:", error.response.status);
       console.error("Response data:", JSON.stringify(error.response.data));
     }
-    
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: "Authentication failed", 
-        details: error.message,
-      });
-    }
+    res.redirect(`/?error=${encodeURIComponent("Authentication failed: " + error.message)}`);
   }
 });
 
