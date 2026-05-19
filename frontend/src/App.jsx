@@ -3,22 +3,20 @@ import { useEffect, useState } from "react";
 import HomePage from "./pages/HomePage";
 import EventsPage from "./pages/EventsPage";
 import MyEventsPage from "./pages/MyEventsPage";
+import AdminEventsPage from "./pages/AdminEventsPage";
 import AuthCallback from "./pages/AuthCallback";
 import ProfilePage from "./pages/ProfilePage";
 import "./App.css";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Check on initial load
     return !!localStorage.getItem("token");
   });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Listen for storage changes (when AuthCallback saves token)
     const handleStorageChange = () => {
       const token = localStorage.getItem("token");
-      console.log("📡 Storage changed, token exists:", !!token);
       setIsAuthenticated(!!token);
     };
 
@@ -42,6 +40,10 @@ export default function App() {
         <Route
           path="/my-events"
           element={isAuthenticated ? <MyEventsPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/events"
+          element={isAuthenticated ? <AdminEventsPage /> : <Navigate to="/" replace />}
         />
         <Route
           path="/profile"
