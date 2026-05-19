@@ -1,49 +1,40 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getEvents, rsvpEvent, unrsvpEvent, getCurrentUser } from "../api";
+import { getCurrentUser } from "../api";
 import "./EventsPage.css";
 
 export default function EventsPage() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [events, setEvents] = useState([]);
-  const [userRsvps, setUserRsvps] = useState(new Set());
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("upcoming");
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
-    fetchEvents();
-    checkAdmin();
+    loadData();
   }, []);
 
-  const checkAdmin = async () => {
+  const loadData = async () => {
     try {
-      const user = await getCurrentUser();
-      setIsAdmin(user.email === "andrew@mccreath.vip");
-    } catch (error) {
-      console.error("Failed to check admin status:", error);
-    }
-  };
-
-  const fetchEvents = async () => {
-    try {
-      setLoading(true);
-      const data = await getEvents();
-      setEvents(data);
-
+      const userData = await getCurrentUser();
+      setUser(userData);
+      
+      // Fetch user role
       const token = localStorage.getItem("token");
-      if (token) {
-        const userRsvpSet = new Set();
-        data.forEach((event) => {
-          if (event.attendees?.some((a) => a.status === "going")) {
-            userRsvpSet.add(event.id);
-          }
-        });
-        setUserRsvps(userRsvpSet);
-      }
-    } catch (error) {
-      console.error("Failed to fetch events:", error);
+      const roleRes = await fetch("/api/users/me", {
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      const userData2 = await roleRes.json();
+      setUserRole(userData2.role);
+
+      const res = await fetch("/api/events", {
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setEvents(data.filter(e => e.status === "approved"));
+    } catch (err) {
+      console.error("Error:", err);
     } finally {
       setLoading(false);
     }
@@ -51,244 +42,88 @@ export default function EventsPage() {
 
   const handleRsvp = async (eventId, status) => {
     try {
-      await rsvpEvent(eventId, status);
-      setUserRsvps((prev) => {
-        const next = new Set(prev);
-        if (status === "going") {
-          next.add(eventId);
-        } else {
-          next.delete(eventId);
-        }
-        return next;
+      const res = await fetch(`/api/events/${eventId}/rsvp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ status }),
       });
-      fetchEvents();
-    } catch (error) {
-      console.error("RSVP failed:", error);
+      if (res.ok) {
+        alert(`✓ RSVP recorded as ${status}`);
+        loadData();
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
     }
   };
 
-  const getEventsForMonth = () => {
-    const year = selectedMonth.getFullYear();
-    const month = selectedMonth.getMonth();
-
-    return events.filter((event) => {
-      const eventDate = new Date(event.startDate);
-      return (
-        eventDate.getFullYear() === year &&
-        eventDate.getMonth() === month
-      );
-    });
-  };
-
-  const getUpcomingEvents = () => {
-    const now = new Date();
-    return events
-      .filter((e) => new Date(e.startDate) >= now)
-      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
-      .slice(0, 5);
-  };
-
-  const getPastEvents = () => {
-    const now = new Date();
-    return events
-      .filter((e) => new Date(e.startDate) < now)
-      .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))
-      .slice(0, 5);
-  };
-
-  if (loading) {
-    return <div className="events-page">Loading events...</div>;
-  }
+  if (loading) return <div className="events-page"><p>Loading...</p></div>;
 
   return (
     <div className="events-page">
-      <div className="events-header">
-        <h1>DCA Events</h1>
-        <div className="header-buttons">
-          <button
-            className="my-events-btn"
-            onClick={() => navigate("/my-events")}
-          >
-            My Events
-          </button>
-          {isAdmin && (
-            <button
-              className="admin-btn"
-              onClick={() => navigate("/admin/events")}
-            >
-              ⚙️ Admin
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="events-content">
-        {/* Calendar View */}
-        <div className="calendar-section">
-          <h2>Calendar</h2>
-          <div className="calendar">
-            <div className="calendar-header">
-              <button
-                onClick={() =>
-                  setSelectedMonth(
-                    new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1)
-                  )
-                }
-              >
-                ←
-              </button>
-              <h3>
-                {selectedMonth.toLocaleDateString("en-GB", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </h3>
-              <button
-                onClick={() =>
-                  setSelectedMonth(
-                    new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1)
-                  )
-                }
-              >
-                →
-              </button>
-            </div>
-
-            <div className="calendar-grid">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                <div key={day} className="calendar-day-header">
-                  {day}
-                </div>
-              ))}
-
-              {renderCalendarDays(
-                selectedMonth,
-                getEventsForMonth(),
-                userRsvps
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Upcoming Events List */}
-        <div className="upcoming-section">
-          <h2>Upcoming Events</h2>
-          <div className="events-list">
-            {getUpcomingEvents().length === 0 ? (
-              <p className="no-events">No upcoming events</p>
-            ) : (
-              getUpcomingEvents().map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isRegistered={userRsvps.has(event.id)}
-                  onRsvp={handleRsvp}
-                />
-              ))
+      <div className="events-container">
+        <div className="events-header">
+          <h1>Upcoming Events</h1>
+          <div className="header-actions">
+            <button onClick={() => navigate("/my-events")} className="nav-btn">My Events</button>
+            <button onClick={() => navigate("/profile")} className="nav-btn">Profile</button>
+            {userRole === "organizer" && (
+              <button onClick={() => navigate("/admin/events")} className="nav-btn">My Events (Organizer)</button>
+            )}
+            {userRole === "admin" && (
+              <>
+                <button onClick={() => navigate("/admin/events")} className="admin-btn">Manage Events</button>
+                <button onClick={() => navigate("/admin/users")} className="admin-btn">Manage Users</button>
+              </>
             )}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function renderCalendarDays(date, monthEvents, userRsvps) {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+        <div className="events-grid">
+          {events.map((event) => (
+            <div
+              key={event.id}
+              className="event-card"
+              onClick={() => setExpandedId(expandedId === event.id ? null : event.id)}
+            >
+              <h3>{event.title}</h3>
+              <p className="event-location">📍 {event.location}</p>
+              <p className="event-date">
+                📅 {new Date(event.startDate).toLocaleDateString("en-GB")}
+              </p>
+              <p className="event-organiser">👤 {event.organiser}</p>
+              <p className="event-attendees">{event.attendees?.length || 0} attending</p>
 
-  const days = [];
-
-  for (let i = 0; i < firstDay; i++) {
-    days.push(
-      <div key={`empty-${i}`} className="calendar-day empty"></div>
-    );
-  }
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const currentDate = new Date(year, month, day);
-    const dayEvents = monthEvents.filter((e) => {
-      const eventDate = new Date(e.startDate);
-      return eventDate.toDateString() === currentDate.toDateString();
-    });
-
-    days.push(
-      <div
-        key={day}
-        className={`calendar-day ${dayEvents.length > 0 ? "has-events" : ""}`}
-      >
-        <div className="day-number">{day}</div>
-        {dayEvents.length > 0 && (
-          <div className="day-events">
-            {dayEvents.map((e) => (
-              <div
-                key={e.id}
-                className={`event-dot ${userRsvps.has(e.id) ? "registered" : ""}`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return days;
-}
-
-function EventCard({ event, isRegistered, onRsvp }) {
-  const startDate = new Date(event.startDate);
-  const endDate = new Date(event.endDate);
-
-  return (
-    <div className="event-card">
-      <div className="event-date">
-        <div className="event-date-day">{startDate.getDate()}</div>
-        <div className="event-date-month">
-          {startDate.toLocaleDateString("en-GB", { month: "short" })}
+              {expandedId === event.id && (
+                <div className="event-details">
+                  <p className="event-description">{event.description}</p>
+                  <div className="event-actions">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRsvp(event.id, "going");
+                      }}
+                      className="rsvp-btn going"
+                    >
+                      Going
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRsvp(event.id, "interested");
+                      }}
+                      className="rsvp-btn interested"
+                    >
+                      Interested
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-      </div>
-
-      <div className="event-details">
-        <h3>{event.title}</h3>
-        <p className="event-time">
-          {startDate.toLocaleTimeString("en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}{" "}
-          - {endDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-        </p>
-        {event.location && (
-          <p className="event-location">
-            📍 {event.isVirtual ? "Virtual" : event.location}
-          </p>
-        )}
-        {event.description && (
-          <p className="event-description">{event.description}</p>
-        )}
-        <p className="event-organiser">Organiser: {event.organiser}</p>
-        <p className="event-attendees">
-          {event.attendees?.length || 0} attending
-        </p>
-      </div>
-
-      <div className="event-actions">
-        {isRegistered ? (
-          <button
-            className="btn btn-secondary"
-            onClick={() => onRsvp(event.id, "interested")}
-          >
-            ✓ Registered
-          </button>
-        ) : (
-          <button
-            className="btn btn-primary"
-            onClick={() => onRsvp(event.id, "going")}
-          >
-            Register Interest
-          </button>
-        )}
       </div>
     </div>
   );
