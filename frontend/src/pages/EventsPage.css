@@ -20,7 +20,13 @@
   margin: 0;
 }
 
-.my-events-btn {
+.header-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.my-events-btn,
+.admin-btn {
   padding: 12px 24px;
   background: white;
   color: #667eea;
@@ -31,9 +37,18 @@
   transition: all 0.3s;
 }
 
-.my-events-btn:hover {
+.my-events-btn:hover,
+.admin-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.admin-btn {
+  background: #fbbf24;
+}
+
+.admin-btn:hover {
+  background: #f59e0b;
 }
 
 .events-content {
@@ -290,6 +305,16 @@
 
   .events-header h1 {
     font-size: 1.8em;
+  }
+
+  .header-buttons {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .my-events-btn,
+  .admin-btn {
+    width: 100%;
   }
 
   .calendar-section,

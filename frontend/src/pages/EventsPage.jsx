@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getEvents, rsvpEvent, unrsvpEvent } from "../api";
+import { getEvents, rsvpEvent, unrsvpEvent, getCurrentUser } from "../api";
 import "./EventsPage.css";
 
 export default function EventsPage() {
@@ -10,10 +10,21 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("upcoming");
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     fetchEvents();
+    checkAdmin();
   }, []);
+
+  const checkAdmin = async () => {
+    try {
+      const user = await getCurrentUser();
+      setIsAdmin(user.email === "andrew@mccreath.vip");
+    } catch (error) {
+      console.error("Failed to check admin status:", error);
+    }
+  };
 
   const fetchEvents = async () => {
     try {
@@ -93,12 +104,22 @@ export default function EventsPage() {
     <div className="events-page">
       <div className="events-header">
         <h1>DCA Events</h1>
-        <button
-          className="my-events-btn"
-          onClick={() => navigate("/my-events")}
-        >
-          My Events
-        </button>
+        <div className="header-buttons">
+          <button
+            className="my-events-btn"
+            onClick={() => navigate("/my-events")}
+          >
+            My Events
+          </button>
+          {isAdmin && (
+            <button
+              className="admin-btn"
+              onClick={() => navigate("/admin/events")}
+            >
+              ⚙️ Admin
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="events-content">
