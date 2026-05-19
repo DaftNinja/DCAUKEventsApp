@@ -87,37 +87,6 @@ export default function AdminEventsPage() {
     }
   };
 
-  const handleApprove = async (id) => {
-    try {
-      const res = await fetch(`/api/events/${id}/approve`, {
-        method: "PUT",
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-      });
-      const updated = await res.json();
-      setEvents(prev => prev.map(e => e.id === id ? updated : e));
-      alert("✓ Approved!");
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-  };
-
-  const handleReject = async (id) => {
-    const reason = prompt("Reason:");
-    if (!reason) return;
-    try {
-      const res = await fetch(`/api/events/${id}/reject`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ reason })
-      });
-      const updated = await res.json();
-      setEvents(prev => prev.map(e => e.id === id ? updated : e));
-      alert("✓ Rejected!");
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-  };
-
   if (loading) return <div style={{padding: "50px", color: "white"}}>Loading...</div>;
 
   return (
@@ -158,25 +127,15 @@ export default function AdminEventsPage() {
 
         <div style={{marginTop: "20px"}}>
           {events.map(e => (
-            <div key={e.id} style={{background: "white", color: "#333", padding: "15px", marginBottom: "10px", borderRadius: "8px", border: `2px solid ${e.status === "approved" ? "#10b981" : e.status === "rejected" ? "#ef4444" : "#fbbf24"}`}}>
-              <div style={{display: "flex", justifyContent: "space-between"}}>
-                <div>
-                  <h3 style={{margin: "0 0 5px 0"}}>{e.title}</h3>
-                  <span style={{padding: "2px 8px", borderRadius: "12px", fontSize: "0.9em", background: e.status === "approved" ? "#d1fae5" : e.status === "rejected" ? "#fee2e2" : "#fef3c7", color: e.status === "approved" ? "#065f46" : e.status === "rejected" ? "#7f1d1d" : "#92400e"}}>{e.status.toUpperCase()}</span>
-                </div>
-                {isAdmin && <button onClick={() => handleDelete(e.id)} style={{padding: "6px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer"}}>Delete</button>}
-              </div>
-              <p style={{margin: "8px 0"}}><strong>Location:</strong> {e.location}</p>
-              <p style={{margin: "8px 0"}}><strong>Date:</strong> {new Date(e.startDate).toLocaleDateString("en-GB")} {new Date(e.startDate).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"})}</p>
-              <p style={{margin: "8px 0"}}><strong>Organiser:</strong> {e.organiser}</p>
-              <p style={{margin: "8px 0"}}><strong>Email:</strong> {e.organizerEmail}</p>
-              {e.description && <p style={{margin: "8px 0"}}><strong>Description:</strong> {e.description}</p>}
-              {e.status === "pending" && user?.email === e.organizerEmail && (
-                <div style={{marginTop: "10px"}}>
-                  <button onClick={() => handleApprove(e.id)} style={{padding: "6px 12px", background: "#10b981", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", marginRight: "8px"}}>Approve</button>
-                  <button onClick={() => handleReject(e.id)} style={{padding: "6px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer"}}>Reject</button>
-                </div>
-              )}
+            <div key={e.id} style={{background: "white", color: "#333", padding: "15px", marginBottom: "10px", borderRadius: "8px"}}>
+              <h3 style={{margin: "0 0 8px 0"}}>{e.title}</h3>
+              <p style={{margin: "5px 0"}}><strong>Status:</strong> <span style={{padding: "2px 8px", borderRadius: "12px", background: e.status === "approved" ? "#d1fae5" : e.status === "rejected" ? "#fee2e2" : "#fef3c7", color: e.status === "approved" ? "#065f46" : e.status === "rejected" ? "#7f1d1d" : "#92400e"}}>{e.status}</span></p>
+              <p style={{margin: "5px 0"}}><strong>Location:</strong> {e.location}</p>
+              <p style={{margin: "5px 0"}}><strong>Date:</strong> {new Date(e.startDate).toLocaleDateString("en-GB")} {new Date(e.startDate).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"})}</p>
+              <p style={{margin: "5px 0"}}><strong>Organiser:</strong> {e.organiser}</p>
+              <p style={{margin: "5px 0"}}><strong>Email:</strong> {e.organizerEmail}</p>
+              {e.description && <p style={{margin: "5px 0"}}><strong>Description:</strong> {e.description}</p>}
+              {isAdmin && <button onClick={() => handleDelete(e.id)} style={{marginTop: "8px", padding: "6px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer"}}>Delete</button>}
             </div>
           ))}
         </div>
