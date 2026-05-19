@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "../api";
-import "./AdminEventsPage.css";
+import EventForm from "./EventForm";
 
 const ADMIN_EMAIL = "andrew@mccreath.vip";
 
@@ -11,37 +11,26 @@ export default function AdminEventsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingEventId, setEditingEventId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    title: "",
-    location: "",
-    startDate: "",
-    startTime: "",
-    endDate: "",
-    endTime: "",
-    organiser: "",
-    organizerEmail: "",
-    sponsors: "",
-    description: "",
+    title: "", location: "", startDate: "", startTime: "", endDate: "", endTime: "",
+    organiser: "", organizerEmail: "", sponsors: "", description: ""
   });
 
   useEffect(() => {
-    checkAdminAccess();
+    loadAdmin();
   }, []);
 
-  const checkAdminAccess = async () => {
+  const loadAdmin = async () => {
     try {
       const userData = await getCurrentUser();
       setUser(userData);
       setIsAdmin(userData.email === ADMIN_EMAIL);
       
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/events", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setEvents(data);
+      const response = await fetch("/api/events", { headers: { "Authorization": `Bearer ${token}` } });
+      setEvents(await response.json());
     } catch (error) {
       console.error("Error:", error);
     } finally {
@@ -50,43 +39,29 @@ export default function AdminEventsPage() {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const resetForm = () => {
-    setFormData({
-      title: "",
-      location: "",
-      startDate: "",
-      startTime: "",
-      endDate: "",
-      endTime: "",
-      organiser: "",
-      organizerEmail: "",
-      sponsors: "",
-      description: "",
-    });
-    setEditingEventId(null);
+  const handleCancel = () => {
+    setFormData({ title: "", location: "", startDate: "", startTime: "", endDate: "", endTime: "", organiser: "", organizerEmail: "", sponsors: "", description: "" });
+    setEditingId(null);
+    setShowForm(false);
   };
 
-  const handleCreateEvent = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
-      const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-      const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-
+      const start = new Date(`${formData.startDate}T${formData.startTime}`);
+      const end = new Date(`${formData.endDate}T${formData.endTime}`);
       const eventData = {
         title: formData.title,
         location: formData.location,
-        startDate: startDateTime.toISOString(),
-        endDate: endDateTime.toISOString(),
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
         organiser: formData.organiser,
         organizerEmail: formData.organizerEmail,
         sponsors: formData.sponsors,
         description: formData.description,
-        isVirtual: formData.location.toLowerCase() === "virtual",
       };
 
       const response = await fetch("/api/events", {
@@ -98,67 +73,55 @@ export default function AdminEventsPage() {
         body: JSON.stringify(eventData),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create event");
-      }
-
+      if (!response.ok) throw new Error("Failed to create");
       const newEvent = await response.json();
-      setEvents((prev) => [...prev, newEvent]);
-      resetForm();
-      setShowCreateForm(false);
-      alert("✓ Event created! Organizer notification sent for approval.");
+      setEvents(prev => [...prev, newEvent]);
+      handleCancel();
+      alert("✓ Event created!");
     } catch (error) {
-      console.error("Failed to create event:", error);
-      alert("Failed: " + error.message);
+      alert("Error: " + error.message);
     }
   };
 
-  const handleEditEvent = (event) => {
-    const startDate = new Date(event.startDate);
-    const endDate = new Date(event.endDate);
-    
+  const handleEdit = (event) => {
+    const start = new Date(event.startDate);
+    const end = new Date(event.endDate);
     setFormData({
       title: event.title,
       location: event.location,
-      startDate: startDate.toISOString().split('T')[0],
-      startTime: startDate.toTimeString().slice(0, 5),
-      endDate: endDate.toISOString().split('T')[0],
-      endTime: endDate.toTimeString().slice(0, 5),
+      startDate: start.toISOString().split('T')[0],
+      startTime: start.toTimeString().slice(0, 5),
+      endDate: end.toISOString().split('T')[0],
+      endTime: end.toTimeString().slice(0, 5),
       organiser: event.organiser,
       organizerEmail: event.organizerEmail || "",
       sponsors: event.eventUrl || "",
       description: event.description || "",
     });
-    setEditingEventId(event.id);
-    setShowCreateForm(true);
+    setEditingId(event.id);
+    setShowForm(true);
   };
 
-  const handleApproveEvent = async (eventId) => {
+  const handleApprove = async (id) => {
     try {
-      const response = await fetch(`/api/events/${eventId}/approve`, {
+      const response = await fetch(`/api/events/${id}/approve`, {
         method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
       });
-
-      if (!response.ok) throw new Error("Failed to approve");
-      
+      if (!response.ok) throw new Error("Failed");
       const updated = await response.json();
-      setEvents((prev) => prev.map((e) => e.id === eventId ? updated : e));
-      alert("✓ Event approved!");
+      setEvents(prev => prev.map(e => e.id === id ? updated : e));
+      alert("✓ Approved!");
     } catch (error) {
-      alert("Failed to approve: " + error.message);
+      alert("Error: " + error.message);
     }
   };
 
-  const handleRejectEvent = async (eventId) => {
+  const handleReject = async (id) => {
     const reason = prompt("Reason for rejection:");
     if (!reason) return;
-
     try {
-      const response = await fetch(`/api/events/${eventId}/reject`, {
+      const response = await fetch(`/api/events/${id}/reject`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -166,53 +129,50 @@ export default function AdminEventsPage() {
         },
         body: JSON.stringify({ reason }),
       });
-
-      if (!response.ok) throw new Error("Failed to reject");
-      
+      if (!response.ok) throw new Error("Failed");
       const updated = await response.json();
-      setEvents((prev) => prev.map((e) => e.id === eventId ? updated : e));
-      alert("✓ Event rejected!");
+      setEvents(prev => prev.map(e => e.id === id ? updated : e));
+      alert("✓ Rejected!");
     } catch (error) {
-      alert("Failed to reject: " + error.message);
+      alert("Error: " + error.message);
     }
   };
 
-  const handleDeleteEvent = async (eventId) => {
-    if (!window.confirm("Delete this event permanently?")) return;
-
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this event?")) return;
     try {
-      const response = await fetch(`/api/events/${eventId}`, {
+      const response = await fetch(`/api/events/${id}`, {
         method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
       });
-
-      if (!response.ok) throw new Error("Failed to delete");
-      setEvents((prev) => prev.filter((e) => e.id !== eventId));
-      alert("✓ Event deleted!");
+      if (!response.ok) throw new Error("Failed");
+      setEvents(prev => prev.filter(e => e.id !== id));
+      alert("✓ Deleted!");
     } catch (error) {
-      alert("Failed: " + error.message);
+      alert("Error: " + error.message);
     }
   };
 
-  const canEditEvent = (event) => {
-    return isAdmin || user?.email === event.organizerEmail;
+  const canEdit = (event) => isAdmin || user?.email === event.organizerEmail;
+
+  if (loading) return <div style={{ color: "white", padding: "50px" }}>Loading...</div>;
+
+  const getBorderColor = (status) => {
+    if (status === "approved") return "#10b981";
+    if (status === "rejected") return "#ef4444";
+    return "#fbbf24";
   };
 
-  if (loading) {
-    return <div style={{ color: "white", padding: "50px" }}>Loading...</div>;
-  }
+  const getStatusColor = (status) => {
+    if (status === "approved") return { bg: "#d1fae5", text: "#065f46" };
+    if (status === "rejected") return { bg: "#fee2e2", text: "#7f1d1d" };
+    return { bg: "#fef3c7", text: "#92400e" };
+  };
 
   return (
-    <div style={{
-      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-      minHeight: "100vh",
-      padding: "40px 20px",
-      color: "white"
-    }}>
+    <div style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", minHeight: "100vh", padding: "40px 20px", color: "white" }}>
       <button onClick={() => navigate("/events")} style={{marginBottom: "20px", padding: "10px 20px", background: "white", color: "#667eea", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
-        ← Back to Events
+        ← Back
       </button>
 
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
@@ -220,90 +180,16 @@ export default function AdminEventsPage() {
         <p>Logged in as: <strong>{user?.email}</strong></p>
 
         {isAdmin && (
-          <button onClick={() => { resetForm(); setShowCreateForm(!showCreateForm); }} style={{marginTop: "20px", padding: "12px 24px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
-            {showCreateForm ? "Cancel" : "+ Create Event"}
+          <button onClick={() => { setShowForm(!showForm); setEditingId(null); }} style={{marginTop: "20px", padding: "12px 24px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
+            {showForm ? "Cancel" : "+ Create Event"}
           </button>
         )}
 
-        {showCreateForm && (
-          <form onSubmit={handleCreateEvent} style={{
-            background: "white",
-            color: "#333",
-            padding: "30px",
-            borderRadius: "12px",
-            marginTop: "20px",
-            marginBottom: "30px"
-          }}>
-            <h3 style={{marginTop: 0}}>{editingEventId ? "Edit Event" : "Create New Event"}</h3>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Title *</label>
-                <input type="text" name="title" value={formData.title} onChange={handleInputChange} required placeholder="Event title" style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Location *</label>
-                <input type="text" name="location" value={formData.location} onChange={handleInputChange} required placeholder="e.g., London, UK" style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Start Date *</label>
-                <input type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} required style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Start Time *</label>
-                <input type="time" name="startTime" value={formData.startTime} onChange={handleInputChange} required style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>End Date *</label>
-                <input type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} required style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>End Time *</label>
-                <input type="time" name="endTime" value={formData.endTime} onChange={handleInputChange} required style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Organiser Name *</label>
-                <input type="text" name="organiser" value={formData.organiser} onChange={handleInputChange} required placeholder="e.g., DCA EMEA" style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-              <div>
-                <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Organiser Email *</label>
-                <input type="email" name="organizerEmail" value={formData.organizerEmail} onChange={handleInputChange} required placeholder="organizer@example.com" style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "15px" }}>
-              <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Sponsors</label>
-              <input type="text" name="sponsors" value={formData.sponsors} onChange={handleInputChange} placeholder="e.g., Company A, Company B" style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box"}} />
-            </div>
-
-            <div style={{ marginBottom: "15px" }}>
-              <label style={{display: "block", fontWeight: "600", marginBottom: "5px"}}>Description</label>
-              <textarea name="description" value={formData.description} onChange={handleInputChange} placeholder="Event description (optional)" rows="4" style={{width: "100%", padding: "10px", border: "2px solid #e0e0e0", borderRadius: "6px", boxSizing: "border-box", fontFamily: "inherit"}} />
-            </div>
-
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button type="submit" style={{padding: "12px 24px", background: "#667eea", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
-                {editingEventId ? "Update Event" : "Create Event"}
-              </button>
-              <button type="button" onClick={() => { resetForm(); setShowCreateForm(false); }} style={{padding: "12px 24px", background: "#e0e0e0", color: "#333", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
+        {showForm && <EventForm formData={formData} editingEventId={editingId} onInputChange={handleInputChange} onSubmit={handleSubmit} onCancel={handleCancel} />}
 
         <div style={{ marginTop: "30px" }}>
           {events.length === 0 ? (
-            <p style={{fontSize: "1.1em"}}>No events yet. Create one to get started!</p>
+            <p style={{ fontSize: "1.1em" }}>No events yet!</p>
           ) : (
             events.map((event) => (
               <div key={event.id} style={{
@@ -312,7 +198,7 @@ export default function AdminEventsPage() {
                 padding: "20px",
                 marginBottom: "15px",
                 borderRadius: "8px",
-                border: `3px solid ${event.status === "approved" ? "#10b981" : event.status === "rejected" ? "#ef4444" : "#fbbf24"}`
+                border: `3px solid ${getBorderColor(event.status)}`
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "15px" }}>
                   <div>
@@ -323,23 +209,15 @@ export default function AdminEventsPage() {
                       borderRadius: "20px",
                       fontSize: "0.85em",
                       fontWeight: "600",
-                      background: event.status === "approved" ? "#d1fae5" : event.status === "rejected" ? "#fee2e2" : "#fef3c7",
-                      color: event.status === "approved" ? "#065f46" : event.status === "rejected" ? "#7f1d1d" : "#92400e"
+                      background: getStatusColor(event.status).bg,
+                      color: getStatusColor(event.status).text
                     }}>
                       {event.status.toUpperCase()}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    {canEditEvent(event) && (
-                      <button onClick={() => handleEditEvent(event)} style={{padding: "8px 12px", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer"}}>
-                        ✏️ Edit
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button onClick={() => handleDeleteEvent(event.id)} style={{padding: "8px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer"}}>
-                        🗑️ Delete
-                      </button>
-                    )}
+                    {canEdit(event) && <button onClick={() => handleEdit(event)} style={{padding: "8px 12px", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer"}}>✏️ Edit</button>}
+                    {isAdmin && <button onClick={() => handleDelete(event.id)} style={{padding: "8px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer"}}>🗑️ Delete</button>}
                   </div>
                 </div>
 
@@ -347,17 +225,15 @@ export default function AdminEventsPage() {
                 <p><strong>📅 Date:</strong> {new Date(event.startDate).toLocaleDateString("en-GB")}</p>
                 <p><strong>⏰ Time:</strong> {new Date(event.startDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} - {new Date(event.endDate).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</p>
                 <p><strong>🎤 Organiser:</strong> {event.organiser}</p>
-                <p><strong>📧 Organiser Email:</strong> {event.organizerEmail}</p>
-                {event.eventUrl && <p><strong>💼 Sponsors:</strong> {event.eventUrl}</p>}
+                <p><strong>📧 Email:</strong> {event.organizerEmail}</p>
                 {event.description && <p><strong>📝 Description:</strong> {event.description}</p>}
-                <p><strong>👥 Attendees:</strong> {event.attendees?.length || 0}</p>
 
                 {event.status === "pending" && user?.email === event.organizerEmail && (
                   <div style={{ display: "flex", gap: "10px", marginTop: "15px", paddingTop: "15px", borderTop: "1px solid #e0e0e0" }}>
-                    <button onClick={() => handleApproveEvent(event.id)} style={{padding: "10px 16px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
+                    <button onClick={() => handleApprove(event.id)} style={{padding: "10px 16px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
                       ✅ Approve
                     </button>
-                    <button onClick={() => handleRejectEvent(event.id)} style={{padding: "10px 16px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
+                    <button onClick={() => handleReject(event.id)} style={{padding: "10px 16px", background: "#ef4444", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600"}}>
                       ❌ Reject
                     </button>
                   </div>
