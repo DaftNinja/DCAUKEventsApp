@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import eventsRoutes from "./routes/events.js";
+import adminRoutes from "./routes/admin.js";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/events", eventsRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
