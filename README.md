@@ -384,3 +384,4 @@ DATABASE_URL=your_url npm run db:migrate
 ## License
 
 MIT
+# Rebuild trigger
