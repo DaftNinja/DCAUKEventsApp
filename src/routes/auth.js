@@ -7,6 +7,9 @@ import { generateToken } from "../middleware/auth.js";
 
 const router = Router();
 
+// Add request timeout
+const TIMEOUT = 30000; // 30 seconds
+
 router.get("/linkedin", (req, res) => {
   const params = new URLSearchParams({
     response_type: "code",
@@ -24,15 +27,25 @@ router.get("/linkedin", (req, res) => {
 router.get("/linkedin/callback", async (req, res) => {
   const { code, error } = req.query;
 
-  if (error) {
-    return res.status(400).json({ error: "LinkedIn auth failed" });
-  }
-
-  if (!code) {
-    return res.status(400).json({ error: "Missing authorization code" });
-  }
+  // Set timeout
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error("❌ Request timeout after 30s");
+      res.status(500).json({ error: "Authentication timeout" });
+    }
+  }, TIMEOUT);
 
   try {
+    if (error) {
+      clearTimeout(timeout);
+      return res.status(400).json({ error: "LinkedIn auth failed" });
+    }
+
+    if (!code) {
+      clearTimeout(timeout);
+      return res.status(400).json({ error: "Missing authorization code" });
+    }
+
     console.log("🔐 Step 1: Exchanging code for token...");
     
     const tokenResponse = await axios.post(
@@ -48,6 +61,7 @@ router.get("/linkedin/callback", async (req, res) => {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
+        timeout: 10000,
       }
     );
 
@@ -61,6 +75,7 @@ router.get("/linkedin/callback", async (req, res) => {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
+        timeout: 10000,
       }
     );
 
@@ -74,6 +89,7 @@ router.get("/linkedin/callback", async (req, res) => {
     console.log("📝 User data:", { linkedinId, name, email });
 
     if (!email) {
+      clearTimeout(timeout);
       return res.status(400).json({ error: "Could not retrieve email from LinkedIn" });
     }
 
@@ -83,17 +99,10 @@ router.get("/linkedin/callback", async (req, res) => {
       .from(users)
       .where(eq(users.linkedinId, linkedinId));
 
-    console.log("User query result:", user);
+    console.log("✓ User query completed, result length:", user.length);
 
     if (user.length === 0) {
       console.log("🆕 Creating new user...");
-      console.log("Insert values:", {
-        linkedinId,
-        email,
-        name,
-        avatarUrl,
-      });
-      
       const result = await db
         .insert(users)
         .values({
@@ -135,19 +144,24 @@ router.get("/linkedin/callback", async (req, res) => {
     
     const redirectUrl = `${frontendUrl}/auth/success?token=${token}&userId=${user[0].id}`;
     console.log("🔀 Redirecting to:", redirectUrl);
+    
+    clearTimeout(timeout);
     res.redirect(redirectUrl);
   } catch (error) {
+    clearTimeout(timeout);
     console.error("❌ OAuth callback error:", error.message);
     console.error("Full stack:", error.stack);
     if (error.response) {
       console.error("Response status:", error.response.status);
       console.error("Response data:", JSON.stringify(error.response.data));
     }
-    res.status(500).json({ 
-      error: "Authentication failed", 
-      details: error.message,
-      stack: error.stack 
-    });
+    
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: "Authentication failed", 
+        details: error.message,
+      });
+    }
   }
 });
 
