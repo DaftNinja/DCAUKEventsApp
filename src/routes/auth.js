@@ -69,12 +69,16 @@ router.get("/linkedin/callback", async (req, res) => {
 
       user = newUser[0];
 
-      // Assign default 'user' role
-      await db.insert(userRoles).values({
-        userId: user.id,
-        role: "user",
-        createdAt: new Date(),
-      });
+      // Try to assign default 'user' role (skip if table doesn't exist yet)
+      try {
+        await db.insert(userRoles).values({
+          userId: user.id,
+          role: "user",
+          createdAt: new Date(),
+        });
+      } catch (roleErr) {
+        console.warn("⚠️ Could not assign user role (table may not exist):", roleErr.message);
+      }
 
       console.log(`✓ New user registered: ${email}`);
     }
@@ -87,7 +91,7 @@ router.get("/linkedin/callback", async (req, res) => {
     res.redirect(`${frontendUrl}/auth-callback?token=${token}`);
   } catch (error) {
     console.error("LinkedIn auth failed:", error.message);
-    res.status(500).json({ error: "LinkedIn auth failed" });
+    res.status(500).json({ error: "LinkedIn auth failed: " + error.message });
   }
 });
 
