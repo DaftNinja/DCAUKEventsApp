@@ -7,7 +7,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       }
     }
@@ -16,7 +16,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
   },
-  // Ensure API calls work in production
   define: {
     'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || ''),
   }
