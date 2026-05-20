@@ -1,5 +1,6 @@
 import { Router } from "express";
 import axios from "axios";
+import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users, userRoles } from "../db/schema.js";
 import { generateToken } from "../middleware/auth.js";
@@ -49,10 +50,14 @@ router.get("/linkedin/callback", async (req, res) => {
 
     const { sub, name, email, picture } = profileRes.data;
 
-    // Find or create user
-    let user = await db.query.users.findFirst({
-      where: (u) => u.linkedinId === sub,
-    });
+    // Find existing user by LinkedIn ID
+    const existing = await db
+      .select()
+      .from(users)
+      .where(eq(users.linkedinId, sub))
+      .limit(1);
+
+    let user = existing[0];
 
     if (!user) {
       const newUser = await db
@@ -69,7 +74,7 @@ router.get("/linkedin/callback", async (req, res) => {
 
       user = newUser[0];
 
-      // Try to assign default 'user' role (skip if table doesn't exist yet)
+      // Assign default 'user' role
       try {
         await db.insert(userRoles).values({
           userId: user.id,
@@ -77,7 +82,7 @@ router.get("/linkedin/callback", async (req, res) => {
           createdAt: new Date(),
         });
       } catch (roleErr) {
-        console.warn("⚠️ Could not assign user role (table may not exist):", roleErr.message);
+        console.warn("⚠️ Could not assign user role:", roleErr.message);
       }
 
       console.log(`✓ New user registered: ${email}`);
