@@ -1,0 +1,32 @@
+# Dependencies (reinstalled inside the image)
+node_modules
+frontend/node_modules
+
+# Build output (frontend rebuilt inside the image)
+frontend/dist
+dist
+build
+
+# Env files — never bake secrets into the image
+.env
+.env.*
+!.env.example
+
+# Git / CI
+.git
+.gitignore
+.github
+
+# Editor / OS cruft
+.vscode
+.idea
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Docs and local-only files
+README.md
+QUICKSTART.md
+*.md
