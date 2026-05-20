@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, boolean, check } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -24,7 +25,7 @@ export const userRoles = pgTable(
     createdAt: timestamp("createdAt").defaultNow(),
   },
   (table) => [
-    check("role_check", `"role" IN ('admin', 'organizer', 'user')`),
+    check("role_check", sql`${table.role} IN ('admin', 'organizer', 'user')`),
   ]
 );
 
@@ -40,7 +41,7 @@ export const eventOrganisers = pgTable(
     createdAt: timestamp("createdAt").defaultNow(),
   },
   (table) => [
-    check("unique_organiser", `"userId" IS NOT NULL`),
+    check("unique_organiser", sql`${table.userId} IS NOT NULL`),
   ]
 );
 
@@ -76,7 +77,7 @@ export const rsvps = pgTable(
     createdAt: timestamp("createdAt").defaultNow(),
   },
   (table) => [
-    check("status_check", `"status" IN ('interested', 'going')`),
+    check("status_check", sql`${table.status} IN ('interested', 'going')`),
   ]
 );
 
