@@ -14,14 +14,14 @@ COPY frontend/ ./
 RUN npm run build
 
 
-# ---- Stage 2: Install backend production dependencies ----
+# ---- Stage 2: Install backend dependencies ----
+# Includes devDependencies so drizzle-kit is available for schema push at startup.
 FROM node:20-alpine AS backend-deps
 
 WORKDIR /app
 
-# Only production deps for the final image
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install
 
 
 # ---- Stage 3: Final runtime image ----
@@ -33,16 +33,17 @@ RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Backend production node_modules
+# Backend node_modules (includes drizzle-kit for the startup schema push)
 COPY --from=backend-deps /app/node_modules ./node_modules
 
 # Backend source
 COPY package*.json ./
 COPY src/ ./src/
 COPY drizzle.config.* ./
-# Migrations / schema folder used by Drizzle (safe no-op if absent at build,
-# but include it so `drizzle-kit migrate` can run in the container)
-COPY drizzle/ ./drizzle/
+
+# Startup script: runs drizzle-kit push, then starts the server
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 
 # Built frontend assets, served as static files by Express
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
@@ -58,4 +59,4 @@ ENV PORT=8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://localhost:${PORT}/ >/dev/null 2>&1 || exit 1
 
-CMD ["node", "src/index.js"]
+CMD ["./docker-entrypoint.sh"]

@@ -29,12 +29,14 @@ services:
       PORT: 8080
       # Matches the db service credentials above
       DATABASE_URL: postgres://community:community@db:5432/community
-      # Pass through the rest from a local .env file (see below)
+      # Pass through the rest from a local .env file (see .env.example)
       LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID}
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
-      LINKEDIN_CALLBACK_URL: ${LINKEDIN_CALLBACK_URL}
+      LINKEDIN_REDIRECT_URI: ${LINKEDIN_REDIRECT_URI}
       JWT_SECRET: ${JWT_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
+      FRONTEND_URL: ${FRONTEND_URL}
+      BACKEND_URL: ${BACKEND_URL}
     ports:
       - "8080:8080"
 
