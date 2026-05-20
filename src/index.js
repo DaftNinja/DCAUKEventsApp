@@ -1,14 +1,14 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import eventsRoutes from "./routes/events.js";
 import adminRoutes from "./routes/admin.js";
-
-dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
