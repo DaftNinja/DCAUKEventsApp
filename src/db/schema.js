@@ -1,18 +1,5 @@
 import { pgTable, text, timestamp, uuid, boolean, check } from "drizzle-orm/pg-core";
 
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  linkedinId: text("linkedinId").unique().notNull(),
-  email: text("email").unique().notNull(),
-  name: text("name"),
-  headline: text("headline"),
-  company: text("company"),
-  avatarUrl: text("avatarUrl"),
-  bio: text("bio"),
-  createdAt: timestamp("createdAt").defaultNow(),
-  updatedAt: timestamp("updatedAt").defaultNow(),
-});
-
 export const events = pgTable("events", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
@@ -22,7 +9,11 @@ export const events = pgTable("events", {
   location: text("location"),
   isVirtual: boolean("isVirtual").default(false),
   organiser: text("organiser"),
+  organizerEmail: text("organizerEmail"),
+  organizerId: uuid("organizerId").references(() => users.id, { onDelete: "set null" }),
   eventUrl: text("eventUrl"),
+  status: text("status").default("pending"),
+  approvedAt: timestamp("approvedAt"),
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow(),
 });
