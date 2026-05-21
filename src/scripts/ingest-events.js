@@ -1,80 +1,130 @@
-import fs from 'fs';
-import { parse } from 'csv-parse/sync';
-import { db } from './db/index.js';
-import { events } from './db/schema.js';
+import dotenv from "dotenv";
+dotenv.config();
 
-/**
- * Usage: node src/scripts/ingest-events.js dca-events.csv
- * 
- * Expected CSV columns:
- * - title
- * - description
- * - start_date (ISO format: 2024-01-15T09:00:00Z)
- * - end_date (ISO format, optional)
- * - location
- * - is_virtual (true/false)
- * - event_url
- */
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import csv from "csv-parse/sync";
+import pg from "pg";
+import { v4 as uuidv4 } from "uuid";
 
-async function ingestEvents(filePath) {
-  if (!filePath) {
-    console.error('Please provide a CSV file path');
-    console.error('Usage: node src/scripts/ingest-events.js <csv-file>');
-    process.exit(1);
-  }
+const { Pool } = pg;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-  if (!fs.existsSync(filePath)) {
-    console.error(`File not found: ${filePath}`);
-    process.exit(1);
-  }
+async function ingestEvents() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
-    console.log(`Reading events from ${filePath}...`);
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const records = parse(fileContent, {
+    console.log("📥 Ingesting events...");
+
+    // Check if events already exist
+    const existingResult = await pool.query(
+      'SELECT COUNT(*) as count FROM events WHERE "organizerEmail" = $1',
+      ["andrew@mccreath.vip"]
+    );
+    const existingCount = parseInt(existingResult.rows[0].count);
+
+    if (existingCount > 0) {
+      console.log(`⏭️  ${existingCount} events already ingested, skipping`);
+      await pool.end();
+      return;
+    }
+
+    // Read CSV file
+    const csvPath = path.join(__dirname, "../events.csv");
+    if (!fs.existsSync(csvPath)) {
+      console.log("⚠️  events.csv not found, skipping ingestion");
+      await pool.end();
+      return;
+    }
+
+    const fileContent = fs.readFileSync(csvPath, "utf-8");
+    const records = csv.parse(fileContent, {
       columns: true,
       skip_empty_lines: true,
     });
 
     console.log(`Found ${records.length} events to ingest`);
 
+    // Get or create Andrew's user ID
+    const userResult = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      ["andrew@mccreath.vip"]
+    );
+
+    let organizerId;
+    if (userResult.rows.length > 0) {
+      organizerId = userResult.rows[0].id;
+      console.log(`✓ Using existing user: ${organizerId}`);
+    } else {
+      // Create placeholder user for Andrew
+      const newUser = await pool.query(
+        `INSERT INTO users ("linkedinId", email, name, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, NOW(), NOW())
+         RETURNING id`,
+        ["andrew-placeholder", "andrew@mccreath.vip", "Andrew McCreath"]
+      );
+      organizerId = newUser.rows[0].id;
+      console.log(`✓ Created new user: ${organizerId}`);
+    }
+
+    // Insert events
     let inserted = 0;
     let failed = 0;
 
     for (const record of records) {
       try {
-        // Validate required fields
-        if (!record.title || !record.start_date) {
-          console.warn(`Skipping row: missing title or start_date`);
+        const eventId = uuidv4();
+        const startDate = new Date(record["Start Date"]);
+        const endDate = new Date(record["End Date"]);
+
+        // Validate dates
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.warn(
+            `  ✗ ${record["Event Name"]}: Invalid date format`
+          );
           failed++;
           continue;
         }
 
-        await db.insert(events).values({
-          title: record.title.trim(),
-          description: record.description ? record.description.trim() : null,
-          startDate: new Date(record.start_date),
-          endDate: record.end_date ? new Date(record.end_date) : null,
-          location: record.location ? record.location.trim() : null,
-          isVirtual: record.is_virtual === 'true' || record.is_virtual === '1' ? true : false,
-          organiser: record.organiser ? record.organiser.trim() : 'DCA',
-          eventUrl: record.event_url ? record.event_url.trim() : null,
-        });
+        await pool.query(
+          `INSERT INTO events (
+            id, title, description, "startDate", "endDate", 
+            location, "eventUrl", "organizerId", "organizerEmail", 
+            status, "createdAt", "updatedAt"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+          [
+            eventId,
+            record["Event Name"] || "Untitled Event",
+            record["Description"] || "",
+            startDate,
+            endDate,
+            record["Venue / Location"] || "TBD",
+            record["URL"] || "",
+            organizerId,
+            "andrew@mccreath.vip",
+            "approved",
+          ]
+        );
 
         inserted++;
-      } catch (error) {
-        console.error(`Failed to insert event: ${record.title}`, error.message);
+        console.log(`  ✓ ${record["Event Name"]}`);
+      } catch (err) {
+        console.warn(
+          `  ✗ ${record["Event Name"]}: ${err.message}`
+        );
         failed++;
       }
     }
 
-    console.log(`✓ Ingestion complete: ${inserted} inserted, ${failed} failed`);
-    process.exit(0);
+    console.log(
+      `\n✅ Ingestion complete: ${inserted} inserted, ${failed} failed`
+    );
+    await pool.end();
   } catch (error) {
-    console.error('Ingestion failed:', error.message);
+    console.error("❌ Ingestion failed:", error);
     process.exit(1);
   }
 }
 
-const filePath = process.argv[2];
-ingestEvents(filePath);
+ingestEvents();
