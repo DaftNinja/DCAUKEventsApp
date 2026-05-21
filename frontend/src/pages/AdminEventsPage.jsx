@@ -63,9 +63,22 @@ export default function AdminEventsPage() {
       };
 
       if (editingId) {
-        alert("Edit not yet implemented. Delete and recreate the event for now.");
-        return;
-      }
+  const res = await fetch(`/api/events/${editingId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("token")}`
+    },
+    body: JSON.stringify(eventData)
+  });
+  if (!res.ok) throw new Error("Failed to update");
+  const updated = await res.json();
+  setEvents(prev => prev.map(e => e.id === editingId ? updated : e));
+  resetForm();
+  setShowForm(false);
+  alert("✓ Event updated!");
+  return;
+}
 
       const res = await fetch("/api/events", {
         method: "POST",
@@ -132,7 +145,7 @@ export default function AdminEventsPage() {
 
         {showForm && (
           <form onSubmit={handleSubmit} style={{background: "white", color: "#333", padding: "20px", borderRadius: "12px", marginTop: "20px", marginBottom: "20px"}}>
-            <h3>{editingId ? "Edit Event (Save as new event)" : "Create Event"}</h3>
+            <h3>{editingId ? "Edit Event" : "Create Event"}</h3>
             <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px"}}>
               <input type="text" name="title" value={form.title} onChange={handleChange} placeholder="Title" required style={{padding: "8px", border: "1px solid #ddd", borderRadius: "4px"}} />
               <input type="text" name="location" value={form.location} onChange={handleChange} placeholder="Location" required style={{padding: "8px", border: "1px solid #ddd", borderRadius: "4px"}} />
@@ -152,7 +165,7 @@ export default function AdminEventsPage() {
             <input type="text" name="sponsors" value={form.sponsors} onChange={handleChange} placeholder="Sponsors" style={{width: "100%", padding: "8px", border: "1px solid #ddd", borderRadius: "4px", marginTop: "10px", boxSizing: "border-box"}} />
             <textarea name="description" value={form.description} onChange={handleChange} placeholder="Description" rows="3" style={{width: "100%", padding: "8px", border: "1px solid #ddd", borderRadius: "4px", marginTop: "10px", boxSizing: "border-box", fontFamily: "inherit"}} />
             <div style={{marginTop: "10px"}}>
-              <button type="submit" style={{padding: "10px 20px", background: "#667eea", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", marginRight: "10px"}}>Create</button>
+              <button type="submit" style={{padding: "10px 20px", background: "#667eea", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", marginRight: "10px"}}>{editingId ? "Update Event" : "Create Event"}</button>
               <button type="button" onClick={() => { resetForm(); setShowForm(false); }} style={{padding: "10px 20px", background: "#ccc", color: "#333", border: "none", borderRadius: "4px", cursor: "pointer"}}>Cancel</button>
             </div>
           </form>
