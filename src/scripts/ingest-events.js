@@ -4,7 +4,7 @@ dotenv.config();
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import csv from "csv-parse/sync";
+import { parse } from "csv-parse/sync";
 import pg from "pg";
 import { v4 as uuidv4 } from "uuid";
 
@@ -38,11 +38,11 @@ async function ingestEvents() {
       return;
     }
 
-    const fileContent = fs.readFileSync(csvPath, "utf-8");
-    const records = csv.parse(fileContent, {
-      columns: true,
-      skip_empty_lines: true,
-    });
+	const fileContent = fs.readFileSync(csvPath, "utf-8");
+	const records = parse(fileContent, {
+	  columns: true,
+	  skip_empty_lines: true,
+	});
 
     console.log(`Found ${records.length} events to ingest`);
 
