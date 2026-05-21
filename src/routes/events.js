@@ -1,11 +1,12 @@
-import { users } from "../db/schema.js";
-import { Resend } from "resend";
-const resend = new Resend(process.env.RESEND_API_KEY);
-console.log("📧 Resend initialized with key:", process.env.RESEND_API_KEY ? "✓ Set" : "✗ Missing");
+import { Router } from "express";
 import { db } from "../db/index.js";
-import { events, rsvps } from "../db/schema.js";
+import { users, events, rsvps } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+console.log("📧 Resend initialized with key:", process.env.RESEND_API_KEY ? "✓ Set" : "✗ Missing");
 
 const router = Router();
 
