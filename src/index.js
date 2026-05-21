@@ -6,12 +6,13 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import postgres from "postgres";
+import pg from "pg";
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import eventsRoutes from "./routes/events.js";
 import adminRoutes from "./routes/admin.js";
 
+const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
@@ -22,7 +23,7 @@ app.use(express.json());
 async function runMigrations() {
   try {
     const connectionString = process.env.DATABASE_URL;
-    const client = postgres(connectionString, { max: 1 });
+    const pool = new Pool({ connectionString });
 
     console.log("🔄 Running database migrations...");
 
@@ -37,12 +38,12 @@ async function runMigrations() {
         const filePath = path.join(migrationsDir, file);
         const sql = fs.readFileSync(filePath, "utf-8");
         console.log(`  Running ${file}...`);
-        await client.query(sql);
+        await pool.query(sql);
       }
       console.log("✅ Migrations complete!");
     }
 
-    await client.end();
+    await pool.end();
   } catch (error) {
     console.warn("⚠️ Migration warning:", error.message);
   }
