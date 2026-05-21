@@ -5,52 +5,16 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
-import pg from "pg";
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import eventsRoutes from "./routes/events.js";
 import adminRoutes from "./routes/admin.js";
 
-const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-// Run migrations on startup
-async function runMigrations() {
-  try {
-    const connectionString = process.env.DATABASE_URL;
-    const pool = new Pool({ connectionString });
-
-    console.log("🔄 Running database migrations...");
-
-    const migrationsDir = path.join(__dirname, "migrations");
-    if (fs.existsSync(migrationsDir)) {
-      const files = fs
-        .readdirSync(migrationsDir)
-        .filter((f) => f.endsWith(".sql"))
-        .sort();
-
-      for (const file of files) {
-        const filePath = path.join(migrationsDir, file);
-        const sql = fs.readFileSync(filePath, "utf-8");
-        console.log(`  Running ${file}...`);
-        await pool.query(sql);
-      }
-      console.log("✅ Migrations complete!");
-    }
-
-    await pool.end();
-  } catch (error) {
-    console.warn("⚠️ Migration warning:", error.message);
-  }
-}
-
-// Run migrations before starting server
-await runMigrations();
 
 // Health check
 app.get("/health", (req, res) => {
