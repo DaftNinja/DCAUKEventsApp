@@ -1,6 +1,7 @@
 import { users } from "../db/schema.js";
 import { Resend } from "resend";
-const resend = new Resend(process.env.RESEND_API_KEY);import { Router } from "express";
+const resend = new Resend(process.env.RESEND_API_KEY);
+console.log("📧 Resend initialized with key:", process.env.RESEND_API_KEY ? "✓ Set" : "✗ Missing");
 import { db } from "../db/index.js";
 import { events, rsvps } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
@@ -194,7 +195,8 @@ router.post("/:id/rsvp", authenticateToken, async (req, res) => {
     console.log("✓ RSVP created:", result[0].id);
 
     // Send emails
-    try {
+    console.log("📧 Attempting to send emails...");
+	try {
       // Get user and event details
       const user = await db.select().from(users).where(eq(users.id, req.userId));
       const event = await db.select().from(events).where(eq(events.id, req.params.id));
