@@ -1,19 +1,55 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
+import fs from "fs";
+import postgres from "postgres";
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import eventsRoutes from "./routes/events.js";
-
-dotenv.config();
+import adminRoutes from "./routes/admin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Run migrations on startup
+async function runMigrations() {
+  try {
+    const connectionString = process.env.DATABASE_URL;
+    const client = postgres(connectionString, { max: 1 });
+
+    console.log("🔄 Running database migrations...");
+
+    const migrationsDir = path.join(__dirname, "migrations");
+    if (fs.existsSync(migrationsDir)) {
+      const files = fs
+        .readdirSync(migrationsDir)
+        .filter((f) => f.endsWith(".sql"))
+        .sort();
+
+      for (const file of files) {
+        const filePath = path.join(migrationsDir, file);
+        const sql = fs.readFileSync(filePath, "utf-8");
+        console.log(`  Running ${file}...`);
+        await client.query(sql);
+      }
+      console.log("✅ Migrations complete!");
+    }
+
+    await client.end();
+  } catch (error) {
+    console.warn("⚠️ Migration warning:", error.message);
+  }
+}
+
+// Run migrations before starting server
+await runMigrations();
 
 // Health check
 app.get("/health", (req, res) => {
@@ -24,6 +60,7 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/events", eventsRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
