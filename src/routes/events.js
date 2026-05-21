@@ -236,9 +236,9 @@ router.post("/:id/rsvp", authenticateToken, async (req, res) => {
         }
       }
     } catch (emailError) {
-  console.error("❌ Email error:", emailError);
-  // Don't fail the RSVP if email fails
-}
+      console.error("❌ Email error:", emailError);
+      // Don't fail the RSVP if email fails
+    }
 
     res.status(201).json(result[0]);
   } catch (error) {
