@@ -1,4 +1,7 @@
-import { Router } from "express";
+import { eq } from "drizzle-orm";
+import { users } from "../db/schema.js";
+import { Resend } from "resend";
+const resend = new Resend(process.env.RESEND_API_KEY);import { Router } from "express";
 import { db } from "../db/index.js";
 import { events, rsvps } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
@@ -178,6 +181,8 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 router.post("/:id/rsvp", authenticateToken, async (req, res) => {
   try {
     const { status } = req.body;
+    
+    // Create RSVP
     const result = await db
       .insert(rsvps)
       .values({
@@ -186,8 +191,53 @@ router.post("/:id/rsvp", authenticateToken, async (req, res) => {
         status: status || "interested",
       })
       .returning();
-
+    
     console.log("✓ RSVP created:", result[0].id);
+
+    // Send emails
+    try {
+      // Get user and event details
+      const user = await db.select().from(users).where(eq(users.id, req.userId));
+      const event = await db.select().from(events).where(eq(events.id, req.params.id));
+      
+      if (user.length > 0 && event.length > 0) {
+        const userData = user[0];
+        const eventData = event[0];
+
+        // Email to user
+        await resend.emails.send({
+          from: "events@dca.community",
+          to: userData.email,
+          subject: `You registered for ${eventData.title}`,
+          html: `<h2>Registration Confirmed</h2>
+            <p>Hi ${userData.name},</p>
+            <p>You've registered as <strong>${status || "interested"}</strong> for:</p>
+            <h3>${eventData.title}</h3>
+            <p><strong>Date:</strong> ${new Date(eventData.startDate).toLocaleDateString()}</p>
+            <p><strong>Location:</strong> ${eventData.location}</p>
+            <p><strong>Organizer:</strong> ${eventData.organiser}</p>
+            <p>See you there!</p>`
+        });
+
+        // Email to organizer
+        if (eventData.organizerEmail) {
+          await resend.emails.send({
+            from: "events@dca.community",
+            to: eventData.organizerEmail,
+            subject: `New registration for ${eventData.title}`,
+            html: `<h2>New Registration</h2>
+              <p>${userData.name} (${userData.email}) registered as <strong>${status || "interested"}</strong> for your event:</p>
+              <h3>${eventData.title}</h3>
+              <p><strong>Date:</strong> ${new Date(eventData.startDate).toLocaleDateString()}</p>
+              <p><strong>Company:</strong> ${userData.company || "Not specified"}</p>`
+          });
+        }
+      }
+    } catch (emailError) {
+      console.warn("⚠️ Failed to send email:", emailError.message);
+      // Don't fail the RSVP if email fails
+    }
+
     res.status(201).json(result[0]);
   } catch (error) {
     if (error.message.includes("duplicate key")) {
