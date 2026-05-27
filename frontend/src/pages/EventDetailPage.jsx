@@ -10,32 +10,26 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rsvpStatus, setRsvpStatus] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/');
-      return;
-    }
-    fetchEvent();
+    if (!token) { navigate('/'); return; }
+    init();
   }, [id, navigate]);
 
-  const fetchEvent = async () => {
+  const init = async () => {
     try {
       setLoading(true);
-      const data = await api.get(`/api/events/${id}`);
-      setEvent(data);
-
-      // Determine current user's RSVP from the rsvps array
-      const token = localStorage.getItem('token');
-      if (token && data.rsvps) {
-        // We don't store userId locally so we rely on currentUserRsvp if present,
-        // otherwise we'll get it after the first RSVP action
-        if (data.currentUserRsvp !== undefined) {
-          setRsvpStatus(data.currentUserRsvp);
-        }
-      }
+      const [eventData, userData] = await Promise.all([
+        api.get(`/api/events/${id}`),
+        api.get('/api/users/me'),
+      ]);
+      setEvent(eventData);
+      setCurrentUserId(userData.id);
+      const myRsvp = eventData.rsvps?.find(r => r.userId === userData.id);
+      setRsvpStatus(myRsvp?.status || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,9 +40,10 @@ export default function EventDetailPage() {
   const handleRsvp = async (status) => {
     try {
       setSubmitting(true);
-      const updated = await api.post(`/api/events/${id}/rsvp`, { status });
-      setRsvpStatus(updated.status);
-      await fetchEvent();
+      await api.post(`/api/events/${id}/rsvp`, { status });
+      setRsvpStatus(status);
+      const updated = await api.get(`/api/events/${id}`);
+      setEvent(updated);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -61,7 +56,8 @@ export default function EventDetailPage() {
       setSubmitting(true);
       await api.delete(`/api/events/${id}/rsvp`);
       setRsvpStatus(null);
-      await fetchEvent();
+      const updated = await api.get(`/api/events/${id}`);
+      setEvent(updated);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -73,8 +69,8 @@ export default function EventDetailPage() {
   if (error) return <div className="event-detail"><p>Error: {error}</p></div>;
   if (!event) return <div className="event-detail"><p>Event not found</p></div>;
 
-  const goingCount = event.rsvps?.filter((r) => r.status === 'going').length || 0;
-  const interestedCount = event.rsvps?.filter((r) => r.status === 'interested').length || 0;
+  const goingCount = event.rsvps?.filter(r => r.status === 'going').length || 0;
+  const interestedCount = event.rsvps?.filter(r => r.status === 'interested').length || 0;
 
   return (
     <div className="event-detail">
@@ -92,30 +88,22 @@ export default function EventDetailPage() {
           <div className="main-info">
             <div className="info-section">
               <h3>📅 Date & Time</h3>
-              <p>
-                {new Date(event.startDate).toLocaleDateString('en-GB', {
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </p>
-              {event.endDate && (
-                <p>
-                  Until{' '}
-                  {new Date(event.endDate).toLocaleDateString('en-GB', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
+              <p>{new Date(event.startDate).toLocaleDateString('en-GB', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+              })}</p>
+              {event.endDate && new Date(event.endDate).toDateString() !== new Date(event.startDate).toDateString() && (
+                <p>Until {new Date(event.endDate).toLocaleDateString('en-GB', {
+                  day: 'numeric', month: 'long', year: 'numeric'
+                })}</p>
               )}
             </div>
 
-            <div className="info-section">
-              <h3>📍 Location</h3>
-              <p>{event.isVirtual ? 'Virtual Event' : event.location || 'TBA'}</p>
-            </div>
+            {(event.location || event.isVirtual) && (
+              <div className="info-section">
+                <h3>📍 Location</h3>
+                <p>{event.isVirtual ? 'Virtual Event' : event.location}</p>
+              </div>
+            )}
 
             {event.description && (
               <div className="info-section">
@@ -126,12 +114,7 @@ export default function EventDetailPage() {
 
             {event.eventUrl && (
               <div className="info-section">
-                <a
-                  href={event.eventUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="event-url"
-                >
+                <a href={event.eventUrl} target="_blank" rel="noopener noreferrer" className="event-url">
                   View on event website →
                 </a>
               </div>
@@ -158,11 +141,7 @@ export default function EventDetailPage() {
                 </button>
               </div>
               {rsvpStatus && (
-                <button
-                  className="rsvp-btn remove"
-                  onClick={handleRemoveRsvp}
-                  disabled={submitting}
-                >
+                <button className="rsvp-btn remove" onClick={handleRemoveRsvp} disabled={submitting}>
                   Remove RSVP
                 </button>
               )}
