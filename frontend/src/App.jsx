@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { useEffect, useState } from "react";
 import HomePage from "./pages/HomePage";
 import EventsPage from "./pages/EventsPage";
+import EventDetailPage from "./pages/EventDetailPage";
 import MyEventsPage from "./pages/MyEventsPage";
 import AdminEventsPage from "./pages/AdminEventsPage";
 import AuthCallback from "./pages/AuthCallback";
@@ -36,6 +37,10 @@ export default function App() {
         <Route
           path="/events"
           element={isAuthenticated ? <EventsPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/events/:id"
+          element={isAuthenticated ? <EventDetailPage /> : <Navigate to="/" replace />}
         />
         <Route
           path="/my-events"
