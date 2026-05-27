@@ -2,6 +2,7 @@
 
 A community platform for digital infrastructure professionals to discover events, RSVP, and see who else is attending.
 
+**Live URL:** `https://dcaevents-production.up.railway.app`  
 **Working domain:** `community.1giglabs.com`  
 **Future migration:** `dcauk.org`
 
@@ -71,9 +72,9 @@ All variables are set in Railway (or a local `.env` file for development).
 | `JWT_SECRET` | Secret for signing JWTs | Any long random string |
 | `LINKEDIN_CLIENT_ID` | From LinkedIn Developer app | `783moisnkphgha` |
 | `LINKEDIN_CLIENT_SECRET` | From LinkedIn Developer app | *(from Auth tab)* |
-| `LINKEDIN_REDIRECT_URI` | Must match LinkedIn app exactly | `https://your-app.railway.app/api/auth/linkedin/callback` |
-| `FRONTEND_URL` | Used to redirect after auth | `https://your-app.railway.app` |
-| `BACKEND_URL` | Base URL for API | `https://your-app.railway.app` |
+| `LINKEDIN_REDIRECT_URI` | Must match LinkedIn app exactly | `https://dcaevents-production.up.railway.app/api/auth/linkedin/callback` |
+| `FRONTEND_URL` | Used to redirect after auth | `https://dcaevents-production.up.railway.app` |
+| `BACKEND_URL` | Base URL for API | `https://dcaevents-production.up.railway.app` |
 | `RESEND_API_KEY` | For transactional email | `re_...` |
 
 > ⚠️ **Important:** The variable name is `LINKEDIN_REDIRECT_URI` — not `LINKEDIN_CALLBACK_URL`. Using the wrong name is a common gotcha.
@@ -89,7 +90,8 @@ All variables are set in Railway (or a local `.env` file for development).
    - Events Management API
    - Sign In with LinkedIn using OpenID Connect
 4. **Auth tab** — confirm redirect URLs include:
-   - `https://dca-community-events-prod.up.railway.app/api/auth/linkedin/callback`
+   - `https://dcaevents-production.up.railway.app/api/auth/linkedin/callback`
+   - Remove any old/unused URLs (e.g. `dca-community-events-prod.up.railway.app`)
 5. The OAuth flow requests scopes: `openid profile email`
 
 ---
