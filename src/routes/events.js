@@ -236,7 +236,7 @@ router.post("/:id/rsvp", authenticateToken, async (req, res) => {
     const [rsvp] = await db
       .insert(rsvps)
       .values({
-        userId: req.user.id,
+        userId: req.userId,
         eventId,
         status,
         createdAt: new Date(),
@@ -265,7 +265,7 @@ router.delete("/:id/rsvp", authenticateToken, async (req, res) => {
     await db
       .delete(rsvps)
       .where(
-        and(eq(rsvps.userId, req.user.id), eq(rsvps.eventId, req.params.id))
+        and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id))
       );
     res.json({ success: true });
   } catch (error) {
