@@ -31,8 +31,8 @@ export const api = {
   delete: (path) => request(path, { method: "DELETE" }),
 };
 
-// Named export used by AdminEventsPage (and potentially other pages) to
-// retrieve the currently authenticated user's profile.
+// Returns the currently authenticated user from localStorage.
+// Used by AdminEventsPage, ProfilePage, and others.
 export function getCurrentUser() {
   const raw = localStorage.getItem("user");
   if (!raw) return null;
@@ -41,4 +41,21 @@ export function getCurrentUser() {
   } catch {
     return null;
   }
+}
+
+// Update the current user's profile via the API and refresh localStorage.
+export async function updateProfile(data) {
+  const updated = await request("/api/users/me", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  // Keep localStorage in sync so getCurrentUser() stays accurate
+  localStorage.setItem("user", JSON.stringify(updated));
+  return updated;
+}
+
+// Log out: clear all auth state from localStorage.
+export function logout() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
 }
