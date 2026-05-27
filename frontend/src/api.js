@@ -1,41 +1,32 @@
-const API_URL = `https://${process.env.REACT_APP_API_URL || window.location.hostname}/api`;
+// [FIX P1] Vite apps must use import.meta.env.VITE_* — not process.env.REACT_APP_*.
+// In dev, VITE_API_URL is left empty so Vite's proxy in vite.config.js handles /api.
+// In production (Railway), set VITE_API_URL to your Railway public URL.
+const BASE_URL = import.meta.env.VITE_API_URL || "";
 
-async function request(method, endpoint, body = null) {
+async function request(path, options = {}) {
   const token = localStorage.getItem("token");
-  const headers = {
-    "Content-Type": "application/json",
-  };
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `Request failed: ${res.status}`);
   }
 
-  const options = { method, headers };
-  if (body) {
-    options.body = JSON.stringify(body);
-  }
-
-  const response = await fetch(`${API_URL}${endpoint}`, options);
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return res.json();
 }
 
-export const getEvents = () => request("GET", "/events");
-
-export const getEventDetail = (id) => request("GET", `/events/${id}`);
-
-export const rsvpEvent = (eventId, status = "going") =>
-  request("POST", `/events/${eventId}/rsvp`, { status });
-
-export const unrsvpEvent = (eventId) =>
-  request("DELETE", `/events/${eventId}/rsvp`);
-
-export const getCurrentUser = () => request("GET", "/users/me");
-
-export const updateProfile = (data) =>
-  request("PUT", "/users/me", data);
+export const api = {
+  get: (path) => request(path),
+  post: (path, body) =>
+    request(path, { method: "POST", body: JSON.stringify(body) }),
+  put: (path, body) =>
+    request(path, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (path) => request(path, { method: "DELETE" }),
+};

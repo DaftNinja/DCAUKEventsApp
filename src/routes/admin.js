@@ -6,14 +6,19 @@ import { authenticateToken } from "../middleware/auth.js";
 
 const router = Router();
 
-// Middleware to check if user is admin (hardcoded for now)
+const ADMIN_EMAILS = ["andrew@mccreath.vip"];
+
+// [SECURITY FIX] requireAdmin now actually checks the authenticated user's email.
+// Previously this function always called next() unconditionally — meaning any
+// logged-in user could list or delete all users.
 function requireAdmin(req, res, next) {
-  const adminEmails = ["andrew@mccreath.vip"];
-  // TODO: implement proper role checking after merging dev branch
+  if (!req.user || !ADMIN_EMAILS.includes(req.user.email)) {
+    return res.status(403).json({ error: "Forbidden: admin access only" });
+  }
   next();
 }
 
-// GET all users
+// GET /api/admin/users — list all users (admin only)
 router.get("/users", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const allUsers = await db.select().from(users);
@@ -24,10 +29,11 @@ router.get("/users", authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE user
+// DELETE /api/admin/users/:id — delete a user (admin only)
 router.delete("/users/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     await db.delete(users).where(eq(users.id, req.params.id));
+    console.log(`✓ User deleted: ${req.params.id}`);
     res.json({ success: true });
   } catch (error) {
     console.error("Failed to delete user:", error);

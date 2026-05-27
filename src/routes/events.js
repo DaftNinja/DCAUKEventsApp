@@ -1,269 +1,276 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
-import { users, events, rsvps } from "../db/schema.js";
+import { events, rsvps } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-console.log("📧 Resend initialized with key:", process.env.RESEND_API_KEY ? "✓ Set" : "✗ Missing");
+import {
+  requireAdmin,
+  fetchEvent,
+  requireOwnerOrAdmin,
+} from "../middleware/authorize.js";
 
 const router = Router();
 
-// GET all events
+// ─── GET /api/events ──────────────────────────────────────────────────────────
+// Public. Injects currentUserRsvp for authenticated callers so the frontend
+// doesn't have to guess ownership from the raw attendee list.
 router.get("/", async (req, res) => {
   try {
-    const allEvents = await db.select().from(events);
-    const eventsWithAttendees = await Promise.all(
-      allEvents.map(async (event) => {
-        const attendees = await db
-          .select()
-          .from(rsvps)
-          .where(eq(rsvps.eventId, event.id));
-        return { ...event, attendees };
-      })
-    );
-    res.json(eventsWithAttendees);
+    // Try to identify the caller (token optional — don't block unauthenticated reads)
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const jwt = (await import("jsonwebtoken")).default;
+        const decoded = jwt.verify(
+          authHeader.slice(7),
+          process.env.JWT_SECRET
+        );
+        userId = decoded.id;
+      } catch {
+        // Invalid/expired token — treat as unauthenticated, still return events
+      }
+    }
+
+    const allEvents = await db.select().from(events).orderBy(events.startDate);
+
+    // [FIX P1] Attach currentUserRsvp so the frontend can check registration
+    // without inspecting everyone else's RSVPs.
+    if (userId) {
+      const userRsvps = await db
+        .select()
+        .from(rsvps)
+        .where(eq(rsvps.userId, userId));
+
+      const rsvpMap = Object.fromEntries(
+        userRsvps.map((r) => [r.eventId, r.status])
+      );
+
+      return res.json(
+        allEvents.map((e) => ({
+          ...e,
+          currentUserRsvp: rsvpMap[e.id] ?? null,
+        }))
+      );
+    }
+
+    res.json(allEvents.map((e) => ({ ...e, currentUserRsvp: null })));
   } catch (error) {
     console.error("Failed to fetch events:", error);
     res.status(500).json({ error: "Failed to fetch events" });
   }
 });
 
-// GET single event
+// ─── GET /api/events/:id ──────────────────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
-    const event = await db
+    const [event] = await db
       .select()
       .from(events)
-      .where(eq(events.id, req.params.id));
+      .where(eq(events.id, req.params.id))
+      .limit(1);
 
-    if (event.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
-    }
+    if (!event) return res.status(404).json({ error: "Event not found" });
 
-    const attendees = await db
+    const eventRsvps = await db
       .select()
       .from(rsvps)
-      .where(eq(rsvps.eventId, event[0].id));
+      .where(eq(rsvps.eventId, req.params.id));
 
-    res.json({ ...event[0], attendees });
+    res.json({ ...event, rsvps: eventRsvps });
   } catch (error) {
     console.error("Failed to fetch event:", error);
     res.status(500).json({ error: "Failed to fetch event" });
   }
 });
 
-// POST create event
+// ─── POST /api/events ─────────────────────────────────────────────────────────
+// Any authenticated user can submit an event (goes to pending status).
 router.post("/", authenticateToken, async (req, res) => {
   try {
-    const { title, location, startDate, endDate, organiser, sponsors, description, organizerEmail } = req.body;
+    const {
+      title,
+      description,
+      startDate,
+      endDate,
+      location,
+      eventUrl,
+      capacity,
+    } = req.body;
 
-    const newEvent = await db
+    const [newEvent] = await db
       .insert(events)
       .values({
         title,
-        location,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        organiser,
-        eventUrl: sponsors,
         description,
-        organizerEmail,
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : null,
+        location,
+        eventUrl,
+        capacity,
+        organizerId: req.user.id,
+        organizerEmail: req.user.email,
         status: "pending",
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning();
 
-    console.log("✓ Event created (pending approval):", newEvent[0].id);
-    res.status(201).json({ ...newEvent[0], attendees: [] });
+    res.status(201).json(newEvent);
   } catch (error) {
     console.error("Failed to create event:", error);
     res.status(500).json({ error: "Failed to create event" });
   }
 });
 
-// PUT update event
-router.put("/:id", authenticateToken, async (req, res) => {
-  try {
-    const { title, location, startDate, endDate, organiser, sponsors, description, organizerEmail } = req.body;
+// ─── PUT /api/events/:id ──────────────────────────────────────────────────────
+// [FIX P0] fetchEvent + requireOwnerOrAdmin: only the event owner or an admin
+// may update. Previously any authenticated user could update any event.
+router.put(
+  "/:id",
+  authenticateToken,
+  fetchEvent,
+  requireOwnerOrAdmin,
+  async (req, res) => {
+    try {
+      const { title, description, startDate, endDate, location, eventUrl, capacity } =
+        req.body;
 
-    const updatedEvent = await db
-      .update(events)
-      .set({
-        title,
-        location,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        organiser,
-        eventUrl: sponsors,
-        description,
-        organizerEmail,
-        updatedAt: new Date(),
-      })
-      .where(eq(events.id, req.params.id))
-      .returning();
+      const [updated] = await db
+        .update(events)
+        .set({
+          title,
+          description,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+          location,
+          eventUrl,
+          capacity,
+          updatedAt: new Date(),
+        })
+        .where(eq(events.id, req.params.id))
+        .returning();
 
-    if (updatedEvent.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update event:", error);
+      res.status(500).json({ error: "Failed to update event" });
     }
-
-    console.log("✏️ Event updated:", req.params.id);
-    res.json(updatedEvent[0]);
-  } catch (error) {
-    console.error("Failed to update event:", error);
-    res.status(500).json({ error: "Failed to update event" });
   }
-});
+);
 
-// PUT approve event
-router.put("/:id/approve", authenticateToken, async (req, res) => {
-  try {
-    const updatedEvent = await db
-      .update(events)
-      .set({
-        status: "approved",
-        approvedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(events.id, req.params.id))
-      .returning();
+// ─── POST /api/events/:id/approve ────────────────────────────────────────────
+// [FIX P0] Admin only.
+router.post(
+  "/:id/approve",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const [updated] = await db
+        .update(events)
+        .set({ status: "approved", updatedAt: new Date() })
+        .where(eq(events.id, req.params.id))
+        .returning();
 
-    if (updatedEvent.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
+      if (!updated) return res.status(404).json({ error: "Event not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to approve event:", error);
+      res.status(500).json({ error: "Failed to approve event" });
     }
-
-    console.log("✅ Event approved:", req.params.id);
-    res.json(updatedEvent[0]);
-  } catch (error) {
-    console.error("Failed to approve event:", error);
-    res.status(500).json({ error: "Failed to approve event" });
   }
-});
+);
 
-// PUT reject event
-router.put("/:id/reject", authenticateToken, async (req, res) => {
-  try {
-    const updatedEvent = await db
-      .update(events)
-      .set({
-        status: "rejected",
-        updatedAt: new Date(),
-      })
-      .where(eq(events.id, req.params.id))
-      .returning();
+// ─── POST /api/events/:id/reject ─────────────────────────────────────────────
+// [FIX P0] Admin only.
+router.post(
+  "/:id/reject",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const [updated] = await db
+        .update(events)
+        .set({ status: "rejected", updatedAt: new Date() })
+        .where(eq(events.id, req.params.id))
+        .returning();
 
-    if (updatedEvent.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
+      if (!updated) return res.status(404).json({ error: "Event not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to reject event:", error);
+      res.status(500).json({ error: "Failed to reject event" });
     }
-
-    console.log("❌ Event rejected:", req.params.id);
-    res.json(updatedEvent[0]);
-  } catch (error) {
-    console.error("Failed to reject event:", error);
-    res.status(500).json({ error: "Failed to reject event" });
   }
-});
+);
 
-// DELETE event
-router.delete("/:id", authenticateToken, async (req, res) => {
-  try {
-    await db.delete(events).where(eq(events.id, req.params.id));
-    console.log("🗑️ Event deleted:", req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Failed to delete event:", error);
-    res.status(500).json({ error: "Failed to delete event" });
+// ─── DELETE /api/events/:id ───────────────────────────────────────────────────
+// [FIX P0] fetchEvent + requireOwnerOrAdmin.
+router.delete(
+  "/:id",
+  authenticateToken,
+  fetchEvent,
+  requireOwnerOrAdmin,
+  async (req, res) => {
+    try {
+      await db.delete(rsvps).where(eq(rsvps.eventId, req.params.id));
+      await db.delete(events).where(eq(events.id, req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete event:", error);
+      res.status(500).json({ error: "Failed to delete event" });
+    }
   }
-});
+);
 
-// POST RSVP to event
+// ─── POST /api/events/:id/rsvp ────────────────────────────────────────────────
+// [FIX P2] Upsert instead of insert — prevents duplicate-key crash when a user
+// changes their RSVP status. The UNIQUE(userId, eventId) constraint is now
+// handled gracefully.
 router.post("/:id/rsvp", authenticateToken, async (req, res) => {
   try {
-    const { status } = req.body;
-    
-    // Create RSVP
-    const result = await db
+    const { status } = req.body; // "going" | "interested" | "not_going"
+    const eventId = req.params.id;
+
+    const [rsvp] = await db
       .insert(rsvps)
       .values({
-        userId: req.userId,
-        eventId: req.params.id,
-        status: status || "interested",
+        userId: req.user.id,
+        eventId,
+        status,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [rsvps.userId, rsvps.eventId],
+        set: {
+          status,
+          updatedAt: new Date(),
+        },
       })
       .returning();
-    
-    console.log("✓ RSVP created:", result[0].id);
 
-    // Send emails
-    console.log("📧 Attempting to send emails...");
-	try {
-      // Get user and event details
-      const user = await db.select().from(users).where(eq(users.id, req.userId));
-      const event = await db.select().from(events).where(eq(events.id, req.params.id));
-      
-      if (user.length > 0 && event.length > 0) {
-        const userData = user[0];
-        const eventData = event[0];
-
-        // Email to user
-        await resend.emails.send({
-          from: "events@dca.community",
-          to: userData.email,
-          subject: `You registered for ${eventData.title}`,
-          html: `<h2>Registration Confirmed</h2>
-            <p>Hi ${userData.name},</p>
-            <p>You've registered as <strong>${status || "interested"}</strong> for:</p>
-            <h3>${eventData.title}</h3>
-            <p><strong>Date:</strong> ${new Date(eventData.startDate).toLocaleDateString()}</p>
-            <p><strong>Location:</strong> ${eventData.location}</p>
-            <p><strong>Organizer:</strong> ${eventData.organiser}</p>
-            <p>See you there!</p>`
-        });
-
-        // Email to organizer
-        if (eventData.organizerEmail) {
-          await resend.emails.send({
-            from: "events@dca.community",
-            to: eventData.organizerEmail,
-            subject: `New registration for ${eventData.title}`,
-            html: `<h2>New Registration</h2>
-              <p>${userData.name} (${userData.email}) registered as <strong>${status || "interested"}</strong> for your event:</p>
-              <h3>${eventData.title}</h3>
-              <p><strong>Date:</strong> ${new Date(eventData.startDate).toLocaleDateString()}</p>
-              <p><strong>Company:</strong> ${userData.company || "Not specified"}</p>`
-          });
-        }
-      }
-    } catch (emailError) {
-      console.error("❌ Email error:", emailError);
-      // Don't fail the RSVP if email fails
-    }
-
-    res.status(201).json(result[0]);
+    res.json(rsvp);
   } catch (error) {
-    if (error.message.includes("duplicate key")) {
-      return res.status(400).json({ error: "Already RSVPed to this event" });
-    }
-    console.error("Failed to create RSVP:", error);
-    res.status(500).json({ error: "Failed to create RSVP" });
+    console.error("Failed to RSVP:", error);
+    res.status(500).json({ error: "Failed to RSVP" });
   }
 });
 
-// DELETE RSVP from event
+// ─── DELETE /api/events/:id/rsvp ─────────────────────────────────────────────
+// Allows a user to withdraw their RSVP entirely.
 router.delete("/:id/rsvp", authenticateToken, async (req, res) => {
   try {
     await db
       .delete(rsvps)
       .where(
-        and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id))
+        and(eq(rsvps.userId, req.user.id), eq(rsvps.eventId, req.params.id))
       );
-
-    console.log("✓ RSVP deleted");
     res.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete RSVP:", error);
-    res.status(500).json({ error: "Failed to delete RSVP" });
+    console.error("Failed to remove RSVP:", error);
+    res.status(500).json({ error: "Failed to remove RSVP" });
   }
 });
 
