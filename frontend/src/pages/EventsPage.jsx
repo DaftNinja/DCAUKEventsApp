@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
+import "./EventsPage.css";
 
 export default function EventsPage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     api
@@ -15,13 +17,9 @@ export default function EventsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // [FIX P1] Use currentUserRsvp injected by the backend instead of checking
-  // all attendees. The old code marked ANY event as "registered" if anyone had
-  // status === "going", regardless of which user it was.
   async function handleRsvp(eventId, currentRsvp) {
     try {
       if (currentRsvp === "going") {
-        // Toggle off — withdraw the RSVP
         await api.delete(`/api/events/${eventId}/rsvp`);
         setEvents((prev) =>
           prev.map((e) =>
@@ -29,8 +27,6 @@ export default function EventsPage() {
           )
         );
       } else {
-        // [FIX P2] POST to upsert endpoint — handles both new RSVPs and status
-        // changes without hitting the duplicate-key constraint.
         const updated = await api.post(`/api/events/${eventId}/rsvp`, {
           status: "going",
         });
@@ -46,72 +42,111 @@ export default function EventsPage() {
     }
   }
 
+  async function handleInterested(eventId, currentRsvp) {
+    try {
+      if (currentRsvp === "interested") {
+        await api.delete(`/api/events/${eventId}/rsvp`);
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === eventId ? { ...e, currentUserRsvp: null } : e
+          )
+        );
+      } else {
+        const updated = await api.post(`/api/events/${eventId}/rsvp`, {
+          status: "interested",
+        });
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === eventId ? { ...e, currentUserRsvp: updated.status } : e
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Interested failed:", err);
+      alert("Failed to update. Please try again.");
+    }
+  }
+
   if (loading) return <div className="loading">Loading events…</div>;
   if (error) return <div className="error">Error: {error}</div>;
 
   return (
     <div className="events-page">
-      <h1>Upcoming Events</h1>
-      {events.length === 0 ? (
-        <p>No events yet.</p>
-      ) : (
-        <ul className="events-list">
-          {events.map((event) => {
-            const isRegistered = event.currentUserRsvp === "going";
-            const isInterested = event.currentUserRsvp === "interested";
+      <div className="events-header">
+        <h1>Upcoming Events</h1>
+        <div className="header-buttons">
+          <button className="my-events-btn" onClick={() => navigate("/profile")}>
+            My Profile
+          </button>
+        </div>
+      </div>
 
-            return (
-              <li key={event.id} className="event-card">
-                <Link to={`/events/${event.id}`}>
-                  <h2>{event.title}</h2>
-                </Link>
-                <p className="event-meta">
-                  {event.location} &middot;{" "}
-                  {new Date(event.startDate).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </p>
-                <p className="event-description">{event.description}</p>
+      <div className="events-content">
+        <div className="upcoming-section">
+          <h2>All Events</h2>
+          {events.length === 0 ? (
+            <p className="no-events">No events yet.</p>
+          ) : (
+            <div className="events-list">
+              {events.map((event) => {
+                const isRegistered = event.currentUserRsvp === "going";
+                const isInterested = event.currentUserRsvp === "interested";
+                const date = new Date(event.startDate);
+                const day = date.toLocaleDateString("en-GB", { day: "numeric" });
+                const month = date.toLocaleDateString("en-GB", { month: "short" });
 
-                <div className="event-actions">
-                  <button
-                    className={isRegistered ? "btn-registered" : "btn-primary"}
-                    onClick={() => handleRsvp(event.id, event.currentUserRsvp)}
+                return (
+                  <div
+                    key={event.id}
+                    className="event-card"
+                    onClick={() => navigate(`/events/${event.id}`)}
+                    style={{ cursor: "pointer" }}
                   >
-                    {isRegistered ? "✓ Going (click to cancel)" : "Register"}
-                  </button>
+                    <div className="event-date">
+                      <span className="event-date-day">{day}</span>
+                      <span className="event-date-month">{month}</span>
+                    </div>
 
-                  {!isRegistered && (
-                    <button
-                      className={isInterested ? "btn-interested" : "btn-secondary"}
-                      onClick={async () => {
-                        const updated = await api
-                          .post(`/api/events/${event.id}/rsvp`, {
-                            status: "interested",
-                          })
-                          .catch(console.error);
-                        if (updated) {
-                          setEvents((prev) =>
-                            prev.map((e) =>
-                              e.id === event.id
-                                ? { ...e, currentUserRsvp: updated.status }
-                                : e
-                            )
-                          );
-                        }
-                      }}
+                    <div className="event-details">
+                      <h3>{event.title}</h3>
+                      {event.location && (
+                        <p className="event-location">📍 {event.location}</p>
+                      )}
+                      {event.organiser && (
+                        <p className="event-organiser">🏢 {event.organiser}</p>
+                      )}
+                      {event.description && (
+                        <p className="event-description">{event.description}</p>
+                      )}
+                    </div>
+
+                    <div
+                      className="event-actions"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      {isInterested ? "★ Interested" : "☆ Interested"}
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                      <button
+                        className={`btn ${isRegistered ? "btn-secondary" : "btn-primary"}`}
+                        onClick={() => handleRsvp(event.id, event.currentUserRsvp)}
+                      >
+                        {isRegistered ? "✓ Going" : "Register"}
+                      </button>
+                      {!isRegistered && (
+                        <button
+                          className={`btn ${isInterested ? "btn-secondary" : "btn-primary"}`}
+                          style={isInterested ? {} : { background: "#e0e7ff", color: "#667eea" }}
+                          onClick={() => handleInterested(event.id, event.currentUserRsvp)}
+                        >
+                          {isInterested ? "★ Interested" : "☆ Interested"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
