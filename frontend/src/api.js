@@ -30,3 +30,15 @@ export const api = {
     request(path, { method: "PUT", body: JSON.stringify(body) }),
   delete: (path) => request(path, { method: "DELETE" }),
 };
+
+// Named export used by AdminEventsPage (and potentially other pages) to
+// retrieve the currently authenticated user's profile.
+export function getCurrentUser() {
+  const raw = localStorage.getItem("user");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
