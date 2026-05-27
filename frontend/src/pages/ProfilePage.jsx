@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, updateProfile } from '../api';
+import { api, logout } from '../api';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
@@ -17,11 +17,14 @@ export default function ProfilePage() {
   const fetchUser = async () => {
     try {
       setLoading(true);
-      const data = await getCurrentUser();
+      const data = await api.get('/api/users/me');
       setUser(data);
       setFormData(data);
     } catch (error) {
       console.error('Failed to fetch user:', error);
+      if (error.message.includes('401') || error.message.includes('403')) {
+        navigate('/');
+      }
     } finally {
       setLoading(false);
     }
@@ -29,8 +32,9 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     try {
-      await updateProfile(formData);
-      setUser(formData);
+      const updated = await api.put('/api/users/me', formData);
+      setUser(updated);
+      setFormData(updated);
       setEditing(false);
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -38,7 +42,7 @@ export default function ProfilePage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    logout();
     navigate('/');
   };
 
