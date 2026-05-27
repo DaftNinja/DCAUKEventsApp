@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, boolean, check } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, boolean, check, unique } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -43,8 +43,10 @@ export const rsvps = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     status: text("status").notNull(),
     createdAt: timestamp("createdAt").defaultNow(),
+    updatedAt: timestamp("updatedAt").defaultNow(),
   },
   (table) => [
+    unique("rsvps_user_event_unique").on(table.userId, table.eventId),
     check("status_check", `"status" IN ('interested', 'going')`),
   ]
 );
