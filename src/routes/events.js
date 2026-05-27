@@ -254,7 +254,7 @@ router.post("/:id/rsvp", authenticateToken, async (req, res) => {
     res.json(rsvp);
   } catch (error) {
     console.error("Failed to RSVP:", error);
-    res.status(500).json({ error: "Failed to RSVP" });
+    res.status(500).json({ error: "Failed to RSVP", detail: error.message, code: error.code });
   }
 });
 
