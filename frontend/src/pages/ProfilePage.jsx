@@ -9,10 +9,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchUser();
-  }, []);
+  useEffect(() => { fetchUser(); }, []);
 
   const fetchUser = async () => {
     try {
@@ -22,9 +21,7 @@ export default function ProfilePage() {
       setFormData(data);
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      if (error.message.includes('401') || error.message.includes('403')) {
-        navigate('/');
-      }
+      navigate('/');
     } finally {
       setLoading(false);
     }
@@ -32,96 +29,109 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     try {
-      const updated = await api.put('/api/users/me', formData);
+      setSaving(true);
+      const updated = await api.put('/api/users/me', {
+        name: formData.name,
+        headline: formData.headline,
+        company: formData.company,
+        bio: formData.bio,
+      });
       setUser(updated);
       setFormData(updated);
       setEditing(false);
     } catch (error) {
       console.error('Failed to update profile:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
+  const handleLogout = () => { logout(); navigate('/'); };
 
-  if (loading) {
-    return <div className="profile-page">Loading...</div>;
-  }
-
-  if (!user) {
-    return <div className="profile-page">No user data</div>;
-  }
+  if (loading) return <div className="pp-loading"><div className="pp-spinner" /><p>Loading profile…</p></div>;
+  if (!user) return null;
 
   return (
-    <div className="profile-page">
-      <div className="profile-container">
-        <button className="back-btn" onClick={() => navigate('/events')}>
-          ← Back to Events
-        </button>
+    <div className="pp-page">
+      <nav className="pp-nav">
+        <div className="pp-nav-inner">
+          <button className="pp-logo-btn" onClick={() => navigate('/')}>DCA<span>UK</span></button>
+          <button className="pp-back-btn" onClick={() => navigate('/events')}>← Back to Events</button>
+        </div>
+      </nav>
 
-        <div className="profile-header">
-          {user.avatarUrl && (
-            <img src={user.avatarUrl} alt={user.name} className="profile-avatar" />
-          )}
-          <div className="profile-info">
-            <h1>{user.name}</h1>
-            <p className="email">{user.email}</p>
+      <div className="pp-body">
+        {/* Hero card */}
+        <div className="pp-hero">
+          <div className="pp-avatar-wrap">
+            {user.avatarUrl
+              ? <img src={user.avatarUrl} alt={user.name} className="pp-avatar" />
+              : <div className="pp-avatar-initials">{user.name?.charAt(0) || '?'}</div>
+            }
+          </div>
+          <div className="pp-hero-info">
+            <h1 className="pp-name">{user.name}</h1>
+            {user.headline && <p className="pp-headline">{user.headline}</p>}
+            {user.company && <p className="pp-company">{user.company}</p>}
+            <p className="pp-email">{user.email}</p>
           </div>
         </div>
 
         {editing ? (
-          <div className="profile-form">
-            <div className="form-group">
-              <label>Name</label>
-              <input
-                type="text"
-                value={formData.name || ''}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
+          <div className="pp-card pp-form-card">
+            <h2 className="pp-card-title">Edit Profile</h2>
+            <div className="pp-form-grid">
+              <div className="form-group">
+                <label>Name</label>
+                <input type="text" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Headline</label>
+                <input type="text" placeholder="e.g. Founder at 1GigLabs" value={formData.headline || ''} onChange={e => setFormData({ ...formData, headline: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Company</label>
+                <input type="text" value={formData.company || ''} onChange={e => setFormData({ ...formData, company: e.target.value })} />
+              </div>
+              <div className="form-group form-group-full">
+                <label>Bio</label>
+                <textarea rows={4} placeholder="Tell the community about yourself…" value={formData.bio || ''} onChange={e => setFormData({ ...formData, bio: e.target.value })} />
+              </div>
             </div>
-
-            <div className="form-group">
-              <label>Headline</label>
-              <input
-                type="text"
-                value={formData.headline || ''}
-                onChange={(e) => setFormData({ ...formData, headline: e.target.value })}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Company</label>
-              <input
-                type="text"
-                value={formData.company || ''}
-                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Bio</label>
-              <textarea
-                value={formData.bio || ''}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-              />
-            </div>
-
-            <div className="form-actions">
-              <button className="btn-save" onClick={handleSave}>Save</button>
-              <button className="btn-cancel" onClick={() => setEditing(false)}>Cancel</button>
+            <div className="pp-form-actions">
+              <button className="pp-btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+              <button className="pp-btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
             </div>
           </div>
         ) : (
-          <div className="profile-details">
-            {user.headline && <p><strong>Headline:</strong> {user.headline}</p>}
-            {user.company && <p><strong>Company:</strong> {user.company}</p>}
-            {user.bio && <p><strong>Bio:</strong> {user.bio}</p>}
-
-            <div className="profile-actions">
-              <button className="btn-edit" onClick={() => setEditing(true)}>Edit Profile</button>
-              <button className="btn-logout" onClick={handleLogout}>Logout</button>
+          <div className="pp-card">
+            <div className="pp-details">
+              {user.bio && (
+                <div className="pp-detail-row pp-bio">
+                  <span className="pp-detail-label">Bio</span>
+                  <p className="pp-detail-value pp-bio-text">{user.bio}</p>
+                </div>
+              )}
+              {user.headline && (
+                <div className="pp-detail-row">
+                  <span className="pp-detail-label">Headline</span>
+                  <span className="pp-detail-value">{user.headline}</span>
+                </div>
+              )}
+              {user.company && (
+                <div className="pp-detail-row">
+                  <span className="pp-detail-label">Company</span>
+                  <span className="pp-detail-value">{user.company}</span>
+                </div>
+              )}
+              <div className="pp-detail-row">
+                <span className="pp-detail-label">Email</span>
+                <span className="pp-detail-value">{user.email}</span>
+              </div>
+            </div>
+            <div className="pp-actions">
+              <button className="pp-btn-primary" onClick={() => setEditing(true)}>Edit Profile</button>
+              <button className="pp-btn-danger" onClick={handleLogout}>Sign out</button>
             </div>
           </div>
         )}
