@@ -20,8 +20,8 @@
 }
 
 .ep-spinner {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border: 3px solid #e2e8f0;
   border-top-color: #0ea5e9;
   border-radius: 50%;
@@ -118,20 +118,21 @@
   background: white;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
-  padding: 1.75rem 2rem;
+  padding: 1.25rem 1.5rem;
+  max-width: 480px;
 }
 
 .ep-calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .ep-calendar-title {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: 1rem;
   letter-spacing: -0.01em;
   color: #0f172a;
 }
@@ -143,8 +144,8 @@
 }
 
 .ep-cal-nav {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: white;
@@ -183,7 +184,7 @@
 .ep-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 2px;
 }
 
 .ep-cal-dow {
@@ -228,8 +229,8 @@
   background: #0ea5e9;
   color: white;
   border-radius: 50%;
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,15 +249,15 @@
 }
 
 .ep-cal-num {
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   font-weight: 500;
   color: #334155;
   line-height: 1;
 }
 
 .ep-cal-dot {
-  width: 5px;
-  height: 5px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
   background: #0ea5e9;
   flex-shrink: 0;
