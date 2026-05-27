@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import api from '../api';
+import { useParams, useNavigate } from 'react-router-dom';
+import { api } from '../api';
 import './EventDetailPage.css';
 
 export default function EventDetailPage() {
@@ -18,22 +18,23 @@ export default function EventDetailPage() {
       navigate('/');
       return;
     }
-
     fetchEvent();
   }, [id, navigate]);
 
   const fetchEvent = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/events/${id}`);
-      setEvent(response.data);
+      const data = await api.get(`/api/events/${id}`);
+      setEvent(data);
 
-      // Check if user has already RSVP'd
-      const userRsvp = response.data.attendees?.find(
-        (a) => a.id === localStorage.getItem('userId')
-      );
-      if (userRsvp) {
-        setRsvpStatus(userRsvp.rsvpStatus);
+      // Determine current user's RSVP from the rsvps array
+      const token = localStorage.getItem('token');
+      if (token && data.rsvps) {
+        // We don't store userId locally so we rely on currentUserRsvp if present,
+        // otherwise we'll get it after the first RSVP action
+        if (data.currentUserRsvp !== undefined) {
+          setRsvpStatus(data.currentUserRsvp);
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -45,15 +46,9 @@ export default function EventDetailPage() {
   const handleRsvp = async (status) => {
     try {
       setSubmitting(true);
-      if (rsvpStatus) {
-        // Update existing RSVP
-        await api.post(`/events/${id}/rsvp`, { status });
-      } else {
-        // Create new RSVP
-        await api.post(`/events/${id}/rsvp`, { status });
-      }
-      setRsvpStatus(status);
-      fetchEvent(); // Refresh to get updated attendee list
+      const updated = await api.post(`/api/events/${id}/rsvp`, { status });
+      setRsvpStatus(updated.status);
+      await fetchEvent();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -64,9 +59,9 @@ export default function EventDetailPage() {
   const handleRemoveRsvp = async () => {
     try {
       setSubmitting(true);
-      await api.delete(`/events/${id}/rsvp`);
+      await api.delete(`/api/events/${id}/rsvp`);
       setRsvpStatus(null);
-      fetchEvent();
+      await fetchEvent();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -78,19 +73,19 @@ export default function EventDetailPage() {
   if (error) return <div className="event-detail"><p>Error: {error}</p></div>;
   if (!event) return <div className="event-detail"><p>Event not found</p></div>;
 
-  const goingCount = event.attendees?.filter((a) => a.rsvpStatus === 'going').length || 0;
-  const interestedCount = event.attendees?.filter((a) => a.rsvpStatus === 'interested').length || 0;
+  const goingCount = event.rsvps?.filter((r) => r.status === 'going').length || 0;
+  const interestedCount = event.rsvps?.filter((r) => r.status === 'interested').length || 0;
 
   return (
     <div className="event-detail">
       <nav className="navbar">
-        <Link to="/events" className="back-link">← Back to Events</Link>
+        <button className="back-link" onClick={() => navigate('/events')}>← Back to Events</button>
       </nav>
 
       <div className="container">
         <div className="event-header">
           <h1>{event.title}</h1>
-          <p className="organiser">{event.organiser}</p>
+          {event.organiser && <p className="organiser">{event.organiser}</p>}
         </div>
 
         <div className="event-content">
@@ -102,19 +97,19 @@ export default function EventDetailPage() {
                   weekday: 'long',
                   day: 'numeric',
                   month: 'long',
-                  year: 'numeric'
+                  year: 'numeric',
                 })}
               </p>
-              <p>
-                {new Date(event.startDate).toLocaleTimeString('en-GB', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-                {event.endDate && ` - ${new Date(event.endDate).toLocaleTimeString('en-GB', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}`}
-              </p>
+              {event.endDate && (
+                <p>
+                  Until{' '}
+                  {new Date(event.endDate).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+              )}
             </div>
 
             <div className="info-section">
@@ -131,7 +126,12 @@ export default function EventDetailPage() {
 
             {event.eventUrl && (
               <div className="info-section">
-                <a href={event.eventUrl} target="_blank" rel="noopener noreferrer" className="event-url">
+                <a
+                  href={event.eventUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="event-url"
+                >
                   View on event website →
                 </a>
               </div>
@@ -180,25 +180,6 @@ export default function EventDetailPage() {
             </div>
           </div>
         </div>
-
-        {event.attendees && event.attendees.length > 0 && (
-          <div className="attendees-section">
-            <h2>Attendees ({event.attendees.length})</h2>
-            <div className="attendees-grid">
-              {event.attendees.map((attendee) => (
-                <div key={attendee.id} className="attendee-card">
-                  {attendee.avatarUrl && (
-                    <img src={attendee.avatarUrl} alt={attendee.name} className="avatar" />
-                  )}
-                  <h4>{attendee.name}</h4>
-                  {attendee.headline && <p className="headline">{attendee.headline}</p>}
-                  {attendee.company && <p className="company">{attendee.company}</p>}
-                  <span className="rsvp-badge">{attendee.rsvpStatus === 'going' ? '✓ Going' : '★ Interested'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
