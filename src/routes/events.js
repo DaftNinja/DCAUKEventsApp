@@ -26,7 +26,7 @@ router.get("/", async (req, res) => {
           authHeader.slice(7),
           process.env.JWT_SECRET
         );
-        userId = decoded.id;
+        userId = decoded.userId;
       } catch {
         // Invalid/expired token — treat as unauthenticated, still return events
       }
