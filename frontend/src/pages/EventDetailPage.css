@@ -1,238 +1,247 @@
-.event-detail .container {
-  max-width: 1000px;
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { api } from '../api';
+import './EventDetailPage.css';
+
+function formatIcsDate(dateStr) {
+  return new Date(dateStr).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
 
-.event-header {
-  margin-bottom: 2rem;
+function buildGoogleUrl(event) {
+  const base = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+  const start = formatIcsDate(event.startDate);
+  const end = formatIcsDate(event.endDate || event.startDate);
+  const params = new URLSearchParams({
+    text: event.title,
+    dates: `${start}/${end}`,
+    details: [event.description, event.eventUrl].filter(Boolean).join('\n\n'),
+    location: event.location || '',
+  });
+  return `${base}&${params.toString()}`;
 }
 
-.event-header h1 {
-  font-size: 2.2rem;
-  margin-bottom: 0.5rem;
-  color: #1e293b;
+function downloadIcs(event) {
+  const start = formatIcsDate(event.startDate);
+  const end = formatIcsDate(event.endDate || event.startDate);
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//DCAUK//Events//EN',
+    'BEGIN:VEVENT',
+    `UID:${event.id}@dcaevents`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${event.title}`,
+    `DESCRIPTION:${(event.description || '').replace(/\n/g, '\\n')}`,
+    `LOCATION:${event.location || ''}`,
+    `URL:${event.eventUrl || ''}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${event.title.replace(/[^a-z0-9]/gi, '-')}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
-.organiser {
-  color: #06b6d4;
-  font-weight: 600;
-  font-size: 0.95rem;
-}
+export default function EventDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rsvpStatus, setRsvpStatus] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
+  const calRef = useRef(null);
 
-.event-content {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 2rem;
-  margin-bottom: 3rem;
-}
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { navigate('/'); return; }
+    init();
+  }, [id, navigate]);
 
-.main-info {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 2rem;
-}
-
-.info-section {
-  margin-bottom: 2rem;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-
-  h3 {
-    font-size: 1rem;
-    margin-bottom: 0.75rem;
-    color: #1e293b;
-  }
-
-  p {
-    color: #64748b;
-    line-height: 1.6;
-  }
-
-  a {
-    display: inline-block;
-    color: #06b6d4;
-    text-decoration: none;
-    font-weight: 600;
-    margin-top: 0.5rem;
-
-    &:hover {
-      color: #0891b2;
+  useEffect(() => {
+    function handleClick(e) {
+      if (calRef.current && !calRef.current.contains(e.target)) setCalOpen(false);
     }
-  }
-}
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
-.event-url {
-  color: #06b6d4 !important;
-  font-weight: 600;
-  text-decoration: none;
-
-  &:hover {
-    color: #0891b2;
-  }
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.rsvp-section {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.rsvp-section h3 {
-  font-size: 1rem;
-  margin-bottom: 0.25rem;
-  color: #1e293b;
-}
-
-.rsvp-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.rsvp-btn {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-  border: 2px solid #e2e8f0;
-  background: white;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover:not(:disabled) {
-    border-color: #06b6d4;
-    color: #06b6d4;
-  }
-
-  &.active {
-    background: #06b6d4;
-    color: white;
-    border-color: #06b6d4;
-  }
-
-  &.remove {
-    border-color: #f43f5e;
-    color: #f43f5e;
-    font-size: 0.85rem;
-
-    &:hover:not(:disabled) {
-      background: #f43f5e;
-      color: white;
+  const init = async () => {
+    try {
+      setLoading(true);
+      const [eventData, userData] = await Promise.all([
+        api.get(`/api/events/${id}`),
+        api.get('/api/users/me'),
+      ]);
+      setEvent(eventData);
+      const myRsvp = eventData.rsvps?.find(r => r.userId === userData.id);
+      setRsvpStatus(myRsvp?.status || null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-  }
-}
+  };
 
-.stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
+  const handleRsvp = async (status) => {
+    try {
+      setSubmitting(true);
+      await api.post(`/api/events/${id}/rsvp`, { status });
+      setRsvpStatus(status);
+      const updated = await api.get(`/api/events/${id}`);
+      setEvent(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-.stat {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  text-align: center;
-}
+  const handleRemoveRsvp = async () => {
+    try {
+      setSubmitting(true);
+      await api.delete(`/api/events/${id}/rsvp`);
+      setRsvpStatus(null);
+      const updated = await api.get(`/api/events/${id}`);
+      setEvent(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-.stat-label {
-  display: block;
-  color: #64748b;
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
-}
+  if (loading) return <div className="event-detail"><p>Loading event...</p></div>;
+  if (error) return <div className="event-detail"><p>Error: {error}</p></div>;
+  if (!event) return <div className="event-detail"><p>Event not found</p></div>;
 
-.stat-value {
-  display: block;
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #06b6d4;
-}
+  const goingCount = event.rsvps?.filter(r => r.status === 'going').length || 0;
+  const interestedCount = event.rsvps?.filter(r => r.status === 'interested').length || 0;
 
-.attendees-section {
-  margin-top: 3rem;
-}
+  return (
+    <div className="event-detail">
+      <nav className="navbar">
+        <button className="back-link" onClick={() => navigate('/events')}>← Back to Events</button>
+      </nav>
 
-.attendees-section h2 {
-  font-size: 1.3rem;
-  margin-bottom: 1.5rem;
-  color: #1e293b;
-}
+      <div className="container">
+        <div className="event-header">
+          <h1>{event.title}</h1>
+          {event.organiser && <p className="organiser">{event.organiser}</p>}
+        </div>
 
-.attendees-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
+        <div className="event-content">
+          <div className="main-info">
+            <div className="info-section">
+              <h3>📅 Date & Time</h3>
+              <p>{new Date(event.startDate).toLocaleDateString('en-GB', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+              })}</p>
+              {event.endDate && new Date(event.endDate).toDateString() !== new Date(event.startDate).toDateString() && (
+                <p>Until {new Date(event.endDate).toLocaleDateString('en-GB', {
+                  day: 'numeric', month: 'long', year: 'numeric'
+                })}</p>
+              )}
+            </div>
 
-.attendee-card {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  text-align: center;
+            {(event.location || event.isVirtual) && (
+              <div className="info-section">
+                <h3>📍 Location</h3>
+                <p>{event.isVirtual ? 'Virtual Event' : event.location}</p>
+              </div>
+            )}
 
-  .avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    margin-bottom: 1rem;
-    object-fit: cover;
-  }
+            {event.description && (
+              <div className="info-section">
+                <h3>📋 Description</h3>
+                <p>{event.description}</p>
+              </div>
+            )}
 
-  h4 {
-    font-size: 1rem;
-    margin-bottom: 0.25rem;
-    color: #1e293b;
-  }
+            {event.eventUrl && (
+              <div className="info-section">
+                <a href={event.eventUrl} target="_blank" rel="noopener noreferrer" className="event-url">
+                  View on event website →
+                </a>
+              </div>
+            )}
+          </div>
 
-  p {
-    font-size: 0.85rem;
-    color: #64748b;
-    margin: 0.25rem 0;
-  }
+          <div className="sidebar">
+            <div className="rsvp-section">
+              <h3>Will you attend?</h3>
+              <div className="rsvp-buttons">
+                <button
+                  className={`rsvp-btn going ${rsvpStatus === 'going' ? 'active' : ''}`}
+                  onClick={() => handleRsvp('going')}
+                  disabled={submitting}
+                >
+                  ✓ Going
+                </button>
+                <button
+                  className={`rsvp-btn interested ${rsvpStatus === 'interested' ? 'active' : ''}`}
+                  onClick={() => handleRsvp('interested')}
+                  disabled={submitting}
+                >
+                  ★ Interested
+                </button>
+              </div>
+              {rsvpStatus && (
+                <button className="rsvp-btn remove" onClick={handleRemoveRsvp} disabled={submitting}>
+                  Remove RSVP
+                </button>
+              )}
+            </div>
 
-  .headline {
-    font-weight: 600;
-  }
+            {/* Add to Calendar */}
+            <div className="cal-wrap" ref={calRef}>
+              <button className="cal-btn" onClick={() => setCalOpen(o => !o)}>
+                📅 Add to Calendar
+                <span className="cal-chevron">{calOpen ? '▲' : '▼'}</span>
+              </button>
+              {calOpen && (
+                <div className="cal-dropdown">
+                  <a
+                    className="cal-option"
+                    href={buildGoogleUrl(event)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setCalOpen(false)}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Google Calendar
+                  </a>
+                  <button
+                    className="cal-option"
+                    onClick={() => { downloadIcs(event); setCalOpen(false); }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Apple / Outlook (.ics)
+                  </button>
+                </div>
+              )}
+            </div>
 
-  .rsvp-badge {
-    display: inline-block;
-    background: #f0fdf4;
-    color: #10b981;
-    padding: 0.25rem 0.75rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-top: 0.75rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .event-content {
-    grid-template-columns: 1fr;
-  }
-
-  .event-header h1 {
-    font-size: 1.5rem;
-  }
-
-  .attendees-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  }
+            <div className="stats">
+              <div className="stat">
+                <span className="stat-label">Going</span>
+                <span className="stat-value">{goingCount}</span>
+              </div>
+              <div className="stat">
+                <span className="stat-label">Interested</span>
+                <span className="stat-value">{interestedCount}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
