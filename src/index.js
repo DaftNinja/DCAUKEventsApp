@@ -4,7 +4,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import pino from "pino";
 import pinoHttp from "pino-http";
-import * as Sentry from "@sentry/node";
 import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
@@ -54,9 +53,6 @@ app.use(express.static(frontendDist));
 app.get("*", (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
-// ─── Sentry error handler ─────────────────────────────────────────────────────
-if (process.env.SENTRY_DSN) {
-  Sentry.setupExpressErrorHandler(app);
 }
 
 // ─── Central error handler ────────────────────────────────────────────────────
