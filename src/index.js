@@ -53,7 +53,6 @@ app.use(express.static(frontendDist));
 app.get("*", (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
-}
 
 // ─── Central error handler ────────────────────────────────────────────────────
 // Catches anything that calls next(err) or throws in async routes
