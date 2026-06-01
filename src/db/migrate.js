@@ -61,10 +61,8 @@ export async function runMigrations() {
     console.log("✓ rsvps table ready");
 
     console.log("✅ All migrations completed");
-    process.exit(0);
   } catch (error) {
     console.error("❌ Migration failed:", error.message);
-    process.exit(1);
   } finally {
     await pool.end();
   }
