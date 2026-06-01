@@ -81,7 +81,7 @@ export default function EventDetailPage() {
         api.get('/api/users/me'),
       ]);
       setEvent(eventData);
-      const myRsvp = eventData.rsvps?.find(r => r.userId === userData.id);
+      const myRsvp = eventData.attendees?.find(r => r.userId === userData.id);
       setRsvpStatus(myRsvp?.status || null);
     } catch (err) {
       setError(err.message);
@@ -122,8 +122,8 @@ export default function EventDetailPage() {
   if (error) return <div className="event-detail"><p>Error: {error}</p></div>;
   if (!event) return <div className="event-detail"><p>Event not found</p></div>;
 
-  const goingCount = event.rsvps?.filter(r => r.status === 'going').length || 0;
-  const interestedCount = event.rsvps?.filter(r => r.status === 'interested').length || 0;
+  const goingCount = event.attendees?.filter(r => r.status === 'going').length ?? 0;
+  const interestedCount = event.attendees?.filter(r => r.status === 'interested').length ?? 0;
 
   return (
     <div className="event-detail">
