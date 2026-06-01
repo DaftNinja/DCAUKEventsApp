@@ -5,7 +5,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
 });
 
-async function runMigrations() {
+export async function runMigrations() {
   console.log("🔄 Running migrations...");
 
   try {
@@ -70,4 +70,3 @@ async function runMigrations() {
   }
 }
 
-runMigrations();
