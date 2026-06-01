@@ -79,8 +79,8 @@ async function start() {
     logger.info("Running migrations...");
     await runMigrations();
 
-    logger.info("Ingesting events...");
-    await ingestEvents();
+    // logger.info("Ingesting events...");
+    // await ingestEvents();
 
     app.listen(PORT, () => {
       logger.info({ port: PORT }, "Server started");
