@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-async function ingestEvents() {
+export async function ingestEvents() {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     connectionTimeoutMillis: 5000,
@@ -150,4 +150,3 @@ function parseDate(dateStr, timeStr) {
   return isNaN(date.getTime()) ? null : date;
 }
 
-ingestEvents();
