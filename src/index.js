@@ -76,11 +76,11 @@ app.use((err, req, res, _next) => {
 // ─── Startup ──────────────────────────────────────────────────────────────────
 async function start() {
   try {
-    // logger.info("Running migrations...");
-    // await runMigrations();
+    logger.info("Running migrations...");
+    await runMigrations();
 
-    // logger.info("Ingesting events...");
-    // await ingestEvents();
+    logger.info("Ingesting events...");
+    await ingestEvents();
 
     app.listen(PORT, () => {
       logger.info({ port: PORT }, "Server started");
