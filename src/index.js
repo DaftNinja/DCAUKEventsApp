@@ -39,11 +39,6 @@ const PORT = process.env.PORT || 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ─── Core middleware ──────────────────────────────────────────────────────────
-if (process.env.SENTRY_DSN) {
-  // Must be first before routes
-  app.use(Sentry.Handlers.requestHandler());
-  app.use(Sentry.Handlers.tracingHandler());
-}
 
 app.use(cors());
 app.use(express.json());
@@ -71,10 +66,9 @@ app.use(express.static(frontendDist));
 app.get("*", (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
-
-// ─── Sentry error handler (must be before custom error handler) ───────────────
+// ─── Sentry error handler ─────────────────────────────────────────────────────
 if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.errorHandler());
+  Sentry.setupExpressErrorHandler(app);
 }
 
 // ─── Central error handler ────────────────────────────────────────────────────
