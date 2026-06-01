@@ -8,6 +8,12 @@ import {
   fetchEvent,
   requireOwnerOrAdmin,
 } from "../middleware/authorize.js";
+import {
+  validate,
+  createEventSchema,
+  updateEventSchema,
+  rsvpSchema,
+} from "../middleware/validate.js";
 
 const router = Router();
 
@@ -29,6 +35,7 @@ router.get("/", async (req, res) => {
     const allEvents = await db.select().from(events).orderBy(events.startDate);
 
     if (userId) {
+      // Single query for all RSVPs for this user — no N+1
       const userRsvps = await db
         .select()
         .from(rsvps)
@@ -77,7 +84,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ─── POST /api/events ─────────────────────────────────────────────────────────
-router.post("/", authenticateToken, async (req, res) => {
+router.post("/", authenticateToken, validate(createEventSchema), async (req, res) => {
   try {
     const { title, description, startDate, endDate, location, eventUrl, capacity } =
       req.body;
@@ -107,7 +114,7 @@ router.post("/", authenticateToken, async (req, res) => {
 });
 
 // ─── PUT /api/events/:id ──────────────────────────────────────────────────────
-router.put("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, async (req, res) => {
+router.put("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, validate(updateEventSchema), async (req, res) => {
   try {
     const { title, description, startDate, endDate, location, eventUrl, capacity } =
       req.body;
@@ -181,7 +188,7 @@ router.delete("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, async 
 });
 
 // ─── POST /api/events/:id/rsvp ────────────────────────────────────────────────
-router.post("/:id/rsvp", authenticateToken, async (req, res) => {
+router.post("/:id/rsvp", authenticateToken, validate(rsvpSchema), async (req, res) => {
   try {
     const { status } = req.body;
     const eventId = req.params.id;

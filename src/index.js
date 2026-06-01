@@ -1,47 +1,117 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import authRoutes from "./routes/auth.js";
-import usersRoutes from "./routes/users.js";
-import eventsRoutes from "./routes/events.js";
-import adminRoutes from "./routes/admin.js";
+import * as Sentry from "@sentry/node";
+import pino from "pino";
+import pinoHttp from "pino-http";
 
+import authRoutes   from "./routes/auth.js";
+import userRoutes   from "./routes/users.js";
+import eventRoutes  from "./routes/events.js";
+import { runMigrations } from "./db/migrate.js";
+import { ingestEvents }  from "./scripts/ingest-events.js";
+
+// ─── Logger ───────────────────────────────────────────────────────────────────
+export const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  // Pretty-print in development, structured JSON in production
+  ...(process.env.NODE_ENV !== "production" && {
+    transport: { target: "pino-pretty", options: { colorize: true } },
+  }),
+});
+
+// ─── Sentry ───────────────────────────────────────────────────────────────────
+// Only initialises if SENTRY_DSN is set — safe to deploy without it
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || "production",
+    // Capture 10% of transactions for performance monitoring
+    tracesSampleRate: 0.1,
+  });
+  logger.info("Sentry initialised");
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+const app  = express();
+const PORT = process.env.PORT || 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const app = express();
+
+// ─── Core middleware ──────────────────────────────────────────────────────────
+if (process.env.SENTRY_DSN) {
+  // Must be first before routes
+  app.use(Sentry.Handlers.requestHandler());
+  app.use(Sentry.Handlers.tracingHandler());
+}
 
 app.use(cors());
 app.use(express.json());
 
-// Health check
+// HTTP request logging — skips /health to keep logs clean
+app.use(pinoHttp({
+  logger,
+  autoLogging: { ignore: (req) => req.url === "/health" },
+}));
+
+// ─── Health check ─────────────────────────────────────────────────────────────
+// Used by Railway uptime checks. Returns 200 when the server is running.
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// API routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", usersRoutes);
-app.use("/api/events", eventsRoutes);
-app.use("/api/admin", adminRoutes);
+// ─── API routes ───────────────────────────────────────────────────────────────
+app.use("/api/auth",   authRoutes);
+app.use("/api/users",  userRoutes);
+app.use("/api/events", eventRoutes);
 
-// Serve frontend static files
-app.use(express.static(path.join(__dirname, "../frontend/dist")));
-
-// Fallback to index.html for React routing
+// ─── Serve React frontend (production) ───────────────────────────────────────
+const frontendDist = path.join(__dirname, "../frontend/dist");
+app.use(express.static(frontendDist));
 app.get("*", (req, res) => {
-  if (!req.path.startsWith("/api")) {
-    res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
-  } else {
-    res.status(404).json({ error: "Not found" });
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
+
+// ─── Sentry error handler (must be before custom error handler) ───────────────
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.Handlers.errorHandler());
+}
+
+// ─── Central error handler ────────────────────────────────────────────────────
+// Catches anything that calls next(err) or throws in async routes
+// Never exposes raw error.message to clients in production
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  const status = err.status || err.statusCode || 500;
+
+  // Always log the full error server-side
+  logger.error({ err, url: req.url, method: req.method }, "Unhandled error");
+
+  // Safe client-facing message
+  const message =
+    process.env.NODE_ENV === "production" && status === 500
+      ? "An unexpected error occurred"
+      : err.message || "An unexpected error occurred";
+
+  res.status(status).json({ error: message });
+});
+
+// ─── Startup ──────────────────────────────────────────────────────────────────
+async function start() {
+  try {
+    logger.info("Running migrations...");
+    await runMigrations();
+
+    logger.info("Ingesting events...");
+    await ingestEvents();
+
+    app.listen(PORT, () => {
+      logger.info({ port: PORT }, "Server started");
+    });
+  } catch (err) {
+    logger.error({ err }, "Startup failed");
+    process.exit(1);
   }
-});
+}
 
-const PORT = process.env.PORT || 8080;
-
-app.listen(PORT, () => {
-  console.log(`✓ Server running on port ${PORT}`);
-  console.log(`  Frontend URL: ${process.env.FRONTEND_URL}`);
-});
+start();
