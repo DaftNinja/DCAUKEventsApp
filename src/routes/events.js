@@ -69,7 +69,7 @@ router.get("/:id", async (req, res) => {
       .from(rsvps)
       .where(eq(rsvps.eventId, req.params.id));
 
-    res.json({ ...event, rsvps: eventRsvps });
+    res.json({ ...event, attendees: eventRsvps });
   } catch (error) {
     console.error("Failed to fetch event:", error);
     res.status(500).json({ error: "Failed to fetch event" });
