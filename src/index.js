@@ -2,10 +2,9 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import * as Sentry from "@sentry/node";
 import pino from "pino";
 import pinoHttp from "pino-http";
-
+import * as Sentry from "@sentry/node";
 import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
@@ -21,17 +20,6 @@ export const logger = pino({
   }),
 });
 
-// ─── Sentry ───────────────────────────────────────────────────────────────────
-// Only initialises if SENTRY_DSN is set — safe to deploy without it
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || "production",
-    // Capture 10% of transactions for performance monitoring
-    tracesSampleRate: 0.1,
-  });
-  logger.info("Sentry initialised");
-}
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 const app  = express();
