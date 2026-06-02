@@ -1,7 +1,12 @@
 .members-page {
   min-height: 100vh;
   background: #f8fafc;
-  padding: 2rem 1rem;
+}
+
+.members-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;  /* ← move padding here */
 }
 
 .members-container {

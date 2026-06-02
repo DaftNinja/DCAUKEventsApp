@@ -27,10 +27,10 @@ body {
 a {
   color: var(--primary);
   text-decoration: none;
+}
 
-  &:hover {
-    color: var(--primary-dark);
-  }
+a:hover {
+  color: var(--primary-dark);
 }
 
 button {
@@ -38,11 +38,11 @@ button {
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
+}
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .container {
@@ -51,52 +51,12 @@ button {
   padding: 2rem 1rem;
 }
 
-.navbar {
-  background: white;
-  border-bottom: 1px solid var(--border);
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  h2 {
-    margin: 0;
-  }
-
-  .nav-links {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-
-    a, button {
-      padding: 0.5rem 1rem;
-      background: none;
-      color: var(--primary);
-
-      &:hover {
-        color: var(--primary-dark);
-      }
-    }
-
-    button {
-      background: var(--primary);
-      color: white;
-      border-radius: 0.5rem;
-      padding: 0.5rem 1.5rem;
-
-      &:hover {
-        background: var(--primary-dark);
-      }
-    }
-  }
-}
-
 .back-link {
   display: inline-block;
   margin-bottom: 1rem;
   color: var(--primary);
+}
 
-  &:hover {
-    color: var(--primary-dark);
-  }
+.back-link:hover {
+  color: var(--primary-dark);
 }
