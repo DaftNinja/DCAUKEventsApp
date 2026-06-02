@@ -98,11 +98,12 @@
     display: none;
   }
 
-  /* Show a compact menu on mobile — Events + Sign out only */
   .navbar-right .navbar-link:first-child,
   .navbar-signout {
     display: block;
   }
+}
+
 .navbar-submit {
   color: #06b6d4 !important;
   font-weight: 600 !important;
