@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import pino from "pino";
 import pinoHttp from "pino-http";
+import adminRoutes
 import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
@@ -26,7 +27,7 @@ const PORT = process.env.PORT || 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ─── Core middleware ──────────────────────────────────────────────────────────
-
+app.use("/api/admin", adminRoutes)
 app.use(cors());
 app.use(express.json());
 

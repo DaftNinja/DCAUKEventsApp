@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   company: text("company"),
   avatarUrl: text("avatarUrl"),
   bio: text("bio"),
+  role: text("role").default("member").notNull(), // 'member' | 'organiser' | 'admin'
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow(),
 });

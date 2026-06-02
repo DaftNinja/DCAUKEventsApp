@@ -7,6 +7,7 @@ import EventDetailPage from "./pages/EventDetailPage";
 import SubmitEventPage from "./pages/SubmitEventPage";
 import MyEventsPage from "./pages/MyEventsPage";
 import AdminEventsPage from "./pages/AdminEventsPage";
+import AdminPage from "./pages/AdminPage";
 import AuthCallback from "./pages/AuthCallback";
 import ProfilePage from "./pages/ProfilePage";
 import MembersPage from "./pages/MembersPage";
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/events/:id"      element={auth(<EventDetailPage />)} />
         <Route path="/my-events"       element={auth(<MyEventsPage />)} />
         <Route path="/admin/events"    element={auth(<AdminEventsPage />)} />
+        <Route path="/admin"           element={auth(<AdminPage />)} />
         <Route path="/profile"         element={auth(<ProfilePage />)} />
         <Route path="/members"         element={auth(<MembersPage />)} />
       </Routes>

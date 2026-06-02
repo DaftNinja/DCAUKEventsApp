@@ -1,0 +1,255 @@
+.admin-page {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.admin-body {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.admin-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.admin-subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.admin-link-btn {
+  font-size: 0.875rem;
+  color: #06b6d4;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.5rem 0;
+}
+
+.admin-link-btn:hover {
+  color: #0891b2;
+}
+
+/* Tabs */
+.admin-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-tab {
+  background: none;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.admin-tab:hover {
+  color: #1e293b;
+}
+
+.admin-tab.active {
+  color: #06b6d4;
+  border-bottom-color: #06b6d4;
+}
+
+.admin-tab-count {
+  background: #f1f5f9;
+  color: #64748b;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-tab.active .admin-tab-count {
+  background: #ecfeff;
+  color: #06b6d4;
+}
+
+/* Search */
+.admin-search {
+  width: 100%;
+  max-width: 360px;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #1e293b;
+  background: white;
+  outline: none;
+  margin-bottom: 1rem;
+  transition: border-color 0.15s;
+}
+
+.admin-search:focus {
+  border-color: #06b6d4;
+}
+
+/* Table */
+.admin-table-wrap {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-table thead tr {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tbody tr:hover td {
+  background: #fafafa;
+}
+
+/* User cell */
+.admin-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.admin-avatar-initials {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-user-name {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.admin-user-headline {
+  font-size: 0.775rem;
+  color: #94a3b8;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.admin-email {
+  color: #64748b;
+  font-size: 0.825rem;
+}
+
+.admin-company {
+  color: #64748b;
+}
+
+.admin-date {
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.admin-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2rem !important;
+}
+
+/* Role select */
+.admin-role-select {
+  border: none;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.775rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  appearance: auto;
+}
+
+.admin-role-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-loading,
+.admin-error {
+  text-align: center;
+  padding: 3rem;
+  color: #64748b;
+}
+
+.admin-error {
+  color: #ef4444;
+}
+
+@media (max-width: 768px) {
+  .admin-table th:nth-child(3),
+  .admin-table td:nth-child(3),
+  .admin-table th:nth-child(4),
+  .admin-table td:nth-child(4) {
+    display: none;
+  }
+}

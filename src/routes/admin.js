@@ -3,25 +3,39 @@ import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
+import { attachUser, requireAdmin } from "../middleware/authorize.js";
+import { z } from "zod";
+import { validate } from "../middleware/validate.js";
 
 const router = Router();
 
-const ADMIN_EMAILS = ["andrew@mccreath.vip"];
+// All admin routes require authentication + admin role
+router.use(authenticateToken, attachUser, requireAdmin);
 
-// [SECURITY FIX] requireAdmin now actually checks the authenticated user's email.
-// Previously this function always called next() unconditionally — meaning any
-// logged-in user could list or delete all users.
-function requireAdmin(req, res, next) {
-  if (!req.user || !ADMIN_EMAILS.includes(req.user.email)) {
-    return res.status(403).json({ error: "Forbidden: admin access only" });
-  }
-  next();
-}
+const updateRoleSchema = z.object({
+  role: z.enum(["member", "organiser", "admin"], {
+    errorMap: () => ({ message: "Role must be member, organiser, or admin" }),
+  }),
+});
 
-// GET /api/admin/users — list all users (admin only)
-router.get("/users", authenticateToken, requireAdmin, async (req, res) => {
+// ─── GET /api/admin/users ─────────────────────────────────────────────────────
+// Returns all users with public + role fields. Never exposes linkedinId.
+router.get("/users", async (req, res) => {
   try {
-    const allUsers = await db.select().from(users);
+    const allUsers = await db
+      .select({
+        id:        users.id,
+        name:      users.name,
+        email:     users.email,
+        headline:  users.headline,
+        company:   users.company,
+        avatarUrl: users.avatarUrl,
+        role:      users.role,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(users.createdAt);
+
     res.json(allUsers);
   } catch (error) {
     console.error("Failed to fetch users:", error);
@@ -29,15 +43,33 @@ router.get("/users", authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/users/:id — delete a user (admin only)
-router.delete("/users/:id", authenticateToken, requireAdmin, async (req, res) => {
+// ─── PUT /api/admin/users/:id/role ────────────────────────────────────────────
+router.put("/users/:id/role", validate(updateRoleSchema), async (req, res) => {
   try {
-    await db.delete(users).where(eq(users.id, req.params.id));
-    console.log(`✓ User deleted: ${req.params.id}`);
-    res.json({ success: true });
+    const { role } = req.body;
+
+    // Prevent admin from demoting themselves
+    if (req.params.id === req.user.id && role !== "admin") {
+      return res.status(400).json({ error: "You cannot change your own admin role" });
+    }
+
+    const [updated] = await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, req.params.id))
+      .returning({
+        id:    users.id,
+        name:  users.name,
+        email: users.email,
+        role:  users.role,
+      });
+
+    if (!updated) return res.status(404).json({ error: "User not found" });
+
+    res.json(updated);
   } catch (error) {
-    console.error("Failed to delete user:", error);
-    res.status(500).json({ error: "Failed to delete user" });
+    console.error("Failed to update role:", error);
+    res.status(500).json({ error: "Failed to update role" });
   }
 });
 
