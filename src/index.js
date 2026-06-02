@@ -27,9 +27,9 @@ const PORT = process.env.PORT || 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ─── Core middleware ──────────────────────────────────────────────────────────
-app.use("/api/admin", adminRoutes)
 app.use(cors());
 app.use(express.json());
+app.use("/api/admin", adminRoutes);  
 
 // HTTP request logging — skips /health to keep logs clean
 app.use(pinoHttp({
