@@ -105,6 +105,9 @@ export default function EventsPage() {
           <button className="ep-logo-btn" onClick={() => navigate("/")}>
             DCA<span>UK</span>
           </button>
+          <button className="ep-nav-btn" onClick={() => navigate("/members")}>
+            Members
+          </button>
           <div className="ep-nav-right">
             <button className="ep-nav-btn" onClick={() => navigate("/profile")}>
               My Profile

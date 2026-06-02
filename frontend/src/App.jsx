@@ -5,6 +5,7 @@ import EventsPage from "./pages/EventsPage";
 import EventDetailPage from "./pages/EventDetailPage";
 import MyEventsPage from "./pages/MyEventsPage";
 import AdminEventsPage from "./pages/AdminEventsPage";
+import MembersPage from "./pages/MembersPage";
 import AuthCallback from "./pages/AuthCallback";
 import ProfilePage from "./pages/ProfilePage";
 import "./App.css";
@@ -53,6 +54,10 @@ export default function App() {
         <Route
           path="/profile"
           element={isAuthenticated ? <ProfilePage /> : <Navigate to="/" replace />}
+        />
+        <Route
+        path="/members"
+        element={isAuthenticated ? <MembersPage /> : <Navigate to="/" replace />}
         />
       </Routes>
     </Router>
