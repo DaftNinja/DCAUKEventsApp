@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import pino from "pino";
 import pinoHttp from "pino-http";
-import adminRoutes
+import adminRoutes from "./routes/admin.js";
 import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
