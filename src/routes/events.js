@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
-import { events, rsvps } from "../db/schema.js";
+import { events, rsvps, users } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
 import {
@@ -14,6 +14,11 @@ import {
   updateEventSchema,
   rsvpSchema,
 } from "../middleware/validate.js";
+import {
+  sendRsvpConfirmation,
+  sendRsvpCancellation,
+  sendNewEventNotification,
+} from "../services/email.js";
 
 const router = Router();
 
@@ -71,12 +76,12 @@ router.get("/:id", async (req, res) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    const eventRsvps = await db
+    const attendees = await db
       .select()
       .from(rsvps)
       .where(eq(rsvps.eventId, req.params.id));
 
-    res.json({ ...event, attendees: eventRsvps });
+    res.json({ ...event, attendees });
   } catch (error) {
     console.error("Failed to fetch event:", error);
     res.status(500).json({ error: "Failed to fetch event" });
@@ -151,6 +156,16 @@ router.post("/:id/approve", authenticateToken, requireAdmin, async (req, res) =>
       .returning();
 
     if (!updated) return res.status(404).json({ error: "Event not found" });
+
+    // Notify all members about the new event
+    try {
+      const allUsers = await db.select({ email: users.email }).from(users);
+      await sendNewEventNotification({ event: updated, recipients: allUsers });
+    } catch (emailErr) {
+      console.error("Failed to send new event notification:", emailErr);
+      // Don't fail the request if email fails
+    }
+
     res.json(updated);
   } catch (error) {
     console.error("Failed to approve event:", error);
@@ -204,12 +219,20 @@ router.post("/:id/rsvp", authenticateToken, validate(rsvpSchema), async (req, re
       })
       .onConflictDoUpdate({
         target: [rsvps.userId, rsvps.eventId],
-        set: {
-          status,
-          updatedAt: new Date(),
-        },
+        set: { status, updatedAt: new Date() },
       })
       .returning();
+
+    // Send confirmation email — fire and forget, don't block the response
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, req.userId)).limit(1);
+      const [event] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+      if (user && event) {
+        await sendRsvpConfirmation({ user, event, status });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send RSVP confirmation email:", emailErr);
+    }
 
     res.json(rsvp);
   } catch (error) {
@@ -221,11 +244,29 @@ router.post("/:id/rsvp", authenticateToken, validate(rsvpSchema), async (req, re
 // ─── DELETE /api/events/:id/rsvp ─────────────────────────────────────────────
 router.delete("/:id/rsvp", authenticateToken, async (req, res) => {
   try {
+    // Get event details before deleting for the cancellation email
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, req.params.id))
+      .limit(1);
+
     await db
       .delete(rsvps)
       .where(
         and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id))
       );
+
+    // Send cancellation email
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, req.userId)).limit(1);
+      if (user && event) {
+        await sendRsvpCancellation({ user, event });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send RSVP cancellation email:", emailErr);
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error("Failed to remove RSVP:", error);
