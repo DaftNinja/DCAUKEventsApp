@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, logout } from '../api';
+import { api } from '../api';
+import Navbar from '../components/Navbar';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
@@ -46,22 +47,14 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = () => { logout(); navigate('/'); };
-
   if (loading) return <div className="pp-loading"><div className="pp-spinner" /><p>Loading profile…</p></div>;
   if (!user) return null;
 
   return (
     <div className="pp-page">
-      <nav className="pp-nav">
-        <div className="pp-nav-inner">
-          <button className="pp-logo-btn" onClick={() => navigate('/')}>DCA<span>UK</span></button>
-          <button className="pp-back-btn" onClick={() => navigate('/events')}>← Back to Events</button>
-        </div>
-      </nav>
+      <Navbar />
 
       <div className="pp-body">
-        {/* Hero card */}
         <div className="pp-hero">
           <div className="pp-avatar-wrap">
             {user.avatarUrl
@@ -131,7 +124,6 @@ export default function ProfilePage() {
             </div>
             <div className="pp-actions">
               <button className="pp-btn-primary" onClick={() => setEditing(true)}>Edit Profile</button>
-              <button className="pp-btn-danger" onClick={handleLogout}>Sign out</button>
             </div>
           </div>
         )}

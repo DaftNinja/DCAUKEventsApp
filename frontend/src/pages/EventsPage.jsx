@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, logout } from "../api";
+import { api } from "../api";
+import Navbar from "../components/Navbar";
 import "./EventsPage.css";
 
 export default function EventsPage() {
@@ -57,11 +58,6 @@ export default function EventsPage() {
     }
   }
 
-  function handleLogout() {
-    logout();
-    navigate("/");
-  }
-
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
   const monthName = calendarDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
@@ -79,10 +75,7 @@ export default function EventsPage() {
     }
   });
 
-  const displayedEvents = selectedDay
-    ? (eventDayMap[selectedDay] || [])
-    : events;
-
+  const displayedEvents = selectedDay ? (eventDayMap[selectedDay] || []) : events;
   const today = new Date();
 
   if (loading) return (
@@ -100,24 +93,7 @@ export default function EventsPage() {
 
   return (
     <div className="ep-page">
-      <nav className="ep-nav">
-        <div className="ep-nav-inner">
-          <button className="ep-logo-btn" onClick={() => navigate("/")}>
-            DCA<span>UK</span>
-          </button>
-          <button className="ep-nav-btn" onClick={() => navigate("/members")}>
-            Members
-          </button>
-          <div className="ep-nav-right">
-            <button className="ep-nav-btn" onClick={() => navigate("/profile")}>
-              My Profile
-            </button>
-            <button className="ep-nav-btn ep-nav-logout" onClick={handleLogout}>
-              Sign out
-            </button>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <div className="ep-body">
         <section className="ep-calendar-section">
@@ -205,20 +181,16 @@ export default function EventsPage() {
                       {isRegistered && <span className="ep-status-badge going">✓ Going</span>}
                       {isInterested && !isRegistered && <span className="ep-status-badge interested">★ Interested</span>}
                     </div>
-
                     <h3 className="ep-card-title">{event.title}</h3>
-
                     {event.location && (
                       <p className="ep-card-location">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                         {event.location}
                       </p>
                     )}
-
                     {event.description && (
                       <p className="ep-card-desc">{event.description}</p>
                     )}
-
                     <div className="ep-card-actions" onClick={(e) => e.stopPropagation()}>
                       <button
                         className={`ep-btn${isRegistered ? " ep-btn-going" : " ep-btn-primary"}`}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../api';
+import Navbar from '../components/Navbar';
 import './MembersPage.css';
 
 export default function MembersPage() {
@@ -13,7 +14,6 @@ export default function MembersPage() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/'); return; }
-
     api.get('/api/users')
       .then(setMembers)
       .catch(e => setError(e.message))
@@ -39,21 +39,7 @@ export default function MembersPage() {
 
   return (
     <div className="members-page">
-    <nav className="ep-nav">
-  <div className="ep-nav-inner">
-    <button className="ep-logo-btn" onClick={() => navigate('/')}>
-      DCA<span>UK</span>
-    </button>
-    <div className="ep-nav-right">
-      <button className="ep-nav-btn" onClick={() => navigate('/events')}>
-        Events
-      </button>
-      <button className="ep-nav-btn" onClick={() => navigate('/profile')}>
-        My Profile
-      </button>
-    </div>
-  </div>
-</nav>
+      <Navbar />
       <div className="members-container">
         <div className="members-header">
           <div>
