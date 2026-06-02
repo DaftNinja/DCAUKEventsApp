@@ -39,6 +39,21 @@ export default function MembersPage() {
 
   return (
     <div className="members-page">
+    <nav className="ep-nav">
+  <div className="ep-nav-inner">
+    <button className="ep-logo-btn" onClick={() => navigate('/')}>
+      DCA<span>UK</span>
+    </button>
+    <div className="ep-nav-right">
+      <button className="ep-nav-btn" onClick={() => navigate('/events')}>
+        Events
+      </button>
+      <button className="ep-nav-btn" onClick={() => navigate('/profile')}>
+        My Profile
+      </button>
+    </div>
+  </div>
+</nav>
       <div className="members-container">
         <div className="members-header">
           <div>
