@@ -2,15 +2,6 @@ import { useNavigate } from 'react-router-dom';
 import { logout } from '../api';
 import './Navbar.css';
 
-/**
- * Shared top navigation bar used across all authenticated pages.
- *
- * Props:
- *   showBack   {boolean}  — show a "← Back" button (default false)
- *   backTo     {string}   — path for the back button (default "/events")
- *   backLabel  {string}   — label for the back button (default "← Back to Events")
- *   hideNav    {boolean}  — hide the main nav links (e.g. for detail pages)
- */
 export default function Navbar({ showBack = false, backTo = '/events', backLabel = '← Back to Events', hideNav = false }) {
   const navigate = useNavigate();
 
@@ -40,6 +31,9 @@ export default function Navbar({ showBack = false, backTo = '/events', backLabel
             </button>
             <button className="navbar-link" onClick={() => navigate('/members')}>
               Members
+            </button>
+            <button className="navbar-link navbar-submit" onClick={() => navigate('/events/submit')}>
+              + Submit event
             </button>
             <button className="navbar-link" onClick={() => navigate('/profile')}>
               My Profile

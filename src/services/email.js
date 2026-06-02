@@ -2,10 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// The "from" address must be a verified domain in your Resend account.
-// Update this once you've verified dcauk.org or 1giglabs.com in Resend.
-// For now it uses Resend's shared domain for testing.
-const FROM_ADDRESS = process.env.EMAIL_FROM || "DCAUK <onboarding@resend.dev>";
+const FROM_ADDRESS = process.env.EMAIL_FROM || "DCAUK <contact@1giglabs.com>";
 const SITE_URL = process.env.FRONTEND_URL || "https://dcaevents-production.up.railway.app";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,6 +39,8 @@ function baseTemplate(content) {
     .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
     .badge-going { background: #d1fae5; color: #065f46; }
     .badge-interested { background: #fef3c7; color: #92400e; }
+    .badge-approved { background: #d1fae5; color: #065f46; }
+    .badge-rejected { background: #fee2e2; color: #991b1b; }
     .btn { display: inline-block; background: #06b6d4; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin-top: 8px; }
     .divider { height: 1px; background: #e2e8f0; margin: 20px 0; }
   </style>
@@ -53,7 +52,7 @@ function baseTemplate(content) {
     </div>
     <div class="body">${content}</div>
     <div class="footer">
-      Digital Infrastructure Community · <a href="${SITE_URL}" style="color:#06b6d4;">dcauk.org</a><br/>
+      Digital Infrastructure Community · <a href="${SITE_URL}" style="color:#06b6d4;">DCAUK Events</a><br/>
       You're receiving this because you're a member of DCAUK Events.
     </div>
   </div>
@@ -63,9 +62,6 @@ function baseTemplate(content) {
 
 // ─── Email senders ────────────────────────────────────────────────────────────
 
-/**
- * Sent to the user when they RSVP to an event.
- */
 export async function sendRsvpConfirmation({ user, event, status }) {
   if (!process.env.RESEND_API_KEY) return;
 
@@ -104,42 +100,6 @@ export async function sendRsvpConfirmation({ user, event, status }) {
   });
 }
 
-/**
- * Sent to all members when a new event is approved/published.
- */
-export async function sendNewEventNotification({ event, recipients }) {
-  if (!process.env.RESEND_API_KEY || !recipients.length) return;
-
-  const content = `
-    <h1>New event added</h1>
-    <p>A new event has been added to the DCAUK community calendar:</p>
-    <div class="event-card">
-      <div class="event-title">${event.title}</div>
-      ${event.organiser ? `<div class="event-meta">🏢 ${event.organiser}</div>` : ""}
-      <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
-      ${event.location ? `<div class="event-meta">📍 ${event.location}</div>` : ""}
-      ${event.description ? `<div class="event-meta" style="margin-top:8px;color:#475569;">${event.description}</div>` : ""}
-    </div>
-    <a href="${SITE_URL}/events/${event.id}" class="btn">View & RSVP →</a>
-  `;
-
-  // Send in batches of 50 using BCC to protect privacy
-  const BATCH_SIZE = 50;
-  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-    const batch = recipients.slice(i, i + BATCH_SIZE);
-    await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: FROM_ADDRESS,  // send to self
-      bcc: batch.map(r => r.email),
-      subject: `New event: ${event.title}`,
-      html: baseTemplate(content),
-    });
-  }
-}
-
-/**
- * Sent to the user when they remove their RSVP.
- */
 export async function sendRsvpCancellation({ user, event }) {
   if (!process.env.RESEND_API_KEY) return;
 
@@ -160,6 +120,87 @@ export async function sendRsvpCancellation({ user, event }) {
     from: FROM_ADDRESS,
     to: user.email,
     subject: `RSVP removed: ${event.title}`,
+    html: baseTemplate(content),
+  });
+}
+
+export async function sendNewEventNotification({ event, recipients }) {
+  if (!process.env.RESEND_API_KEY || !recipients.length) return;
+
+  const content = `
+    <h1>New event added</h1>
+    <p>A new event has been added to the DCAUK community calendar:</p>
+    <div class="event-card">
+      <div class="event-title">${event.title}</div>
+      ${event.organiser ? `<div class="event-meta">🏢 ${event.organiser}</div>` : ""}
+      <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
+      ${event.location ? `<div class="event-meta">📍 ${event.location}</div>` : ""}
+      ${event.description ? `<div class="event-meta" style="margin-top:8px;color:#475569;">${event.description}</div>` : ""}
+    </div>
+    <a href="${SITE_URL}/events/${event.id}" class="btn">View & RSVP →</a>
+  `;
+
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BATCH_SIZE);
+    await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: FROM_ADDRESS,
+      bcc: batch.map(r => r.email),
+      subject: `New event: ${event.title}`,
+      html: baseTemplate(content),
+    });
+  }
+}
+
+/**
+ * Sent to the organiser when their submitted event is approved.
+ */
+export async function sendEventApproved({ event }) {
+  if (!process.env.RESEND_API_KEY || !event.organizerEmail) return;
+
+  const content = `
+    <h1>Your event has been approved! 🎉</h1>
+    <p>Hi ${event.organiser || "there"},</p>
+    <p>Great news — your event submission has been reviewed and <strong>approved</strong> by the DCAUK team. It's now live and visible to the community.</p>
+    <span class="badge badge-approved">✓ Approved</span>
+    <div class="event-card">
+      <div class="event-title">${event.title}</div>
+      <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
+      ${event.location ? `<div class="event-meta">📍 ${event.location}</div>` : ""}
+    </div>
+    <a href="${SITE_URL}/events/${event.id}" class="btn">View your event →</a>
+  `;
+
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: event.organizerEmail,
+    subject: `✓ Your event has been approved: ${event.title}`,
+    html: baseTemplate(content),
+  });
+}
+
+/**
+ * Sent to the organiser when their submitted event is rejected.
+ */
+export async function sendEventRejected({ event }) {
+  if (!process.env.RESEND_API_KEY || !event.organizerEmail) return;
+
+  const content = `
+    <h1>Event submission update</h1>
+    <p>Hi ${event.organiser || "there"},</p>
+    <p>Thank you for submitting your event to DCAUK. Unfortunately, after review, we're unable to publish the following event at this time:</p>
+    <div class="event-card">
+      <div class="event-title">${event.title}</div>
+      <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
+    </div>
+    <p>If you have any questions or would like to resubmit with changes, please get in touch at <a href="mailto:${FROM_ADDRESS}" style="color:#06b6d4;">contact@1giglabs.com</a>.</p>
+  `;
+
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: event.organizerEmail,
+    subject: `Re: your event submission — ${event.title}`,
     html: baseTemplate(content),
   });
 }

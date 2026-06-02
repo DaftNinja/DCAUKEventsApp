@@ -103,4 +103,13 @@
   .navbar-signout {
     display: block;
   }
+.navbar-submit {
+  color: #06b6d4 !important;
+  font-weight: 600 !important;
 }
+
+.navbar-submit:hover {
+  background: #ecfeff !important;
+  color: #0891b2 !important;
+}
+
