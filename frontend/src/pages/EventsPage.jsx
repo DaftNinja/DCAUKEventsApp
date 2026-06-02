@@ -15,7 +15,12 @@ export default function EventsPage() {
   useEffect(() => {
     api
       .get("/api/events")
-      .then(setEvents)
+      .then(all => {
+        // Only show upcoming events (start date today or in the future)
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        setEvents(all.filter(e => new Date(e.startDate) >= now));
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -79,16 +84,10 @@ export default function EventsPage() {
   const today = new Date();
 
   if (loading) return (
-    <div className="ep-loading">
-      <div className="ep-spinner" />
-      <p>Loading events…</p>
-    </div>
+    <div className="ep-loading"><div className="ep-spinner" /><p>Loading events…</p></div>
   );
-
   if (error) return (
-    <div className="ep-loading">
-      <p className="ep-error">Error: {error}</p>
-    </div>
+    <div className="ep-loading"><p className="ep-error">Error: {error}</p></div>
   );
 
   return (
@@ -101,9 +100,7 @@ export default function EventsPage() {
             <h2 className="ep-calendar-title">{monthName}</h2>
             <div className="ep-calendar-controls">
               {selectedDay && (
-                <button className="ep-cal-clear" onClick={() => setSelectedDay(null)}>
-                  Show all
-                </button>
+                <button className="ep-cal-clear" onClick={() => setSelectedDay(null)}>Show all</button>
               )}
               <button className="ep-cal-nav" onClick={() => { setCalendarDate(new Date(year, month - 1, 1)); setSelectedDay(null); }}>‹</button>
               <button className="ep-cal-nav" onClick={() => { setCalendarDate(new Date(year, month + 1, 1)); setSelectedDay(null); }}>›</button>
@@ -135,6 +132,11 @@ export default function EventsPage() {
               );
             })}
           </div>
+
+          {/* Link to past events */}
+          <button className="ep-past-link" onClick={() => navigate('/events/past')}>
+            View past events →
+          </button>
         </section>
 
         <section className="ep-events-section">
@@ -142,7 +144,7 @@ export default function EventsPage() {
             <h2 className="ep-events-title">
               {selectedDay
                 ? `Events on ${selectedDay} ${calendarDate.toLocaleDateString("en-GB", { month: "long" })}`
-                : "All Upcoming Events"}
+                : "Upcoming Events"}
             </h2>
             <span className="ep-events-count">
               {displayedEvents.length} event{displayedEvents.length !== 1 ? "s" : ""}
@@ -151,12 +153,11 @@ export default function EventsPage() {
 
           {displayedEvents.length === 0 ? (
             <div className="ep-no-events">
-              <p>No events {selectedDay ? "on this day" : "yet"}.</p>
-              {selectedDay && (
-                <button className="ep-cal-clear" onClick={() => setSelectedDay(null)}>
-                  Show all events
-                </button>
-              )}
+              <p>No upcoming events {selectedDay ? "on this day" : ""}.</p>
+              {selectedDay
+                ? <button className="ep-cal-clear" onClick={() => setSelectedDay(null)}>Show all events</button>
+                : <button className="ep-cal-clear" onClick={() => navigate('/events/past')}>View past events</button>
+              }
             </div>
           ) : (
             <div className="ep-events-grid">
@@ -188,9 +189,7 @@ export default function EventsPage() {
                         {event.location}
                       </p>
                     )}
-                    {event.description && (
-                      <p className="ep-card-desc">{event.description}</p>
-                    )}
+                    {event.description && <p className="ep-card-desc">{event.description}</p>}
                     <div className="ep-card-actions" onClick={(e) => e.stopPropagation()}>
                       <button
                         className={`ep-btn${isRegistered ? " ep-btn-going" : " ep-btn-primary"}`}

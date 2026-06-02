@@ -7,21 +7,37 @@ import './ProfilePage.css';
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [myEvents, setMyEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { fetchUser(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const fetchUser = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await api.get('/api/users/me');
-      setUser(data);
-      setFormData(data);
+      const [userData, allEvents] = await Promise.all([
+        api.get('/api/users/me'),
+        api.get('/api/events'),
+      ]);
+      setUser(userData);
+      setFormData(userData);
+
+      // Split into upcoming and past, keeping only RSVPd events
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const rsvpd = allEvents.filter(e => e.currentUserRsvp !== null);
+      const upcoming = rsvpd
+        .filter(e => new Date(e.startDate) >= now)
+        .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      const past = rsvpd
+        .filter(e => new Date(e.startDate) < now)
+        .sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+      setMyEvents({ upcoming, past });
     } catch (error) {
-      console.error('Failed to fetch user:', error);
+      console.error('Failed to fetch data:', error);
       navigate('/');
     } finally {
       setLoading(false);
@@ -50,11 +66,34 @@ export default function ProfilePage() {
   if (loading) return <div className="pp-loading"><div className="pp-spinner" /><p>Loading profile…</p></div>;
   if (!user) return null;
 
+  const { upcoming = [], past = [] } = myEvents;
+
+  function EventRow({ event }) {
+    const isGoing = event.currentUserRsvp === 'going';
+    const date = new Date(event.startDate);
+    return (
+      <div className="pp-event-row" onClick={() => navigate(`/events/${event.id}`)}>
+        <div className="pp-event-date">
+          <span className="pp-event-day">{date.toLocaleDateString('en-GB', { day: 'numeric' })}</span>
+          <span className="pp-event-mon">{date.toLocaleDateString('en-GB', { month: 'short' })}</span>
+        </div>
+        <div className="pp-event-info">
+          <p className="pp-event-title">{event.title}</p>
+          {event.location && <p className="pp-event-location">{event.location}</p>}
+        </div>
+        <span className={`pp-rsvp-badge ${isGoing ? 'going' : 'interested'}`}>
+          {isGoing ? '✓ Going' : '★ Interested'}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="pp-page">
       <Navbar />
 
       <div className="pp-body">
+        {/* Hero */}
         <div className="pp-hero">
           <div className="pp-avatar-wrap">
             {user.avatarUrl
@@ -70,6 +109,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Profile details / edit form */}
         {editing ? (
           <div className="pp-card pp-form-card">
             <h2 className="pp-card-title">Edit Profile</h2>
@@ -127,6 +167,33 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* My Events */}
+        <div className="pp-card">
+          <h2 className="pp-card-title">My Events</h2>
+
+          {upcoming.length === 0 && past.length === 0 ? (
+            <div className="pp-events-empty">
+              <p>You haven't registered for any events yet.</p>
+              <button className="pp-link-btn" onClick={() => navigate('/events')}>Browse upcoming events →</button>
+            </div>
+          ) : (
+            <>
+              {upcoming.length > 0 && (
+                <div className="pp-events-section">
+                  <h3 className="pp-events-sub">Upcoming</h3>
+                  {upcoming.map(e => <EventRow key={e.id} event={e} />)}
+                </div>
+              )}
+              {past.length > 0 && (
+                <div className="pp-events-section">
+                  <h3 className="pp-events-sub">Past</h3>
+                  {past.map(e => <EventRow key={e.id} event={e} />)}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,152 @@
+.past-page {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.past-body {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.past-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.past-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.past-count {
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.past-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.past-event-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  opacity: 0.85;
+}
+
+.past-event-row:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-color: #cbd5e1;
+  opacity: 1;
+}
+
+.past-event-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.past-event-day {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #94a3b8;
+  line-height: 1;
+}
+
+.past-event-month {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.past-event-year {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+  margin-top: 1px;
+}
+
+.past-event-info {
+  min-width: 0;
+}
+
+.past-event-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.past-event-location {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.past-event-badge {
+  flex-shrink: 0;
+}
+
+.past-empty {
+  text-align: center;
+  padding: 3rem;
+  color: #94a3b8;
+}
+
+/* ep-cal-clear used on this page too */
+.ep-cal-clear {
+  background: none;
+  border: none;
+  color: #06b6d4;
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0.25rem 0;
+  margin-top: 0.75rem;
+}
+
+/* Past events link on EventsPage calendar */
+.ep-past-link {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.75rem 0 0;
+  text-align: right;
+  width: 100%;
+  transition: color 0.15s;
+}
+
+.ep-past-link:hover {
+  color: #06b6d4;
+}
+
+@media (max-width: 480px) {
+  .past-event-row {
+    grid-template-columns: 48px 1fr;
+  }
+  .past-event-badge {
+    display: none;
+  }
+}
