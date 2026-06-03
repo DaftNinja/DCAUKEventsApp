@@ -318,8 +318,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS new_column TEXT;
 - [x] Drizzle migrations replacing hand-rolled SQL
 
 ### Next
-- [ ] Domain migration to `dcauk.org`
-- [ ] Resend domain verification (emails from `@dcauk.org`)
+
 - [ ] News feed
 - [ ] Groups / channels
 - [ ] Event reminders (email 48hrs before)
