@@ -1,9 +1,9 @@
-# DCA Community Events Platform
+# DCAUK Community Events Platform
 
-A community platform for digital infrastructure professionals to discover events, RSVP, and see who else is attending.
+A community platform for digital infrastructure professionals to discover events, RSVP, connect with peers, and manage their professional presence.
 
 **Live URL:** `https://dcaevents-production.up.railway.app`  
-**Working domain:** `community.1giglabs.com`  
+**Working domain:** `dacuk-events.1giglabs.com`  
 **Future migration:** `dcauk.org`
 
 ---
@@ -17,6 +17,8 @@ A community platform for digital infrastructure professionals to discover events
 | Frontend | React 18 + Vite + React Router |
 | Auth | LinkedIn OAuth 2.0 (OpenID Connect) |
 | Email | Resend |
+| Logging | Pino (structured JSON in production) |
+| Validation | Zod |
 | Deployment | Railway (single service — Express serves built React as static files) |
 
 ---
@@ -24,81 +26,99 @@ A community platform for digital infrastructure professionals to discover events
 ## Project Structure
 
 ```
-dca-community-events/
-├── src/                          # Backend
-│   ├── index.js                  # Express server entry point
+DCAUKEvents/
+├── src/                              # Backend
+│   ├── index.js                      # Express server entry point
+│   ├── instrument.js                 # Sentry ESM instrumentation (loaded via --import)
 │   ├── db/
-│   │   ├── index.js              # Database connection
-│   │   ├── schema.js             # Drizzle ORM schema (users, events, rsvps)
-│   │   └── migrate.js            # Migration runner
+│   │   ├── index.js                  # Database connection (pg + Drizzle)
+│   │   ├── schema.js                 # Drizzle ORM schema (users, events, rsvps)
+│   │   ├── migrate.js                # Drizzle migration runner
+│   │   └── migrations/               # SQL migration files (tracked by Drizzle)
+│   │       ├── 0000_perpetual_tarantula.sql  # Initial schema
+│   │       ├── 0001_add_user_roles.sql       # role column
+│   │       ├── 0002_add_user_status.sql      # status column
+│   │       └── meta/
+│   │           └── journal.json
 │   ├── middleware/
-│   │   └── auth.js               # JWT generation & verification
+│   │   ├── auth.js                   # JWT generation & verification
+│   │   ├── authorize.js              # Role-based access (attachUser, requireAdmin, etc.)
+│   │   └── validate.js               # Zod schema validation middleware factory
 │   ├── routes/
-│   │   ├── auth.js               # LinkedIn OAuth flow
-│   │   ├── users.js              # User profile endpoints
-│   │   └── events.js             # Events + RSVP endpoints
+│   │   ├── auth.js                   # LinkedIn OAuth flow
+│   │   ├── users.js                  # User profile + member directory
+│   │   ├── events.js                 # Events + RSVP endpoints
+│   │   └── admin.js                  # Admin user management
+│   ├── services/
+│   │   └── email.js                  # All Resend email functions
 │   └── scripts/
-│       └── ingest-events.js      # CSV → database event ingestion
-├── frontend/                     # React app
+│       ├── ingest-events.js          # CSV → database event ingestion
+│       └── runMigrations.js          # Standalone migration runner
+├── frontend/                         # React app
 │   ├── src/
 │   │   ├── main.jsx
-│   │   ├── App.jsx               # Routing
-│   │   ├── api.js                # Axios API client
+│   │   ├── App.jsx                   # Routing
+│   │   ├── api.js                    # Axios API client
+│   │   ├── index.css                 # Global reset + CSS variables
+│   │   ├── App.css
+│   │   ├── components/
+│   │   │   ├── Navbar.jsx            # Shared navigation bar
+│   │   │   └── Navbar.css
 │   │   └── pages/
-│   │       ├── HomePage.jsx      # Sign-in landing page
-│   │       ├── AuthCallback.jsx  # OAuth callback handler
-│   │       ├── EventsPage.jsx    # Event listing
-│   │       ├── EventDetailPage.jsx
-│   │       └── ProfilePage.jsx
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-├── .env.example
+│   │       ├── HomePage.jsx          # Public landing page
+│   │       ├── AuthCallback.jsx      # OAuth callback handler
+│   │       ├── EventsPage.jsx        # Upcoming events + calendar
+│   │       ├── PastEventsPage.jsx    # Past events archive
+│   │       ├── EventDetailPage.jsx   # Event detail + RSVP
+│   │       ├── SubmitEventPage.jsx   # Member event submission form
+│   │       ├── MembersPage.jsx       # Community member directory
+│   │       ├── ProfilePage.jsx       # User profile + event history
+│   │       ├── AdminPage.jsx         # User management (admin only)
+│   │       ├── AdminEventsPage.jsx   # Event approvals (admin only)
+│   │       └── MyEventsPage.jsx      # User's RSVPs
 ├── drizzle.config.js
 ├── package.json
-├── QUICKSTART.md
 └── README.md
 ```
 
 ---
 
-## Environment Variables
+## User Roles
 
-All variables are set in Railway (or a local `.env` file for development).
+| Role | Capabilities |
+|---|---|
+| `member` | Browse events, RSVP, view member directory, submit events for review |
+| `organiser` | All member capabilities + event submissions auto-approve |
+| `admin` | Full platform access including user management and event approvals |
 
-| Variable | Description | Example |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host/db` |
-| `JWT_SECRET` | Secret for signing JWTs | Any long random string |
-| `LINKEDIN_CLIENT_ID` | From LinkedIn Developer app | `783moisnkphgha` |
-| `LINKEDIN_CLIENT_SECRET` | From LinkedIn Developer app | *(from Auth tab)* |
-| `LINKEDIN_REDIRECT_URI` | Must match LinkedIn app exactly | `https://dcaevents-production.up.railway.app/api/auth/linkedin/callback` |
-| `FRONTEND_URL` | Used to redirect after auth | `https://dcaevents-production.up.railway.app` |
-| `BACKEND_URL` | Base URL for API | `https://dcaevents-production.up.railway.app` |
-| `RESEND_API_KEY` | For transactional email | `re_...` |
+Roles are managed manually by admins at `/admin`. There is no automatic role promotion — organisers must be explicitly granted by an admin.
 
-> ⚠️ **Important:** The variable name is `LINKEDIN_REDIRECT_URI` — not `LINKEDIN_CALLBACK_URL`. Using the wrong name is a common gotcha.
+Your account (`andrew@mccreath.vip`) is set to `admin` by the initial migration.
 
 ---
 
-## LinkedIn OAuth Setup
+## Environment Variables
 
-1. Go to [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps)
-2. Open the **1GigLabs DCAUK Event App** (Client ID: `783moisnkphgha`)
-3. **Products tab** — confirm these three are added:
-   - Share on LinkedIn
-   - Events Management API
-   - Sign In with LinkedIn using OpenID Connect
-4. **Auth tab** — confirm redirect URLs include:
-   - `https://dcaevents-production.up.railway.app/api/auth/linkedin/callback`
-   - Remove any old/unused URLs (e.g. `dca-community-events-prod.up.railway.app`)
-5. The OAuth flow requests scopes: `openid profile email`
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (injected by Railway Postgres) |
+| `JWT_SECRET` | Secret for signing JWTs — any long random string |
+| `LINKEDIN_CLIENT_ID` | From LinkedIn Developer app (`783moisnkphgha`) |
+| `LINKEDIN_CLIENT_SECRET` | From LinkedIn Auth tab |
+| `LINKEDIN_REDIRECT_URI` | Must match LinkedIn app exactly — e.g. `https://dcaevents-production.up.railway.app/api/auth/linkedin/callback` |
+| `FRONTEND_URL` | Base URL for frontend links in emails |
+| `BACKEND_URL` | Base URL for API |
+| `RESEND_API_KEY` | Resend transactional email API key |
+| `EMAIL_FROM` | Sending address e.g. `DCAUK <contact@1giglabs.com>` |
+| `NODE_ENV` | Set to `production` on Railway — controls pino pretty-printing |
+| `LOG_LEVEL` | Pino log level — `info` for production |
+| `SENTRY_DSN` | Optional — Sentry error tracking DSN |
+
+> ⚠️ The variable name is `LINKEDIN_REDIRECT_URI` — not `LINKEDIN_CALLBACK_URL`.
 
 ---
 
 ## Railway Deployment
-
-This is a **single Railway service** — Express serves the built React app as static files.
 
 ### Build command
 ```
@@ -110,60 +130,44 @@ npm install && cd frontend && npm install && npm run build && cd ..
 node src/index.js
 ```
 
-### Required Railway environment variables
-Set all variables from the table above in the Railway **Variables** tab.
+### Health check
+```
+GET /health → { "status": "ok", "timestamp": "..." }
+```
+
+Use this URL for Railway's uptime monitoring.
+
+### Startup sequence
+On every deploy, the server runs:
+1. **Drizzle migrations** — applies any pending SQL migrations
+2. **Event ingestion** — imports from `events.csv` if present
+3. **Express server** — binds to `PORT` (injected by Railway)
 
 ---
 
 ## Local Development
 
 ```bash
-# 1. Clone the repo
-git clone <your-repo-url>
-cd dca-community-events
-
-# 2. Install dependencies
+# 1. Clone and install
+git clone <repo-url>
+cd DCAUKEvents
 npm install
 cd frontend && npm install && cd ..
 
-# 3. Copy and fill in environment variables
+# 2. Environment
 cp .env.example .env
-# Edit .env with your values
+# Fill in DATABASE_URL, JWT_SECRET, LinkedIn credentials, RESEND_API_KEY
 
-# 4. Run database migrations
-node src/db/migrate.js
-
-# 5. Start the backend (port 3000)
+# 3. Start backend (port 8080)
 npm run dev
 
-# 6. Start the frontend (port 5173, proxies API to port 3000)
+# 4. Start frontend (port 5173, proxies /api → port 8080)
 cd frontend && npm run dev
 ```
 
-Access the app at `http://localhost:5173`
-
 ---
 
-## Event Ingestion
-
-Events are loaded from a CSV file using the ingestion script.
-
-### CSV format
-
-```csv
-title,description,start_date,end_date,location,is_virtual,organiser,event_url
-"DCA Annual Conference","Description here","2026-09-15 09:00:00","2026-09-15 17:00:00","London",false,"DCA","https://example.com"
-```
-
-### Running the script
-
-```bash
-node src/scripts/ingest-events.js path/to/events.csv
-```
-
----
-
-## API Routes
+## API Reference
 
 ### Auth
 | Method | Route | Description |
@@ -172,19 +176,34 @@ node src/scripts/ingest-events.js path/to/events.csv
 | GET | `/api/auth/linkedin/callback` | OAuth callback — creates/updates user, returns JWT |
 
 ### Users
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/users/me` | Get logged-in user profile |
-| PUT | `/api/users/me` | Update bio |
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/users/me` | ✓ | Get logged-in user profile |
+| PUT | `/api/users/me` | ✓ | Update own profile |
+| GET | `/api/users` | ✓ | Member directory (public fields only, no emails) |
 
 ### Events
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/events` | List all events |
-| GET | `/api/events/:id` | Event detail |
-| POST | `/api/events/:id/rsvp` | RSVP (interested / going) |
-| DELETE | `/api/events/:id/rsvp` | Remove RSVP |
-| GET | `/api/events/:id/attendees` | List attendees |
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/events` | Optional | List all events with current user's RSVP status |
+| GET | `/api/events/:id` | Optional | Event detail with attendee list |
+| POST | `/api/events` | ✓ | Submit event (auto-approved for organiser/admin) |
+| PUT | `/api/events/:id` | Owner/Admin | Update event |
+| DELETE | `/api/events/:id` | Owner/Admin | Delete event |
+| POST | `/api/events/:id/rsvp` | ✓ | RSVP going or interested |
+| DELETE | `/api/events/:id/rsvp` | ✓ | Remove RSVP |
+| POST | `/api/events/:id/approve` | Admin | Approve pending event |
+| POST | `/api/events/:id/reject` | Admin | Reject pending event |
+
+### Admin
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/admin/users` | Admin | List all users with roles |
+| GET | `/api/admin/users/:id` | Admin | User detail + RSVP counts |
+| POST | `/api/admin/users` | Admin | Manually create user |
+| PUT | `/api/admin/users/:id` | Admin | Update any user field |
+| PUT | `/api/admin/users/:id/role` | Admin | Update role only |
+| DELETE | `/api/admin/users/:id` | Admin | Delete user |
 
 ---
 
@@ -194,64 +213,115 @@ node src/scripts/ingest-events.js path/to/events.csv
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
-| linkedin_id | VARCHAR | Unique, from LinkedIn |
-| email | VARCHAR | From LinkedIn |
-| name | VARCHAR | From LinkedIn |
-| headline | VARCHAR | Job title |
-| company | VARCHAR | |
-| avatar_url | TEXT | LinkedIn profile photo |
+| linkedinId | TEXT | Unique — `manual_<uuid>` for manually added users |
+| email | TEXT | Unique |
+| name | TEXT | |
+| headline | TEXT | Job title / role |
+| company | TEXT | |
+| avatarUrl | TEXT | LinkedIn profile photo URL |
 | bio | TEXT | User-editable |
-| created_at / updated_at | TIMESTAMP | |
+| role | TEXT | `member` \| `organiser` \| `admin` |
+| status | TEXT | `active` \| `suspended` |
+| createdAt / updatedAt | TIMESTAMP | |
 
 ### events
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
-| title | VARCHAR | |
+| title | TEXT | |
 | description | TEXT | |
-| start_date / end_date | TIMESTAMP | |
-| location | VARCHAR | Null if virtual |
-| is_virtual | BOOLEAN | |
-| organiser | VARCHAR | e.g. "DCA" |
-| event_url | TEXT | Link to event page |
+| startDate / endDate | TIMESTAMP | |
+| location | TEXT | |
+| isVirtual | BOOLEAN | |
+| organiser | TEXT | Organiser name |
+| organizerEmail | TEXT | |
+| organizerId | UUID | FK → users |
+| eventUrl | TEXT | Link to external event page |
+| status | TEXT | `pending` \| `approved` \| `rejected` |
+| approvedAt | TIMESTAMP | |
+| createdAt / updatedAt | TIMESTAMP | |
 
 ### rsvps
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
-| user_id | UUID | FK → users |
-| event_id | UUID | FK → events |
-| status | VARCHAR | `interested` or `going` |
-| created_at | TIMESTAMP | |
+| userId | UUID | FK → users (cascade delete) |
+| eventId | UUID | FK → events (cascade delete) |
+| status | TEXT | `going` \| `interested` |
+| createdAt / updatedAt | TIMESTAMP | |
 
 ---
 
-## Known Issues & Fixes
+## Email Notifications
 
-| Issue | Fix |
-|---|---|
-| `jsonwebtoken` install error | Use version `^9.0.2` in package.json |
-| Railway build fails (Railpack can't detect Node) | Ensure files are at repo root, not in a subdirectory |
-| LinkedIn "application is disabled" error | Check `LINKEDIN_REDIRECT_URI` env var name — not `LINKEDIN_CALLBACK_URL` |
-| LinkedIn redirect URI mismatch | Ensure `LINKEDIN_REDIRECT_URI` value exactly matches what's registered in LinkedIn Auth tab |
+All email is sent via Resend from `EMAIL_FROM`. The following events trigger emails:
+
+| Trigger | Recipients | Template |
+|---|---|---|
+| User RSVPs going/interested | The user | RSVP confirmation |
+| User removes RSVP | The user | RSVP cancellation |
+| Admin approves event | All members (batched BCC 50) | New event notification |
+| Admin approves event | Event organiser | Approval confirmation |
+| Admin rejects event | Event organiser | Rejection notice |
+
+Email failures are caught silently — they log an error but never fail the originating request.
+
+---
+
+## Migrations
+
+Migrations use Drizzle's file-based migrator. To add a new migration:
+
+```bash
+# Edit src/db/schema.js first, then:
+npx drizzle-kit generate:pg
+
+# The new .sql file appears in src/db/migrations/
+# Commit it — Drizzle applies it automatically on next deploy
+```
+
+To apply a one-off schema change directly (e.g. in Railway's Postgres query tab):
+
+```sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS new_column TEXT;
+```
+
+---
+
+## LinkedIn OAuth Setup
+
+1. Go to [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps)
+2. Open the **1GigLabs DCAUK Event App** (Client ID: `783moisnkphgha`)
+3. **Products tab** — confirm added: Share on LinkedIn, Sign In with LinkedIn using OpenID Connect
+4. **Auth tab** — confirm redirect URLs include your deployment URL + `/api/auth/linkedin/callback`
+5. Scopes requested: `openid profile email`
 
 ---
 
 ## Roadmap
 
-**MVP (current)**
-- [x] LinkedIn OAuth sign-in
-- [x] Event listing
-- [x] RSVP (interested / going)
-- [x] Attendee list per event
-- [x] User profile (auto-populated from LinkedIn)
-- [x] CSV event ingestion
+### Shipped
+- [x] LinkedIn OAuth sign-in with auto-populated profiles
+- [x] Events listing with monthly calendar view
+- [x] Upcoming / past events split
+- [x] Event detail with RSVP (going / interested)
+- [x] Add to Calendar (Google + .ics)
+- [x] Member directory with search
+- [x] Profile page with event history
+- [x] Event submission workflow (member → admin approval queue)
+- [x] Email notifications (RSVP confirmation, new event alerts, organiser approval/rejection)
+- [x] Role-based access (member / organiser / admin)
+- [x] Full admin user management (edit, suspend, delete, add manually)
+- [x] Zod input validation on all mutating routes
+- [x] Structured logging (pino)
+- [x] Health check endpoint
+- [x] Drizzle migrations replacing hand-rolled SQL
 
-**Phase 2**
-- [ ] Email reminders (Resend + cron)
-- [ ] News feed aggregation
+### Next
+- [ ] Domain migration to `dcauk.org`
+- [ ] Resend domain verification (emails from `@dcauk.org`)
+- [ ] News feed
 - [ ] Groups / channels
-- [ ] Following / connections
+- [ ] Event reminders (email 48hrs before)
 - [ ] Training section
 - [ ] Student engagement features
-- [ ] Migration to `dcauk.org`
