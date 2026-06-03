@@ -1,10 +1,8 @@
 # DCAUK Community Events Platform
 
 A community platform for digital infrastructure professionals to discover events, RSVP, connect with peers, and manage their professional presence.
-
-**Live URL:** `https://dcaevents-production.up.railway.app`  
+ 
 **Working domain:** `dacuk-events.1giglabs.com`  
-**Future migration:** `dcauk.org`
 
 ---
 
