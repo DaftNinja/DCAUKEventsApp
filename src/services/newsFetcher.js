@@ -80,15 +80,20 @@ function parseItems(xml) {
 
     if (!title || !link) continue;
 
-    // Clean summary — strip HTML tags, truncate
+    // Clean summary — strip HTML tags and residual attribute fragments
     const summary = desc
       ? desc
-          .replace(/<[^>]+>/g, " ")
+          .replace(/<!\[CDATA\[/gi, "")       // strip CDATA openers
+          .replace(/\]\]>/g, "")               // strip CDATA closers
+          .replace(/<[^>]+>/g, " ")            // strip HTML tags
           .replace(/&amp;/g, "&")
           .replace(/&lt;/g, "<")
           .replace(/&gt;/g, ">")
           .replace(/&quot;/g, '"')
           .replace(/&#39;/g, "'")
+          .replace(/&nbsp;/g, " ")
+          // Remove leftover HTML attribute fragments e.g. data-block-key="abc"
+          .replace(/[a-z-]+=(["'])[^"']*\1/gi, "")
           .replace(/\s+/g, " ")
           .trim()
           .slice(0, 300)
