@@ -4,22 +4,23 @@ import path from "path";
 import { fileURLToPath } from "url";
 import pino from "pino";
 import pinoHttp from "pino-http";
-import adminRoutes from "./routes/admin.js";
+import adminRoutes  from "./routes/admin.js";
 import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
-import { runMigrations } from "./db/migrate.js";
-import { ingestEvents }  from "./scripts/ingest-events.js";
+import newsRoutes   from "./routes/news.js";
+import { runMigrations }    from "./db/migrate.js";
+import { ingestEvents }     from "./scripts/ingest-events.js";
+import { sendEventReminders } from "./services/reminders.js";
+import { fetchAndStoreNews }  from "./services/newsFetcher.js";
 
 // ─── Logger ───────────────────────────────────────────────────────────────────
 export const logger = pino({
   level: process.env.LOG_LEVEL || "info",
-  // Pretty-print in development, structured JSON in production
   ...(process.env.NODE_ENV !== "production" && {
     transport: { target: "pino-pretty", options: { colorize: true } },
   }),
 });
-
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 const app  = express();
@@ -29,7 +30,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ─── Core middleware ──────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
-app.use("/api/admin", adminRoutes);  
 
 // HTTP request logging — skips /health to keep logs clean
 app.use(pinoHttp({
@@ -38,15 +38,16 @@ app.use(pinoHttp({
 }));
 
 // ─── Health check ─────────────────────────────────────────────────────────────
-// Used by Railway uptime checks. Returns 200 when the server is running.
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // ─── API routes ───────────────────────────────────────────────────────────────
+app.use("/api/admin",  adminRoutes);
 app.use("/api/auth",   authRoutes);
 app.use("/api/users",  userRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/news",   newsRoutes);
 
 // ─── Serve React frontend (production) ───────────────────────────────────────
 const frontendDist = path.join(__dirname, "../frontend/dist");
@@ -56,23 +57,30 @@ app.get("*", (req, res) => {
 });
 
 // ─── Central error handler ────────────────────────────────────────────────────
-// Catches anything that calls next(err) or throws in async routes
-// Never exposes raw error.message to clients in production
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500;
-
-  // Always log the full error server-side
   logger.error({ err, url: req.url, method: req.method }, "Unhandled error");
-
-  // Safe client-facing message
   const message =
     process.env.NODE_ENV === "production" && status === 500
       ? "An unexpected error occurred"
       : err.message || "An unexpected error occurred";
-
   res.status(status).json({ error: message });
 });
+
+// ─── Scheduler ────────────────────────────────────────────────────────────────
+function startScheduler() {
+  // Run immediately on startup, then every hour
+  sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
+  fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
+
+  setInterval(() => {
+    sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
+    fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
+  }, 60 * 60 * 1000);
+
+  logger.info("Scheduler started (reminders + news, hourly)");
+}
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
 async function start() {
@@ -80,11 +88,12 @@ async function start() {
     logger.info("Running migrations...");
     await runMigrations();
 
-    // logger.info("Ingesting events...");
-    // await ingestEvents();
+    logger.info("Ingesting events...");
+    await ingestEvents();
 
     app.listen(PORT, () => {
       logger.info({ port: PORT }, "Server started");
+      startScheduler();
     });
   } catch (err) {
     logger.error({ err }, "Startup failed");
