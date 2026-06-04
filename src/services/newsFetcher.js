@@ -80,19 +80,22 @@ function parseItems(xml) {
 
     if (!title || !link) continue;
 
-    // Clean summary — strip HTML tags and residual attribute fragments
+    // Clean summary — decode entities first, THEN strip tags
     const summary = desc
       ? desc
-          .replace(/<!\[CDATA\[/gi, "")       // strip CDATA openers
-          .replace(/\]\]>/g, "")               // strip CDATA closers
-          .replace(/<[^>]+>/g, " ")            // strip HTML tags
+          .replace(/<!\[CDATA\[/gi, "")   // strip CDATA openers
+          .replace(/\]\]>/g, "")           // strip CDATA closers
+          // Decode HTML entities BEFORE stripping tags
           .replace(/&amp;/g, "&")
           .replace(/&lt;/g, "<")
           .replace(/&gt;/g, ">")
           .replace(/&quot;/g, '"')
           .replace(/&#39;/g, "'")
           .replace(/&nbsp;/g, " ")
-          // Remove leftover HTML attribute fragments e.g. data-block-key="abc"
+          .replace(/&#\d+;/g, " ")         // numeric entities
+          // NOW strip all HTML tags (including ones that were encoded)
+          .replace(/<[^>]+>/g, " ")
+          // Remove any leftover attribute fragments
           .replace(/[a-z-]+=(["'])[^"']*\1/gi, "")
           .replace(/\s+/g, " ")
           .trim()
@@ -100,9 +103,11 @@ function parseItems(xml) {
       : null;
 
     const publishedAt = pubDate ? new Date(pubDate) : new Date();
+    const now = new Date();
 
-    // Skip if date is invalid or in the future
+    // Skip if date is invalid or more than 1 hour in the future (clock skew)
     if (isNaN(publishedAt.getTime())) continue;
+    if (publishedAt.getTime() > now.getTime() + 3600000) continue;
 
     items.push({ title, url: link, summary, publishedAt, image });
   }
