@@ -54,7 +54,29 @@ const RSS_FEEDS = [
   },
 ];
 
-// ─── Simple XML parser (no dependencies) ──────────────────────────────────────
+// ─── Entity decoder ─────────────────────────────────────────────────────────
+
+function decodeEntities(str) {
+  if (!str) return str;
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&apos;/g, "'")
+    .replace(/&#8216;/g, "\u2018")  // left single quote '
+    .replace(/&#8217;/g, "\u2019")  // right single quote '
+    .replace(/&#8220;/g, "\u201C")  // left double quote "
+    .replace(/&#8221;/g, "\u201D")  // right double quote "
+    .replace(/&#8211;/g, "\u2013")  // en dash –
+    .replace(/&#8212;/g, "\u2014")  // em dash —
+    .replace(/&#\d+;/g, " ")        // any remaining numeric entities
+    .replace(/&[a-z]+;/g, " ");     // any remaining named entities
+}
+
+// ─── Simple XML parser (no dependencies) ───────────────────────────────────────
 
 function extractText(xml, tag) {
   const patterns = [
@@ -99,23 +121,21 @@ function parseItems(xml) {
 
     if (!title || !link) continue;
 
+    // Clean title — decode entities and strip any stray HTML
+    const cleanTitle = decodeEntities(title)
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
     // Clean summary — decode entities first, THEN strip tags
     const summary = desc
-      ? desc
-          .replace(/<!\[CDATA\[/gi, "")   // strip CDATA openers
-          .replace(/\]\]>/g, "")           // strip CDATA closers
-          // Decode HTML entities BEFORE stripping tags
-          .replace(/&amp;/g, "&")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-          .replace(/&nbsp;/g, " ")
-          .replace(/&#\d+;/g, " ")         // numeric entities
-          // NOW strip all HTML tags (including ones that were encoded)
-          .replace(/<[^>]+>/g, " ")
-          // Remove any leftover attribute fragments
-          .replace(/[a-z-]+=(["'])[^"']*\1/gi, "")
+      ? decodeEntities(
+          desc
+            .replace(/<!\[CDATA\[/gi, "")
+            .replace(/\]\]>/g, "")
+        )
+          .replace(/<[^>]+>/g, " ")         // strip HTML tags
+          .replace(/[a-z-]+=(["'])[^"']*\1/gi, "") // remove attribute fragments
           .replace(/\s+/g, " ")
           .trim()
           .slice(0, 300)
@@ -128,7 +148,7 @@ function parseItems(xml) {
     if (isNaN(publishedAt.getTime())) continue;
     if (publishedAt.getTime() > now.getTime() + 3600000) continue;
 
-    items.push({ title, url: link, summary, publishedAt, image });
+    items.push({ title: cleanTitle, url: link, summary, publishedAt, image });
   }
 
   return items;
