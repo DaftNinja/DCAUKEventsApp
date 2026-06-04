@@ -2,11 +2,19 @@ import { useNavigate } from 'react-router-dom';
 import { logout } from '../api';
 import './Navbar.css';
 
-export default function Navbar({ showBack = false, backTo = '/events', backLabel = '← Back to Events', hideNav = false }) {
+export default function Navbar({
+  showBack  = false,
+  backTo    = '/events',
+  backLabel = '← Back to Events',
+  hideNav   = false,
+}) {
   const navigate = useNavigate();
+  const role    = localStorage.getItem('role') || 'member';
+  const isAdmin = role === 'admin';
 
   function handleLogout() {
     logout();
+    localStorage.removeItem('role');
     navigate('/');
   }
 
@@ -29,12 +37,20 @@ export default function Navbar({ showBack = false, backTo = '/events', backLabel
             <button className="navbar-link" onClick={() => navigate('/events')}>
               Events
             </button>
+            <button className="navbar-link" onClick={() => navigate('/news')}>
+              News
+            </button>
             <button className="navbar-link" onClick={() => navigate('/members')}>
               Members
             </button>
             <button className="navbar-link navbar-submit" onClick={() => navigate('/events/submit')}>
               + Submit event
             </button>
+            {isAdmin && (
+              <button className="navbar-link navbar-admin" onClick={() => navigate('/admin')}>
+                Admin
+              </button>
+            )}
             <button className="navbar-link" onClick={() => navigate('/profile')}>
               My Profile
             </button>

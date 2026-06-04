@@ -19,31 +19,49 @@ const EMPTY_FORM = { name: '', email: '', company: '', headline: '', role: 'memb
 
 export default function AdminPage() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState('');
+
+  // ── Top-level tab ──────────────────────────────────────────────────────────
+  const [adminTab, setAdminTab] = useState('users'); // 'users' | 'news'
+
+  // ── Users state ────────────────────────────────────────────────────────────
+  const [users, setUsers]           = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+  const [search, setSearch]         = useState('');
   const [filterRole, setFilterRole] = useState('all');
 
-  // Detail panel state
+  // Detail panel
   const [selectedUser, setSelectedUser] = useState(null);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [panelError, setPanelError] = useState(null);
+  const [editing, setEditing]           = useState(false);
+  const [editForm, setEditForm]         = useState({});
+  const [saving, setSaving]             = useState(false);
+  const [panelError, setPanelError]     = useState(null);
 
-  // Add user modal state
+  // Add user modal
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState(EMPTY_FORM);
-  const [addError, setAddError] = useState(null);
-  const [adding, setAdding] = useState(false);
+  const [addForm, setAddForm]           = useState(EMPTY_FORM);
+  const [addError, setAddError]         = useState(null);
+  const [adding, setAdding]             = useState(false);
 
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(null);
 
+  // ── News state ─────────────────────────────────────────────────────────────
+  const [newsItems, setNewsItems]       = useState([]);
+  const [newsLoading, setNewsLoading]   = useState(false);
+  const [showNewsForm, setShowNewsForm] = useState(false);
+  const [newsForm, setNewsForm]         = useState({ title: '', url: '', summary: '', source: '' });
+  const [newsError, setNewsError]       = useState(null);
+
+  // ── Load data ──────────────────────────────────────────────────────────────
+
   useEffect(() => {
     loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (adminTab === 'news') loadNews();
+  }, [adminTab]);
 
   async function loadUsers() {
     try {
@@ -60,7 +78,19 @@ export default function AdminPage() {
     }
   }
 
-  // ── Panel ──────────────────────────────────────────────────────────────────
+  async function loadNews() {
+    setNewsLoading(true);
+    try {
+      const data = await api.get('/api/news');
+      setNewsItems(data.filter(i => i.type === 'manual'));
+    } catch (e) {
+      console.error('Failed to load news:', e);
+    } finally {
+      setNewsLoading(false);
+    }
+  }
+
+  // ── User panel handlers ────────────────────────────────────────────────────
 
   function openPanel(user) {
     setSelectedUser(user);
@@ -125,8 +155,6 @@ export default function AdminPage() {
     }
   }
 
-  // ── Add user ───────────────────────────────────────────────────────────────
-
   async function handleAddUser(e) {
     e.preventDefault();
     setAdding(true);
@@ -143,7 +171,34 @@ export default function AdminPage() {
     }
   }
 
-  // ── Filtered list ──────────────────────────────────────────────────────────
+  // ── News handlers ──────────────────────────────────────────────────────────
+
+  async function handlePostNews(e) {
+    e.preventDefault();
+    setNewsError(null);
+    try {
+      const item = await api.post('/api/news', {
+        ...newsForm,
+        publishedAt: new Date().toISOString(),
+      });
+      setNewsItems(prev => [item, ...prev]);
+      setNewsForm({ title: '', url: '', summary: '', source: '' });
+      setShowNewsForm(false);
+    } catch (err) {
+      setNewsError(err.message);
+    }
+  }
+
+  async function handleDeleteNews(id) {
+    try {
+      await api.delete(`/api/news/${id}`);
+      setNewsItems(prev => prev.filter(i => i.id !== id));
+    } catch (err) {
+      alert('Failed to delete: ' + err.message);
+    }
+  }
+
+  // ── Filtered users ─────────────────────────────────────────────────────────
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
@@ -171,91 +226,220 @@ export default function AdminPage() {
       <Navbar />
       <div className="admin-body">
 
+        {/* ── Header ── */}
         <div className="admin-header">
           <div>
-            <h1>User Management</h1>
-            <p className="admin-subtitle">Manage roles, details and access for all community members</p>
+            <h1>Admin</h1>
+            <p className="admin-subtitle">Manage users, roles and news content</p>
           </div>
           <div className="admin-header-actions">
-            <button className="admin-add-btn" onClick={() => setShowAddModal(true)}>+ Add user</button>
+            {adminTab === 'users' && (
+              <button className="admin-add-btn" onClick={() => setShowAddModal(true)}>+ Add user</button>
+            )}
+            {adminTab === 'news' && (
+              <button className="admin-add-btn" onClick={() => setShowNewsForm(f => !f)}>
+                {showNewsForm ? 'Cancel' : '+ Post news item'}
+              </button>
+            )}
             <a href="/admin/events" className="admin-link-btn">Event approvals →</a>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="admin-tabs">
-          {['all', 'admin', 'organiser', 'member'].map(role => (
-            <button
-              key={role}
-              className={`admin-tab ${filterRole === role ? 'active' : ''}`}
-              onClick={() => setFilterRole(role)}
-            >
-              {role.charAt(0).toUpperCase() + role.slice(1)}
-              <span className="admin-tab-count">{counts[role]}</span>
-            </button>
-          ))}
+        {/* ── Top-level tabs: Users / News ── */}
+        <div className="admin-top-tabs">
+          <button
+            className={`admin-top-tab ${adminTab === 'users' ? 'active' : ''}`}
+            onClick={() => setAdminTab('users')}
+          >
+            Users
+          </button>
+          <button
+            className={`admin-top-tab ${adminTab === 'news' ? 'active' : ''}`}
+            onClick={() => setAdminTab('news')}
+          >
+            News
+          </button>
         </div>
 
-        <input
-          className="admin-search"
-          type="text"
-          placeholder="Search by name, email, or company..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-
-        {/* Table */}
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th>Email</th>
-                <th>Company</th>
-                <th>Joined</th>
-                <th>Status</th>
-                <th>Role</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="admin-empty">No members match your search.</td></tr>
-              ) : filtered.map(user => (
-                <tr key={user.id} className="admin-row" onClick={() => openPanel(user)}>
-                  <td>
-                    <div className="admin-user-cell">
-                      {user.avatarUrl
-                        ? <img src={user.avatarUrl} alt={user.name} className="admin-avatar" />
-                        : <div className="admin-avatar-initials">
-                            {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '?'}
-                          </div>
-                      }
-                      <div>
-                        <div className="admin-user-name">{user.name || '—'}</div>
-                        {user.headline && <div className="admin-user-headline">{user.headline}</div>}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="admin-email">{user.email}</td>
-                  <td className="admin-company">{user.company || '—'}</td>
-                  <td className="admin-date">
-                    {new Date(user.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </td>
-                  <td>
-                    <span className="admin-status-badge" style={{ background: STATUS_LABELS[user.status]?.bg, color: STATUS_LABELS[user.status]?.color }}>
-                      {STATUS_LABELS[user.status]?.label || user.status}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="admin-role-badge" style={{ background: ROLE_LABELS[user.role]?.bg, color: ROLE_LABELS[user.role]?.color }}>
-                      {ROLE_LABELS[user.role]?.label || user.role}
-                    </span>
-                  </td>
-                </tr>
+        {/* ════════════════════════════════════════════════════════════════════
+            USERS TAB
+        ════════════════════════════════════════════════════════════════════ */}
+        {adminTab === 'users' && (
+          <>
+            {/* Role filter tabs */}
+            <div className="admin-tabs">
+              {['all', 'admin', 'organiser', 'member'].map(role => (
+                <button
+                  key={role}
+                  className={`admin-tab ${filterRole === role ? 'active' : ''}`}
+                  onClick={() => setFilterRole(role)}
+                >
+                  {role.charAt(0).toUpperCase() + role.slice(1)}
+                  <span className="admin-tab-count">{counts[role]}</span>
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            <input
+              className="admin-search"
+              type="text"
+              placeholder="Search by name, email, or company..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Email</th>
+                    <th>Company</th>
+                    <th>Joined</th>
+                    <th>Status</th>
+                    <th>Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={6} className="admin-empty">No members match your search.</td></tr>
+                  ) : filtered.map(user => (
+                    <tr key={user.id} className="admin-row" onClick={() => openPanel(user)}>
+                      <td>
+                        <div className="admin-user-cell">
+                          {user.avatarUrl
+                            ? <img src={user.avatarUrl} alt={user.name} className="admin-avatar" />
+                            : <div className="admin-avatar-initials">
+                                {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '?'}
+                              </div>
+                          }
+                          <div>
+                            <div className="admin-user-name">{user.name || '—'}</div>
+                            {user.headline && <div className="admin-user-headline">{user.headline}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="admin-email">{user.email}</td>
+                      <td className="admin-company">{user.company || '—'}</td>
+                      <td className="admin-date">
+                        {new Date(user.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td>
+                        <span className="admin-status-badge" style={{ background: STATUS_LABELS[user.status]?.bg, color: STATUS_LABELS[user.status]?.color }}>
+                          {STATUS_LABELS[user.status]?.label || user.status}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="admin-role-badge" style={{ background: ROLE_LABELS[user.role]?.bg, color: ROLE_LABELS[user.role]?.color }}>
+                          {ROLE_LABELS[user.role]?.label || user.role}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════════
+            NEWS TAB
+        ════════════════════════════════════════════════════════════════════ */}
+        {adminTab === 'news' && (
+          <div className="admin-news-panel">
+
+            {showNewsForm && (
+              <form className="admin-news-form" onSubmit={handlePostNews}>
+                <div className="admin-panel-section-title">Post a news item</div>
+                {newsError && <div className="admin-panel-error">{newsError}</div>}
+                <div className="admin-field">
+                  <label>Headline *</label>
+                  <input type="text" required value={newsForm.title}
+                    placeholder="Article headline"
+                    onChange={e => setNewsForm(f => ({ ...f, title: e.target.value }))} />
+                </div>
+                <div className="admin-field">
+                  <label>URL *</label>
+                  <input type="url" required value={newsForm.url}
+                    placeholder="https://..."
+                    onChange={e => setNewsForm(f => ({ ...f, url: e.target.value }))} />
+                </div>
+                <div className="admin-field">
+                  <label>Source *</label>
+                  <input type="text" required value={newsForm.source}
+                    placeholder="e.g. DCD, LinkedIn, DCAUK"
+                    onChange={e => setNewsForm(f => ({ ...f, source: e.target.value }))} />
+                </div>
+                <div className="admin-field">
+                  <label>Summary</label>
+                  <textarea rows={2} value={newsForm.summary}
+                    placeholder="Optional short description..."
+                    onChange={e => setNewsForm(f => ({ ...f, summary: e.target.value }))} />
+                </div>
+                <div className="admin-panel-actions" style={{ flexDirection: 'row', paddingTop: 0 }}>
+                  <button type="submit" className="admin-btn-primary">Post item</button>
+                  <button type="button" className="admin-btn-ghost" onClick={() => { setShowNewsForm(false); setNewsError(null); }}>Cancel</button>
+                </div>
+              </form>
+            )}
+
+            <div className="admin-news-section-title">
+              Manually posted items
+              <span className="admin-tab-count" style={{ marginLeft: '0.5rem' }}>{newsItems.length}</span>
+            </div>
+
+            {newsLoading ? (
+              <p className="admin-loading">Loading...</p>
+            ) : newsItems.length === 0 ? (
+              <p className="admin-empty" style={{ padding: '2rem', textAlign: 'center' }}>
+                No manually posted items yet. Use the button above to add one.
+              </p>
+            ) : (
+              <div className="admin-news-list">
+                {newsItems.map(item => (
+                  <div key={item.id} className="admin-news-row">
+                    <div className="admin-news-info">
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="admin-news-title">
+                        {item.title}
+                      </a>
+                      <span className="admin-news-source">{item.source} · {new Date(item.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                    <button
+                      className="admin-btn-danger"
+                      style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', flexShrink: 0 }}
+                      onClick={() => handleDeleteNews(item.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="admin-news-section-title" style={{ marginTop: '2rem' }}>
+              RSS feed sources
+            </div>
+            <div className="admin-news-list">
+              {[
+                'Data Centre Dynamics',
+                'Data Centre Magazine',
+                'BizClik Media — Data Centre',
+                'ITPro — Data Centre',
+                'ComputerWeekly — Data Centre',
+                'The Register — Data Centre',
+                'DatacenterKnowledge',
+              ].map(source => (
+                <div key={source} className="admin-news-row">
+                  <div className="admin-news-info">
+                    <span className="admin-news-title" style={{ color: '#475569' }}>{source}</span>
+                    <span className="admin-news-source">Automatic · refreshes hourly</span>
+                  </div>
+                  <span className="admin-status-badge" style={{ background: '#d1fae5', color: '#065f46', flexShrink: 0 }}>Active</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── User detail panel ─────────────────────────────────────────────── */}
@@ -284,7 +468,6 @@ export default function AdminPage() {
             {editing ? (
               <div className="admin-panel-form">
                 <div className="admin-panel-section-title">Edit details</div>
-
                 {[
                   ['Name',     'name',     'text',  'Full name'],
                   ['Email',    'email',    'email', 'email@example.com'],
@@ -301,16 +484,11 @@ export default function AdminPage() {
                     />
                   </div>
                 ))}
-
                 <div className="admin-field">
                   <label>Bio</label>
-                  <textarea
-                    value={editForm.bio}
-                    rows={3}
-                    onChange={e => setEditForm(f => ({ ...f, bio: e.target.value }))}
-                  />
+                  <textarea value={editForm.bio} rows={3}
+                    onChange={e => setEditForm(f => ({ ...f, bio: e.target.value }))} />
                 </div>
-
                 <div className="admin-field-row">
                   <div className="admin-field">
                     <label>Role</label>
@@ -328,7 +506,6 @@ export default function AdminPage() {
                     </select>
                   </div>
                 </div>
-
                 <div className="admin-panel-actions">
                   <button className="admin-btn-primary" onClick={handleSave} disabled={saving}>
                     {saving ? 'Saving…' : 'Save changes'}
@@ -351,7 +528,6 @@ export default function AdminPage() {
                     <span className="admin-panel-value">{value}</span>
                   </div>
                 ))}
-
                 <div className="admin-panel-row">
                   <span className="admin-panel-label">Role</span>
                   <span className="admin-role-badge" style={{ background: ROLE_LABELS[selectedUser.role]?.bg, color: ROLE_LABELS[selectedUser.role]?.color }}>
@@ -364,20 +540,12 @@ export default function AdminPage() {
                     {STATUS_LABELS[selectedUser.status]?.label}
                   </span>
                 </div>
-
                 <div className="admin-panel-actions">
                   <button className="admin-btn-primary" onClick={() => setEditing(true)}>Edit details</button>
-                  <button
-                    className={`admin-btn-warning`}
-                    onClick={handleToggleSuspend}
-                    disabled={saving}
-                  >
+                  <button className="admin-btn-warning" onClick={handleToggleSuspend} disabled={saving}>
                     {selectedUser.status === 'active' ? 'Suspend account' : 'Reinstate account'}
                   </button>
-                  <button
-                    className="admin-btn-danger"
-                    onClick={() => setConfirmDelete(selectedUser)}
-                  >
+                  <button className="admin-btn-danger" onClick={() => setConfirmDelete(selectedUser)}>
                     Delete account
                   </button>
                 </div>
@@ -394,9 +562,7 @@ export default function AdminPage() {
             <h2>Delete account?</h2>
             <p>This will permanently delete <strong>{confirmDelete.name}</strong>'s account and all their RSVPs. This cannot be undone.</p>
             <div className="admin-modal-actions">
-              <button className="admin-btn-danger" onClick={() => handleDelete(confirmDelete.id)}>
-                Yes, delete
-              </button>
+              <button className="admin-btn-danger" onClick={() => handleDelete(confirmDelete.id)}>Yes, delete</button>
               <button className="admin-btn-ghost" onClick={() => setConfirmDelete(null)}>Cancel</button>
             </div>
           </div>
@@ -412,19 +578,15 @@ export default function AdminPage() {
             {addError && <div className="admin-panel-error">{addError}</div>}
             <form onSubmit={handleAddUser}>
               {[
-                ['Name *',     'name',     'text',  true],
-                ['Email *',    'email',    'email', true],
-                ['Company',    'company',  'text',  false],
-                ['Headline',   'headline', 'text',  false],
+                ['Name *',   'name',     'text',  true],
+                ['Email *',  'email',    'email', true],
+                ['Company',  'company',  'text',  false],
+                ['Headline', 'headline', 'text',  false],
               ].map(([label, field, type, required]) => (
                 <div className="admin-field" key={field}>
                   <label>{label}</label>
-                  <input
-                    type={type}
-                    required={required}
-                    value={addForm[field]}
-                    onChange={e => setAddForm(f => ({ ...f, [field]: e.target.value }))}
-                  />
+                  <input type={type} required={required} value={addForm[field]}
+                    onChange={e => setAddForm(f => ({ ...f, [field]: e.target.value }))} />
                 </div>
               ))}
               <div className="admin-field">
@@ -448,5 +610,3 @@ export default function AdminPage() {
         </div>
       )}
     </div>
-  );
-}

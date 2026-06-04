@@ -5,6 +5,7 @@ import EventsPage from "./pages/EventsPage";
 import PastEventsPage from "./pages/PastEventsPage";
 import EventDetailPage from "./pages/EventDetailPage";
 import SubmitEventPage from "./pages/SubmitEventPage";
+import NewsPage from "./pages/NewsPage";
 import MyEventsPage from "./pages/MyEventsPage";
 import AdminEventsPage from "./pages/AdminEventsPage";
 import AdminPage from "./pages/AdminPage";
@@ -31,12 +32,13 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/auth/success" element={<AuthCallback setIsAuthenticated={setIsAuthenticated} />} />
+        <Route path="/"                element={<HomePage />} />
+        <Route path="/auth/success"    element={<AuthCallback setIsAuthenticated={setIsAuthenticated} />} />
         <Route path="/events"          element={auth(<EventsPage />)} />
         <Route path="/events/past"     element={auth(<PastEventsPage />)} />
         <Route path="/events/submit"   element={auth(<SubmitEventPage />)} />
         <Route path="/events/:id"      element={auth(<EventDetailPage />)} />
+        <Route path="/news"            element={auth(<NewsPage />)} />
         <Route path="/my-events"       element={auth(<MyEventsPage />)} />
         <Route path="/admin/events"    element={auth(<AdminEventsPage />)} />
         <Route path="/admin"           element={auth(<AdminPage />)} />

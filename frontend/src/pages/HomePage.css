@@ -457,3 +457,128 @@
 
   .hero-bg { display: none; }
 }
+.home-news {
+  background: #f8fafc;
+  padding: 4rem 2rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.home-news-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.home-news-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.home-news-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.home-news-sub {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.home-news-more {
+  font-size: 0.875rem;
+  color: #06b6d4;
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.home-news-more:hover { color: #0891b2; }
+
+.home-news-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.home-news-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.home-news-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.home-news-img {
+  width: 100%;
+  height: 140px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.home-news-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-news-content {
+  padding: 0.875rem 1rem 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.home-news-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.home-news-source {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #06b6d4;
+}
+
+.home-news-time {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.home-news-headline {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .home-news-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .home-news-grid { grid-template-columns: 1fr; }
+  .home-news { padding: 2.5rem 1rem; }
+}

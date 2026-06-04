@@ -1,6 +1,65 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
+import { api } from "../api";
+function NewsFeedPreview() {
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    api.get("/api/news")
+      .then(data => setItems(data.slice(0, 6)))
+      .catch(() => {}); // fail silently
+  }, []);
+
+  if (items.length === 0) return null;
+
+  function timeAgo(dateStr) {
+    const diff  = Date.now() - new Date(dateStr).getTime();
+    const hours = Math.floor(diff / 3600000);
+    const days  = Math.floor(diff / 86400000);
+    if (hours < 24) return `${hours}h ago`;
+    if (days  < 7)  return `${days}d ago`;
+    return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  return (
+    <section className="home-news">
+      <div className="home-news-inner">
+        <div className="home-news-header">
+          <div>
+            <h2 className="home-news-title">Industry News</h2>
+            <p className="home-news-sub">Latest from across the digital infrastructure sector</p>
+          </div>
+          <a href="/news" className="home-news-more">View all →</a>
+        </div>
+        <div className="home-news-grid">
+          {items.map(item => (
+            <a
+              key={item.id}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="home-news-card"
+            >
+              {item.imageUrl && (
+                <div className="home-news-img">
+                  <img src={item.imageUrl} alt="" loading="lazy" />
+                </div>
+              )}
+              <div className="home-news-content">
+                <div className="home-news-meta">
+                  <span className="home-news-source">{item.source}</span>
+                  <span className="home-news-time">{timeAgo(item.publishedAt)}</span>
+                </div>
+                <p className="home-news-headline">{item.title}</p>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -149,6 +208,7 @@ export default function HomePage() {
           </button>
         </div>
       </section>
+        {isLoggedIn && <NewsFeedPreview />}
 
       <footer className="home-footer">
         <div className="footer-inner">

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, boolean, check, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, boolean, check, unique, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id:         uuid("id").primaryKey().defaultRandom(),
@@ -9,8 +9,8 @@ export const users = pgTable("users", {
   company:    text("company"),
   avatarUrl:  text("avatarUrl"),
   bio:        text("bio"),
-  role:       text("role").default("member").notNull(),   // member | organiser | admin
-  status:     text("status").default("active").notNull(), // active | suspended
+  role:       text("role").default("member").notNull(),
+  status:     text("status").default("active").notNull(),
   createdAt:  timestamp("createdAt").defaultNow(),
   updatedAt:  timestamp("updatedAt").defaultNow(),
 });
@@ -48,3 +48,15 @@ export const rsvps = pgTable(
     check("status_check", `"status" IN ('interested', 'going')`),
   ]
 );
+
+export const newsItems = pgTable("news_items", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  title:       text("title").notNull(),
+  summary:     text("summary"),
+  url:         text("url").notNull().unique(),
+  source:      text("source").notNull(),
+  imageUrl:    text("image_url"),
+  publishedAt: timestamp("published_at").notNull(),
+  type:        text("type").default("rss").notNull(), // 'rss' | 'manual'
+  createdAt:   timestamp("created_at").defaultNow(),
+});
