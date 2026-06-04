@@ -1,7 +1,80 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 import { api } from "../api";
+
+// ─── News Carousel ─────────────────────────────────────────────────────────────
+
+function NewsCarousel() {
+  const [items, setItems] = useState([]);
+  const [active, setActive] = useState(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    // Fetch without auth — public teaser. Falls back to empty silently.
+    fetch("/api/news")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setItems((data || []).filter(i => i.imageUrl).slice(0, 5)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (items.length < 2) return;
+    timerRef.current = setInterval(() => {
+      setActive(a => (a + 1) % items.length);
+    }, 5000);
+    return () => clearInterval(timerRef.current);
+  }, [items.length]);
+
+  if (items.length === 0) return null;
+
+  function timeAgo(dateStr) {
+    const diff  = Date.now() - new Date(dateStr).getTime();
+    const hours = Math.floor(diff / 3600000);
+    const days  = Math.floor(diff / 86400000);
+    if (hours < 24) return `${hours}h ago`;
+    if (days  < 7)  return `${days}d ago`;
+    return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  const item = items[active];
+
+  return (
+    <div className="hero-carousel">
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hc-card"
+      >
+        <div className="hc-img">
+          <img src={item.imageUrl} alt="" loading="lazy" />
+          <div className="hc-img-overlay" />
+        </div>
+        <div className="hc-content">
+          <div className="hc-meta">
+            <span className="hc-source">{item.source}</span>
+            <span className="hc-time">{timeAgo(item.publishedAt)}</span>
+          </div>
+          <p className="hc-title">{item.title}</p>
+        </div>
+      </a>
+
+      <div className="hc-footer">
+        <div className="hc-dots">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              className={`hc-dot ${i === active ? 'active' : ''}`}
+              onClick={() => { setActive(i); clearInterval(timerRef.current); }}
+            />
+          ))}
+        </div>
+        <a href="/news" className="hc-more">See more news →</a>
+      </div>
+    </div>
+  );
+}
 function NewsFeedPreview() {
   const [items, setItems] = useState([]);
 
@@ -159,6 +232,8 @@ export default function HomePage() {
           </div>
         </div>
       </header>
+
+      <NewsCarousel />
 
       <section id="features" className="home-features">
         <div className="features-inner">

@@ -19,8 +19,8 @@ const createNewsSchema = z.object({
 });
 
 // ─── GET /api/news ────────────────────────────────────────────────────────────
-// Public — returns latest 40 items (RSS + manual), newest first
-router.get("/", authenticateToken, async (req, res) => {
+// Public — no auth required (used by homepage carousel for logged-out visitors)
+router.get("/", async (req, res) => {
   try {
     const items = await db
       .select()
