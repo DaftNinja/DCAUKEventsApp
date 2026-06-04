@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_ADDRESS = process.env.EMAIL_FROM || "DCAUK <contact@1giglabs.com>";
+const FROM_ADDRESS = process.env.EMAIL_FROM || "TheVentGuide <hello@theventguide.com>";
 const SITE_URL = process.env.FRONTEND_URL || "https://dcaevents-production.up.railway.app";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -48,12 +48,12 @@ function baseTemplate(content) {
 <body>
   <div class="wrapper">
     <div class="header">
-      <div class="logo">DCA<span>UK</span></div>
+      <div class="logo">The<span>VentGuide</span></div>
     </div>
     <div class="body">${content}</div>
     <div class="footer">
-      Digital Infrastructure Community · <a href="${SITE_URL}" style="color:#06b6d4;">DCAUK Events</a><br/>
-      You're receiving this because you're a member of DCAUK Events.
+      TheVentGuide Community · <a href="${SITE_URL}" style="color:#06b6d4;">TheVentGuide</a><br/>
+      You're receiving this because you're a member of TheVentGuide.
     </div>
   </div>
 </body>
@@ -129,7 +129,7 @@ export async function sendNewEventNotification({ event, recipients }) {
 
   const content = `
     <h1>New event added</h1>
-    <p>A new event has been added to the DCAUK community calendar:</p>
+    <p>A new event has been added to the TheVentGuide calendar:</p>
     <div class="event-card">
       <div class="event-title">${event.title}</div>
       ${event.organiser ? `<div class="event-meta">🏢 ${event.organiser}</div>` : ""}
@@ -162,7 +162,7 @@ export async function sendEventApproved({ event }) {
   const content = `
     <h1>Your event has been approved! 🎉</h1>
     <p>Hi ${event.organiser || "there"},</p>
-    <p>Great news — your event submission has been reviewed and <strong>approved</strong> by the DCAUK team. It's now live and visible to the community.</p>
+    <p>Great news — your event submission has been reviewed and <strong>approved</strong> by the TheVentGuide team. It's now live and visible to the community.</p>
     <span class="badge badge-approved">✓ Approved</span>
     <div class="event-card">
       <div class="event-title">${event.title}</div>
@@ -189,12 +189,12 @@ export async function sendEventRejected({ event }) {
   const content = `
     <h1>Event submission update</h1>
     <p>Hi ${event.organiser || "there"},</p>
-    <p>Thank you for submitting your event to DCAUK. Unfortunately, after review, we're unable to publish the following event at this time:</p>
+    <p>Thank you for submitting your event to TheVentGuide. Unfortunately, after review, we're unable to publish the following event at this time:</p>
     <div class="event-card">
       <div class="event-title">${event.title}</div>
       <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
     </div>
-    <p>If you have any questions or would like to resubmit with changes, please get in touch at <a href="mailto:${FROM_ADDRESS}" style="color:#06b6d4;">contact@1giglabs.com</a>.</p>
+    <p>If you have any questions or would like to resubmit with changes, please get in touch at <a href="mailto:hello@theventguide.com" style="color:#06b6d4;">hello@theventguide.com</a>.</p>
   `;
 
   await resend.emails.send({

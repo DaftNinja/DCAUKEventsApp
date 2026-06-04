@@ -23,7 +23,7 @@ export default function Navbar({
       <div className="navbar-inner">
         <div className="navbar-left">
           <button className="navbar-logo" onClick={() => navigate('/')}>
-            DCA<span>UK</span>
+            The<span>VentGuide</span>
           </button>
           {showBack && (
             <button className="navbar-back" onClick={() => navigate(backTo)}>

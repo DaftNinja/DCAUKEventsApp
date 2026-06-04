@@ -299,7 +299,7 @@ export default function AdminPage() {
                 </div>
                 <div className="admin-field">
                   <label>Source *</label>
-                  <input type="text" required value={newsForm.source} placeholder="e.g. DCD, LinkedIn, DCAUK"
+                  <input type="text" required value={newsForm.source} placeholder="e.g. DCD, LinkedIn, TheVentGuide"
                     onChange={e => setNewsForm(f => ({ ...f, source: e.target.value }))} />
                 </div>
                 <div className="admin-field">

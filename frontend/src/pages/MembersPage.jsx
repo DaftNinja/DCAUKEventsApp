@@ -44,7 +44,7 @@ export default function MembersPage() {
         <div className="members-header">
           <div>
             <h1>Community Members</h1>
-            <p className="members-subtitle">{members.length} digital infrastructure professional{members.length !== 1 ? 's' : ''}</p>
+            <p className="members-subtitle">{members.length} event professional{members.length !== 1 ? 's' : ''}</p>
           </div>
           <input
             className="members-search"

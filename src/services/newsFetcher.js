@@ -163,7 +163,7 @@ async function fetchFeed(feed) {
 
     const res = await fetch(feed.url, {
       signal: controller.signal,
-      headers: { "User-Agent": "DCAUK-News-Aggregator/1.0" },
+      headers: { "User-Agent": "TEG-News-Aggregator/1.0" },
     });
 
     clearTimeout(timeout);

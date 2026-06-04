@@ -59,7 +59,7 @@ export default function NewsPage() {
         <div className="news-header">
           <div>
             <h1>Industry News</h1>
-            <p className="news-subtitle">Latest from across the digital infrastructure sector</p>
+            <p className="news-subtitle">Latest news from the events industry</p>
           </div>
         </div>
 

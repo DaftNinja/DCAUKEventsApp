@@ -101,7 +101,7 @@ function NewsFeedPreview() {
         <div className="home-news-header">
           <div>
             <h2 className="home-news-title">Industry News</h2>
-            <p className="home-news-sub">Latest from across the digital infrastructure sector</p>
+            <p className="home-news-sub">Latest news from the events industry</p>
           </div>
           <a href="/news" className="home-news-more">View all →</a>
         </div>
@@ -156,7 +156,7 @@ export default function HomePage() {
     <div className="home">
       <nav className={`home-nav${scrolled ? " scrolled" : ""}`}>
         <div className="home-nav-inner">
-          <span className="home-logo">DCA<span>UK</span></span>
+          <span className="home-logo">The<span>VentGuide</span></span>
           {isLoggedIn ? (
             <button className="nav-signin-btn" onClick={() => navigate("/events")}>
               View Events →
@@ -176,7 +176,7 @@ export default function HomePage() {
           <div className="hero-grid" />
         </div>
         <div className="hero-content">
-          <div className="hero-badge">Digital Infrastructure Community</div>
+          <div className="hero-badge">TheVentGuide Community</div>
           <h1 className="hero-title">
             Where the industry<br />
             <span className="hero-title-accent">comes together</span>
@@ -287,8 +287,8 @@ export default function HomePage() {
 
       <footer className="home-footer">
         <div className="footer-inner">
-          <span className="home-logo">DCA<span>UK</span></span>
-          <p>Community platform for digital infrastructure professionals.</p>
+          <span className="home-logo">The<span>VentGuide</span></span>
+          <p>Community platform for event professionals.</p>
         </div>
       </footer>
     </div>
