@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 // ─── Curated industry RSS feeds ───────────────────────────────────────────────
 
 const RSS_FEEDS = [
+  // Core industry
   {
     source: "Data Centre Dynamics",
     url: "https://www.datacenterdynamics.com/en/rss/",
@@ -32,6 +33,24 @@ const RSS_FEEDS = [
   {
     source: "DatacenterKnowledge",
     url: "https://www.datacenterknowledge.com/rss.xml",
+  },
+  // High value additions
+  {
+    source: "Uptime Institute Journal",
+    url: "https://journal.uptimeinstitute.com/feed",
+  },
+  {
+    source: "DCNN Magazine",
+    url: "https://dcnnmagazine.com/feed",
+  },
+  // UK & Europe focus
+  {
+    source: "The Stack",
+    url: "https://thestack.technology/feed",
+  },
+  {
+    source: "Silicon Republic",
+    url: "https://www.siliconrepublic.com/feed",
   },
 ];
 
