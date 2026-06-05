@@ -7,17 +7,15 @@ import {
   requireAdmin,
   fetchEvent,
   requireOwnerOrAdmin,
+  attachUser,
+  isOrganiserOrAdmin,
 } from "../middleware/authorize.js";
-import {
-  validate,
-  createEventSchema,
-  updateEventSchema,
-  rsvpSchema,
-} from "../middleware/validate.js";
 import {
   sendRsvpConfirmation,
   sendRsvpCancellation,
   sendNewEventNotification,
+  sendEventApproved,
+  sendEventRejected,
 } from "../services/email.js";
 
 const router = Router();
@@ -40,7 +38,6 @@ router.get("/", async (req, res) => {
     const allEvents = await db.select().from(events).orderBy(events.startDate);
 
     if (userId) {
-      // Single query for all RSVPs for this user — no N+1
       const userRsvps = await db
         .select()
         .from(rsvps)
@@ -89,10 +86,14 @@ router.get("/:id", async (req, res) => {
 });
 
 // ─── POST /api/events ─────────────────────────────────────────────────────────
-router.post("/", authenticateToken, validate(createEventSchema), async (req, res) => {
+router.post("/", authenticateToken, attachUser, async (req, res) => {
   try {
-    const { title, description, startDate, endDate, location, eventUrl, capacity } =
-      req.body;
+    const {
+      title, description, startDate, endDate,
+      location, eventUrl, capacity, organiser, organizerEmail
+    } = req.body;
+
+    const autoApprove = isOrganiserOrAdmin(req.user);
 
     const [newEvent] = await db
       .insert(events)
@@ -104,12 +105,23 @@ router.post("/", authenticateToken, validate(createEventSchema), async (req, res
         location,
         eventUrl,
         capacity,
+        organiser,
+        organizerEmail,
         organizerId: req.userId,
-        status: "pending",
+        status: autoApprove ? "approved" : "pending",
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning();
+
+    if (autoApprove) {
+      try {
+        const allUsers = await db.select({ email: users.email }).from(users);
+        await sendNewEventNotification({ event: newEvent, recipients: allUsers });
+      } catch (emailErr) {
+        console.error("Failed to send new event notification:", emailErr);
+      }
+    }
 
     res.status(201).json(newEvent);
   } catch (error) {
@@ -119,10 +131,9 @@ router.post("/", authenticateToken, validate(createEventSchema), async (req, res
 });
 
 // ─── PUT /api/events/:id ──────────────────────────────────────────────────────
-router.put("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, validate(updateEventSchema), async (req, res) => {
+router.put("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, async (req, res) => {
   try {
-    const { title, description, startDate, endDate, location, eventUrl, capacity } =
-      req.body;
+    const { title, description, startDate, endDate, location, eventUrl, capacity } = req.body;
 
     const [updated] = await db
       .update(events)
@@ -157,13 +168,17 @@ router.post("/:id/approve", authenticateToken, requireAdmin, async (req, res) =>
 
     if (!updated) return res.status(404).json({ error: "Event not found" });
 
-    // Notify all members about the new event
+    try {
+      await sendEventApproved({ event: updated });
+    } catch (emailErr) {
+      console.error("Failed to send approval email:", emailErr);
+    }
+
     try {
       const allUsers = await db.select({ email: users.email }).from(users);
       await sendNewEventNotification({ event: updated, recipients: allUsers });
     } catch (emailErr) {
       console.error("Failed to send new event notification:", emailErr);
-      // Don't fail the request if email fails
     }
 
     res.json(updated);
@@ -183,6 +198,13 @@ router.post("/:id/reject", authenticateToken, requireAdmin, async (req, res) => 
       .returning();
 
     if (!updated) return res.status(404).json({ error: "Event not found" });
+
+    try {
+      await sendEventRejected({ event: updated });
+    } catch (emailErr) {
+      console.error("Failed to send rejection email:", emailErr);
+    }
+
     res.json(updated);
   } catch (error) {
     console.error("Failed to reject event:", error);
@@ -203,7 +225,7 @@ router.delete("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, async 
 });
 
 // ─── POST /api/events/:id/rsvp ────────────────────────────────────────────────
-router.post("/:id/rsvp", authenticateToken, validate(rsvpSchema), async (req, res) => {
+router.post("/:id/rsvp", authenticateToken, async (req, res) => {
   try {
     const { status } = req.body;
     const eventId = req.params.id;
@@ -223,13 +245,10 @@ router.post("/:id/rsvp", authenticateToken, validate(rsvpSchema), async (req, re
       })
       .returning();
 
-    // Send confirmation email — fire and forget, don't block the response
     try {
-      const [user] = await db.select().from(users).where(eq(users.id, req.userId)).limit(1);
+      const [user]  = await db.select().from(users).where(eq(users.id, req.userId)).limit(1);
       const [event] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
-      if (user && event) {
-        await sendRsvpConfirmation({ user, event, status });
-      }
+      if (user && event) await sendRsvpConfirmation({ user, event, status });
     } catch (emailErr) {
       console.error("Failed to send RSVP confirmation email:", emailErr);
     }
@@ -244,25 +263,15 @@ router.post("/:id/rsvp", authenticateToken, validate(rsvpSchema), async (req, re
 // ─── DELETE /api/events/:id/rsvp ─────────────────────────────────────────────
 router.delete("/:id/rsvp", authenticateToken, async (req, res) => {
   try {
-    // Get event details before deleting for the cancellation email
-    const [event] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, req.params.id))
-      .limit(1);
+    const [event] = await db.select().from(events).where(eq(events.id, req.params.id)).limit(1);
 
     await db
       .delete(rsvps)
-      .where(
-        and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id))
-      );
+      .where(and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id)));
 
-    // Send cancellation email
     try {
       const [user] = await db.select().from(users).where(eq(users.id, req.userId)).limit(1);
-      if (user && event) {
-        await sendRsvpCancellation({ user, event });
-      }
+      if (user && event) await sendRsvpCancellation({ user, event });
     } catch (emailErr) {
       console.error("Failed to send RSVP cancellation email:", emailErr);
     }
@@ -271,6 +280,74 @@ router.delete("/:id/rsvp", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Failed to remove RSVP:", error);
     res.status(500).json({ error: "Failed to remove RSVP" });
+  }
+});
+
+// ─── PUT /api/events/:id/rsvp/meeting ────────────────────────────────────────
+router.put("/:id/rsvp/meeting", authenticateToken, async (req, res) => {
+  try {
+    const { openToMeeting } = req.body;
+
+    const [rsvp] = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id)))
+      .limit(1);
+
+    if (!rsvp) return res.status(404).json({ error: "You have no RSVP for this event" });
+    if (rsvp.status !== "going") return res.status(400).json({ error: "Meet-Me is only available when you are Going" });
+
+    const [updated] = await db
+      .update(rsvps)
+      .set({ openToMeeting: Boolean(openToMeeting), updatedAt: new Date() })
+      .where(and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id)))
+      .returning();
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Failed to update meet-me status:", error);
+    res.status(500).json({ error: "Failed to update meet-me status" });
+  }
+});
+
+// ─── GET /api/events/:id/meeting ─────────────────────────────────────────────
+router.get("/:id/meeting", authenticateToken, async (req, res) => {
+  try {
+    const [myRsvp] = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id)))
+      .limit(1);
+
+    if (!myRsvp || myRsvp.status !== "going") {
+      return res.status(403).json({ error: "Only Going attendees can view Meet-Me profiles" });
+    }
+
+    const attendees = await db
+      .select({
+        id:           users.id,
+        name:         users.name,
+        headline:     users.headline,
+        company:      users.company,
+        avatarUrl:    users.avatarUrl,
+        linkedinId:   users.linkedinId,
+        openToMeeting: rsvps.openToMeeting,
+      })
+      .from(rsvps)
+      .innerJoin(users, eq(rsvps.userId, users.id))
+      .where(
+        and(
+          eq(rsvps.eventId, req.params.id),
+          eq(rsvps.status, "going"),
+          eq(rsvps.openToMeeting, true),
+          eq(users.status, "active")
+        )
+      );
+
+    res.json(attendees);
+  } catch (error) {
+    console.error("Failed to fetch meeting attendees:", error);
+    res.status(500).json({ error: "Failed to fetch meeting attendees" });
   }
 });
 

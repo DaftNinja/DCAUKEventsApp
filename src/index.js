@@ -9,8 +9,9 @@ import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
 import newsRoutes   from "./routes/news.js";
-import { runMigrations }    from "./db/migrate.js";
-import { ingestEvents }     from "./scripts/ingest-events.js";
+import groupRoutes  from "./routes/groups.js";
+import { runMigrations }     from "./db/migrate.js";
+import { ingestEvents }      from "./scripts/ingest-events.js";
 import { sendEventReminders } from "./services/reminders.js";
 import { fetchAndStoreNews }  from "./services/newsFetcher.js";
 
@@ -31,7 +32,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use(cors());
 app.use(express.json());
 
-// HTTP request logging — skips /health to keep logs clean
 app.use(pinoHttp({
   logger,
   autoLogging: { ignore: (req) => req.url === "/health" },
@@ -48,8 +48,9 @@ app.use("/api/auth",   authRoutes);
 app.use("/api/users",  userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/news",   newsRoutes);
+app.use("/api/groups", groupRoutes);
 
-// ─── Serve React frontend (production) ───────────────────────────────────────
+// ─── Serve React frontend ─────────────────────────────────────────────────────
 const frontendDist = path.join(__dirname, "../frontend/dist");
 app.use(express.static(frontendDist));
 app.get("*", (req, res) => {
@@ -57,7 +58,6 @@ app.get("*", (req, res) => {
 });
 
 // ─── Central error handler ────────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500;
   logger.error({ err, url: req.url, method: req.method }, "Unhandled error");
@@ -70,7 +70,6 @@ app.use((err, req, res, _next) => {
 
 // ─── Scheduler ────────────────────────────────────────────────────────────────
 function startScheduler() {
-  // Run immediately on startup, then every hour
   sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
   fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
 
