@@ -340,7 +340,7 @@ export default function AdminPage() {
 
             <div className="admin-news-section-title" style={{ marginTop: '2rem' }}>RSS feed sources</div>
             <div className="admin-news-list">
-              {['Data Centre Dynamics','Data Centre Magazine','BizClik Media — Data Centre','ITPro — Data Centre','ComputerWeekly — Data Centre','The Register — Data Centre','DatacenterKnowledge'].map(source => (
+              {['Data Centre Dynamics','Data Centre Magazine','BizClik Media — Data Centre','ITPro — Data Centre','ComputerWeekly — Data Centre','The Register — Data Centre','DatacenterKnowledge','Uptime Institute Journal','DCNN Magazine','The Stack','Silicon Republic','Hosting Journalist','Telecoms.com'].map(source => (
                 <div key={source} className="admin-news-row">
                   <div className="admin-news-info">
                     <span className="admin-news-title" style={{ color: '#475569' }}>{source}</span>

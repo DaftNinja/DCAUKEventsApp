@@ -52,6 +52,14 @@ const RSS_FEEDS = [
     source: "Silicon Republic",
     url: "https://www.siliconrepublic.com/feed",
   },
+  {
+    source: "Hosting Journalist",
+    url: "https://www.hostingjournalist.com/feed",
+  },
+  {
+    source: "Telecoms.com",
+    url: "https://www.telecoms.com/feed",
+  },
 ];
 
 // ─── Entity decoder ─────────────────────────────────────────────────────────
