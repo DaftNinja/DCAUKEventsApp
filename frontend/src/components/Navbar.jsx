@@ -40,6 +40,9 @@ export default function Navbar({
             <button className="navbar-link" onClick={() => navigate('/news')}>
               News
             </button>
+            <button className="navbar-link" onClick={() => navigate('/groups')}>
+              Groups
+            </button>
             <button className="navbar-link" onClick={() => navigate('/members')}>
               Members
             </button>

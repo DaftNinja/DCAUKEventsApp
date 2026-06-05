@@ -1,0 +1,207 @@
+.meetme-section {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.meetme-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.meetme-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.meetme-title::before {
+  content: '🤝';
+  font-size: 1rem;
+}
+
+.meetme-subtitle {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.meetme-toggle {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.meetme-toggle.off {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.meetme-toggle.off:hover:not(:disabled) {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+
+.meetme-toggle.on {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.meetme-toggle.on:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.meetme-toggle:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.meetme-hint {
+  font-size: 0.825rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 0.5rem;
+}
+
+.meetme-loading, .meetme-empty {
+  font-size: 0.825rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 1.5rem;
+}
+
+/* Attendee grid */
+.meetme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.meetme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 1rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.625rem;
+  transition: border-color 0.15s;
+}
+
+.meetme-card.me {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+}
+
+.meetme-card:not(.me):hover {
+  border-color: #cbd5e1;
+}
+
+.meetme-card-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.meetme-card-avatar img,
+.meetme-initials {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.meetme-initials {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 700;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meetme-you-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: #06b6d4;
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+
+.meetme-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.meetme-name {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meetme-headline {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meetme-company {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meetme-connect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.75rem;
+  background: #0a66c2;
+  color: white;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+  margin-top: 0.25rem;
+}
+
+.meetme-connect-btn:hover { background: #004182; }
+
+@media (max-width: 640px) {
+  .meetme-grid { grid-template-columns: repeat(2, 1fr); }
+  .meetme-header { flex-direction: column; }
+}

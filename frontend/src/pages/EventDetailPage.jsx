@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
+import MeetMe from '../components/MeetMe';
 import './EventDetailPage.css';
 
 function formatIcsDate(dateStr) {
@@ -51,6 +52,7 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rsvpStatus, setRsvpStatus] = useState(null);
+  const [openToMeeting, setOpenToMeeting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
   const calRef = useRef(null);
@@ -79,6 +81,7 @@ export default function EventDetailPage() {
       setEvent(eventData);
       const myRsvp = eventData.attendees?.find(r => r.userId === userData.id);
       setRsvpStatus(myRsvp?.status || null);
+      setOpenToMeeting(myRsvp?.openToMeeting || false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -91,6 +94,18 @@ export default function EventDetailPage() {
       setSubmitting(true);
       await api.post(`/api/events/${id}/rsvp`, { status });
       setRsvpStatus(status);
+
+      // If Going, apply default Meet-Me preference from profile
+      if (status === 'going') {
+        const userData = await api.get('/api/users/me');
+        if (userData.defaultOpenToMeeting) {
+          const updated = await api.put(`/api/events/${id}/rsvp/meeting`, { openToMeeting: true });
+          setOpenToMeeting(updated.openToMeeting);
+        }
+      } else {
+        setOpenToMeeting(false);
+      }
+
       const updated = await api.get(`/api/events/${id}`);
       setEvent(updated);
     } catch (err) {
@@ -105,6 +120,7 @@ export default function EventDetailPage() {
       setSubmitting(true);
       await api.delete(`/api/events/${id}/rsvp`);
       setRsvpStatus(null);
+      setOpenToMeeting(false);
       const updated = await api.get(`/api/events/${id}`);
       setEvent(updated);
     } catch (err) {
@@ -114,11 +130,16 @@ export default function EventDetailPage() {
     }
   };
 
+  const handleMeetMeToggle = async (newValue) => {
+    const updated = await api.put(`/api/events/${id}/rsvp/meeting`, { openToMeeting: newValue });
+    setOpenToMeeting(updated.openToMeeting);
+  };
+
   if (loading) return <div className="event-detail"><p>Loading event...</p></div>;
   if (error)   return <div className="event-detail"><p>Error: {error}</p></div>;
   if (!event)  return <div className="event-detail"><p>Event not found</p></div>;
 
-  const goingCount = event.attendees?.filter(r => r.status === 'going').length ?? 0;
+  const goingCount      = event.attendees?.filter(r => r.status === 'going').length ?? 0;
   const interestedCount = event.attendees?.filter(r => r.status === 'interested').length ?? 0;
 
   return (
@@ -163,6 +184,14 @@ export default function EventDetailPage() {
                 </a>
               </div>
             )}
+
+            {/* Meet-Me section */}
+            <MeetMe
+              eventId={id}
+              rsvpStatus={rsvpStatus}
+              openToMeeting={openToMeeting}
+              onToggle={handleMeetMeToggle}
+            />
           </div>
 
           <div className="sidebar">

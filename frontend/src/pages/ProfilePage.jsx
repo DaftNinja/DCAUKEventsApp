@@ -52,6 +52,7 @@ export default function ProfilePage() {
         headline: formData.headline,
         company: formData.company,
         bio: formData.bio,
+        defaultOpenToMeeting: formData.defaultOpenToMeeting,
       });
       setUser(updated);
       setFormData(updated);
@@ -129,6 +130,17 @@ export default function ProfilePage() {
               <div className="form-group form-group-full">
                 <label>Bio</label>
                 <textarea rows={4} placeholder="Tell the community about yourself…" value={formData.bio || ''} onChange={e => setFormData({ ...formData, bio: e.target.value })} />
+              </div>
+              <div className="form-group form-group-full">
+                <label>Meet-Me default</label>
+                <label className="pp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.defaultOpenToMeeting}
+                    onChange={e => setFormData({ ...formData, defaultOpenToMeeting: e.target.checked })}
+                  />
+                  <span>Automatically enable Meet-Me when I RSVP Going to an event</span>
+                </label>
               </div>
             </div>
             <div className="pp-form-actions">

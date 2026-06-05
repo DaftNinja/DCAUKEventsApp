@@ -318,6 +318,24 @@
 
 .form-group textarea { resize: vertical; }
 
+.pp-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  color: #475569;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.pp-toggle-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #06b6d4;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 .pp-form-actions {
   display: flex;
   gap: 0.75rem;
