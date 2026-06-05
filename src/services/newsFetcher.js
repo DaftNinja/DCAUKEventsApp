@@ -206,9 +206,34 @@ export async function fetchAndStoreNews() {
     return;
   }
 
+  // Deduplicate across feeds by normalised title before inserting
+  // This catches syndicated stories published at different URLs by multiple sources
+  function normaliseTitle(title) {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80); // compare first 80 chars
+  }
+
+  const seenTitles = new Set();
+  const deduped = [];
+  for (const item of allItems) {
+    const norm = normaliseTitle(item.title);
+    if (!seenTitles.has(norm)) {
+      seenTitles.add(norm);
+      deduped.push(item);
+    }
+  }
+
+  if (deduped.length < allItems.length) {
+    console.log(`📰 Deduplicated ${allItems.length - deduped.length} cross-feed duplicate(s)`);
+  }
+
   // Insert new items, skip duplicates by URL
   let inserted = 0;
-  for (const item of allItems) {
+  for (const item of deduped) {
     try {
       await db
         .insert(newsItems)
