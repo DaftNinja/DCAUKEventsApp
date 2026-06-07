@@ -139,8 +139,9 @@ router.get("/linkedin/callback", async (req, res) => {
       ? process.env.FRONTEND_URL 
       : `https://${process.env.FRONTEND_URL}`;
     
-    const redirectUrl = `${frontendUrl}/auth/success?token=${token}&userId=${existingUser[0].id}`;
-    console.log("🔀 Redirecting to:", redirectUrl);
+    const userRole = existingUser[0].role || 'member';
+    const redirectUrl = `${frontendUrl}/auth/success?token=${token}&userId=${existingUser[0].id}&role=${userRole}`;
+    console.log("🔀 Redirecting to:", redirectUrl.replace(token, "***"));
     res.redirect(redirectUrl);
   } catch (error) {
     console.error("❌ OAuth callback error:", error.message);

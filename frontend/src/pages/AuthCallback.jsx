@@ -6,34 +6,23 @@ export default function AuthCallback({ setIsAuthenticated }) {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    const token  = searchParams.get("token");
     const userId = searchParams.get("userId");
+    const role   = searchParams.get("role") || "member";
 
     if (token && userId) {
-      console.log("✓ Token from URL:", token.substring(0, 20) + "...");
-      console.log("✓ UserId from URL:", userId);
-
-      // Store token and user ID
-      localStorage.setItem("token", token);
+      localStorage.setItem("token",  token);
       localStorage.setItem("userId", userId);
-      
-      console.log("✓ Saved to localStorage");
+      localStorage.setItem("role",   role);
 
-      // Update parent component state
-      if (setIsAuthenticated) {
-        setIsAuthenticated(true);
-      }
+      if (setIsAuthenticated) setIsAuthenticated(true);
 
-      // Navigate to events after a brief delay to ensure state updates
       setTimeout(() => {
-        console.log("🔀 Navigating to /events");
         navigate("/events", { replace: true });
       }, 50);
     } else {
       console.error("❌ No token or userId in URL");
-      setTimeout(() => {
-        navigate("/", { replace: true });
-      }, 50);
+      setTimeout(() => navigate("/", { replace: true }), 50);
     }
   }, [searchParams, navigate, setIsAuthenticated]);
 
