@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../api';
 import './Navbar.css';
@@ -11,58 +12,100 @@ export default function Navbar({
   const navigate = useNavigate();
   const role    = localStorage.getItem('role') || 'member';
   const isAdmin = role === 'admin';
+  const [menuOpen, setMenuOpen] = useState(false);
 
   function handleLogout() {
     logout();
     localStorage.removeItem('role');
     navigate('/');
+    setMenuOpen(false);
   }
 
-  return (
-    <nav className="navbar">
-      <div className="navbar-inner">
-        <div className="navbar-left">
-          <button className="navbar-logo" onClick={() => navigate('/')}>
-            DCA<span>UK</span>
-          </button>
-          {showBack && (
-            <button className="navbar-back" onClick={() => navigate(backTo)}>
-              {backLabel}
-            </button>
-          )}
-        </div>
+  function go(path) {
+    navigate(path);
+    setMenuOpen(false);
+  }
 
-        {!hideNav && (
-          <div className="navbar-right">
-            <button className="navbar-link" onClick={() => navigate('/events')}>
-              Events
+  const navItems = [
+    { label: 'Events',         path: '/events' },
+    { label: 'News',           path: '/news' },
+    { label: 'Groups',         path: '/groups' },
+    { label: 'Members',        path: '/members' },
+    { label: '+ Submit event', path: '/events/submit', className: 'navbar-submit' },
+    ...(isAdmin ? [{ label: 'Admin', path: '/admin', className: 'navbar-admin' }] : []),
+    { label: 'My Profile',     path: '/profile' },
+  ];
+
+  return (
+    <>
+      <nav className="navbar">
+        <div className="navbar-inner">
+          <div className="navbar-left">
+            <button className="navbar-logo" onClick={() => go('/')}>
+              DCA<span>UK</span>
             </button>
-            <button className="navbar-link" onClick={() => navigate('/news')}>
-              News
-            </button>
-            <button className="navbar-link" onClick={() => navigate('/groups')}>
-              Groups
-            </button>
-            <button className="navbar-link" onClick={() => navigate('/members')}>
-              Members
-            </button>
-            <button className="navbar-link navbar-submit" onClick={() => navigate('/events/submit')}>
-              + Submit event
-            </button>
-            {isAdmin && (
-              <button className="navbar-link navbar-admin" onClick={() => navigate('/admin')}>
-                Admin
+            {showBack && !menuOpen && (
+              <button className="navbar-back" onClick={() => go(backTo)}>
+                {backLabel}
               </button>
             )}
-            <button className="navbar-link" onClick={() => navigate('/profile')}>
-              My Profile
-            </button>
-            <button className="navbar-link navbar-signout" onClick={handleLogout}>
-              Sign out
-            </button>
           </div>
-        )}
-      </div>
-    </nav>
+
+          {!hideNav && (
+            <>
+              {/* Desktop nav */}
+              <div className="navbar-right navbar-desktop">
+                {navItems.map(item => (
+                  <button
+                    key={item.path}
+                    className={`navbar-link ${item.className || ''}`}
+                    onClick={() => go(item.path)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                <button className="navbar-link navbar-signout" onClick={handleLogout}>
+                  Sign out
+                </button>
+              </div>
+
+              {/* Hamburger button — mobile only */}
+              <button
+                className={`navbar-hamburger ${menuOpen ? 'open' : ''}`}
+                onClick={() => setMenuOpen(o => !o)}
+                aria-label="Toggle menu"
+              >
+                <span />
+                <span />
+                <span />
+              </button>
+            </>
+          )}
+        </div>
+      </nav>
+
+      {/* Mobile slide-down menu */}
+      {!hideNav && menuOpen && (
+        <div className="navbar-mobile-menu">
+          {navItems.map(item => (
+            <button
+              key={item.path}
+              className={`navbar-mobile-link ${item.className || ''}`}
+              onClick={() => go(item.path)}
+            >
+              {item.label}
+            </button>
+          ))}
+          <button className="navbar-mobile-link navbar-mobile-signout" onClick={handleLogout}>
+            Sign out
+          </button>
+        </div>
+      )}
+
+      {/* Overlay to close menu on tap outside */}
+      {menuOpen && (
+        <div className="navbar-overlay" onClick={() => setMenuOpen(false)} />
+      )}
+    </>
   );
 }
