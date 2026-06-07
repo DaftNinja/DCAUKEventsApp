@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 import { api } from "../api";
+import Navbar from "../components/Navbar";
 
 // ─── News Carousel ─────────────────────────────────────────────────────────────
 
@@ -154,22 +155,20 @@ export default function HomePage() {
 
   return (
     <div className="home">
-      <nav className={`home-nav${scrolled ? " scrolled" : ""}`}>
-        <div className="home-nav-inner">
-          <span className="home-logo">
-            <img src="/logo.png" alt="theventguide.com" className="home-logo-img" />
-          </span>
-          {isLoggedIn ? (
-            <button className="nav-signin-btn" onClick={() => navigate("/events")}>
-              View Events →
-            </button>
-          ) : (
+      {isLoggedIn ? (
+        <Navbar />
+      ) : (
+        <nav className={`home-nav${scrolled ? " scrolled" : ""}`}>
+          <div className="home-nav-inner">
+            <span className="home-logo">
+              <img src="/logo.png" alt="theventguide.com" className="home-logo-img" />
+            </span>
             <button className="nav-signin-btn" onClick={handleLogin}>
               Sign in with LinkedIn
             </button>
-          )}
-        </div>
-      </nav>
+          </div>
+        </nav>
+      )}
 
       <header className="home-hero">
         <div className="hero-bg">
