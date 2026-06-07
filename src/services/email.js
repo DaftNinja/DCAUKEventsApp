@@ -3,7 +3,7 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_ADDRESS = process.env.EMAIL_FROM || "DCAUK <contact@1giglabs.com>";
-const SITE_URL = process.env.FRONTEND_URL || "https://dcaevents-production.up.railway.app";
+const SITE_URL = process.env.FRONTEND_URL || "https://dacuk-events.1giglabs.com";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

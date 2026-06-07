@@ -2,7 +2,7 @@
 
 A community platform for digital infrastructure professionals to discover events, RSVP, connect with peers, and manage their professional presence.
  
-**Working domain:** `dacuk-events.1giglabs.com`  
+**Live URL:** `https://dacuk-events.1giglabs.com`  
 
 ---
 
