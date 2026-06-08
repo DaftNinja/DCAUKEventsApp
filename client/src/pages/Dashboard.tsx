@@ -271,15 +271,71 @@ function SummaryTab({ data }: { data: ReportData }) {
   );
 }
 
+// ── Private-company helpers ────────────────────────────────────────────────────
+// A company is considered private/unlisted when stockTicker is null or missing.
+const isPrivateCompany = (fin: ReportData["financials"]) =>
+  !fin.stockTicker || fin.stockTicker === "null" || fin.stockTicker === "N/A";
+
+// Stock-market-only metrics that are meaningless for private companies.
+const MARKET_ONLY_METRICS = new Set(["P/E Ratio", "EPS", "Stock Price"]);
+
+function PrivateCompanyBanner({ companyName }: { companyName: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+      {/* Lock icon */}
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-300 bg-amber-100">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-600">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-amber-800">
+          Private Company — Limited Public Financial Data
+        </p>
+        <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
+          {companyName} is privately held and not listed on a public exchange. Real-time market data
+          (stock price, market cap, P/E ratio, analyst ratings) is not publicly available. Revenue,
+          AUM, and other figures shown are sourced from public disclosures and Wikipedia where available.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function FinancialsTab({ data }: { data: ReportData }) {
   const fin = data.financials;
+  const isPrivate = isPrivateCompany(fin);
+
   return (
     <div className="space-y-6">
+
+      {/* Private company notice — shown above all content */}
+      {isPrivate && <PrivateCompanyBanner companyName={data.companyName} />}
+
+      {/* Top metric cards — for private companies, market-cap card is replaced with a locked placeholder */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MetricCard label="Revenue" value={fin.revenue} sub={fin.revenueGrowth} trend="up" delay={0} />
         <MetricCard label="Net Income" value={fin.netIncome} delay={80} />
         <MetricCard label="EBITDA" value={fin.ebitda} delay={160} />
-        <MetricCard label="Market Cap" value={fin.marketCap} delay={240} />
+        {isPrivate ? (
+          <div
+            className="metric-card animate-fade-up opacity-60"
+            style={{ animationDelay: "240ms" }}
+            title="Market cap is not available for privately held companies"
+          >
+            <div className="metric-label flex items-center gap-1.5">
+              Market Cap
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-500 shrink-0">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <div className="metric-value text-[var(--text-muted)] text-base">Not public</div>
+          </div>
+        ) : (
+          <MetricCard label="Market Cap" value={fin.marketCap} delay={240} />
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -290,17 +346,36 @@ function FinancialsTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title">Key Metrics</div>
           <div className="space-y-3">
-            {fin.keyMetrics.map((m, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
-                <span className="text-sm text-[var(--text-secondary)]">{m.label}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-[var(--text-primary)] font-mono">{m.value}</span>
-                  <span className={`text-xs ${m.trend === "up" ? "text-[var(--primary)]" : m.trend === "down" ? "text-red-400" : "text-[var(--text-muted)]"}`}>
-                    {m.trend === "up" ? "↑" : m.trend === "down" ? "↓" : "→"}
-                  </span>
+            {fin.keyMetrics.map((m, i) => {
+              const isLocked = isPrivate && MARKET_ONLY_METRICS.has(m.label);
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0 ${isLocked ? "opacity-50" : ""}`}
+                  title={isLocked ? `${m.label} is not available for privately held companies` : undefined}
+                >
+                  <div className="flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+                    {m.label}
+                    {isLocked && (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-500 shrink-0">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[var(--text-primary)] font-mono">
+                      {isLocked ? "N/A" : m.value}
+                    </span>
+                    {!isLocked && (
+                      <span className={`text-xs ${m.trend === "up" ? "text-[var(--primary)]" : m.trend === "down" ? "text-red-400" : "text-[var(--text-muted)]"}`}>
+                        {m.trend === "up" ? "↑" : m.trend === "down" ? "↓" : "→"}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
