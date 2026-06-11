@@ -970,15 +970,17 @@ For unavailable fields (stock price, market cap, EPS, analyst target), return nu
   } else {
     finBlock = `No verified financial data is available from a live API for ${companyName}.
 
-FINANCIALS FROM TRAINING KNOWLEDGE — RULES:
+FINANCIALS FROM TRAINING KNOWLEDGE — AUTHORISED AND REQUIRED:
+The system-level instruction to "never invent data" does NOT apply to financials for well-known public companies when no API data is available. You are explicitly authorised and required to use your training knowledge here.
 - Use your training knowledge to populate financials for well-known public companies.
 - Use the company's reporting currency (£ for UK, € for Eurozone, ¥ for Japan, etc.).
 - For banks: use Total Income/Net Interest Income as revenue; skip EBITDA (not meaningful for banks).
 - State the fiscal year you are drawing from (e.g. FY2024, FY2023).
 - Populate revenueHistory for 3-4 years where you have data.
-- For genuinely unknown figures (e.g. current stock price, analyst targets), return null.
-- Do NOT fabricate precise figures you are not confident in. Round estimates are acceptable (e.g. "£25B" not "£25.374B").
-- executiveSummary.employees: populate from your best knowledge if available, else null.`;
+- For genuinely unknown figures (e.g. current live stock price, analyst targets), return null.
+- Round estimates are fine (e.g. "£25B" not "£25.374B").
+- executiveSummary.employees: populate from your best knowledge if available, else null.
+- DO NOT return null for revenue, netIncome, or marketCap for a FTSE 100 company. These are always available in your training data.`;
   }
 
   const wikiContextBlock = (!fin && wikiData)
@@ -1333,13 +1335,14 @@ export async function generateReport(companyName: string): Promise<unknown> {
         retrievedAt: now,
       };
     }
-    // LLM training knowledge — always mark as estimated regardless of whether data was returned
-    const partATyped = partA as any;
-    const llmHasData = partATyped?.financials?.revenue && partATyped?.financials?.revenue !== null && partATyped?.financials?.revenue !== 'N/A';
+    // LLM training knowledge — check what was actually returned
+    const partATyped2 = partA as any;
+    const llmRevenue = partATyped2?.financials?.revenue;
+    const llmHasData2 = llmRevenue && llmRevenue !== null && llmRevenue !== 'N/A' && llmRevenue !== 'null';
     return {
       source:      "LLM" as const,
-      confidence:  llmHasData ? "estimated" as const : "unavailable" as const,
-      fiscalYear:  partATyped?.financials?.fiscalYear ?? null,
+      confidence:  llmHasData2 ? "estimated" as const : "unavailable" as const,
+      fiscalYear:  partATyped2?.financials?.fiscalYear ?? null,
       retrievedAt: now,
     };
   })();
@@ -1362,8 +1365,8 @@ export async function generateReport(companyName: string): Promise<unknown> {
     }
   }
 
-  // Strip orphaned IT budget % when revenue is unavailable
-  if (financialsMeta.confidence === "unavailable" || financialsMeta.confidence === "estimated") {
+  // Strip orphaned IT budget % only when truly no data at all
+  if (financialsMeta.confidence === "unavailable") {
     const techSpend = (partB as any)?.techSpend;
     if (techSpend?.itBudgetAsPercentRevenue) {
       console.log(`🧹 Stripping orphaned itBudgetAsPercentRevenue (no verified revenue for ${companyName})`);
