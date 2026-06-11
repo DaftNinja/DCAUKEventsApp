@@ -10,6 +10,19 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// ─── Data source tagging ─────────────────────────────────────────────────────
+// Every financial field in the report carries a _dataSource block so the UI
+// can render a badge (green=verified, amber=single-source, red=estimated).
+
+export type DataConfidence = "verified" | "single-source" | "wikipedia" | "estimated" | "unavailable";
+
+export interface FinancialsMetadata {
+  source:      "FMP" | "Wikipedia" | "LLM" | "none";
+  confidence:  DataConfidence;
+  fiscalYear:  string | null;   // e.g. "FY2024" — the period the numbers relate to
+  retrievedAt: string;          // ISO date string
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 const MODEL_GROUNDED = "claude-haiku-4-5-20251001";
 const MODEL_FAST     = "claude-haiku-4-5-20251001";
@@ -674,20 +687,18 @@ Note: This company is private/unlisted. No stock price, market cap, P/E ratio, o
 Use the Wikipedia figures above for revenue, employees, and other available fields.
 For unavailable fields (stock price, market cap, EPS, analyst target), return null.`;
   } else {
-    finBlock = `No verified financial data from Financial Modeling Prep — populate financials from your training knowledge.
+    finBlock = `No verified financial data is available from any external source for ${companyName}.
 
-CRITICAL: For any large, well-known company (FTSE 100, DAX 40, CAC 40, Nikkei 225, Euro Stoxx 50, TSX 60, ASX 200, and any globally recognised firm), you MUST populate every financial field you can. These companies publish annual reports and their financials are widely reported. Returning null for a FTSE 100 company's revenue is unacceptable.
+IMPORTANT — DATA INTEGRITY RULES FOR FINANCIALS:
+- Do NOT populate revenue, netIncome, ebitda, marketCap, stockPrice, or revenueHistory with estimates from your training knowledge.
+- Return null for ALL financial figures. These fields will be flagged as unavailable in the UI.
+- The only exception: stockTicker (e.g. BARC, HSBA) may be returned if you are highly confident — it helps the system fetch live data on retry.
+- keyMetrics: return [] (empty array).
+- revenueHistory: return [] (empty array).
+- fiscalYear: return null.
+- outlook: you MAY provide a qualitative 1-2 sentence outlook based on publicly known context, but do not include any specific figures.
 
-For ${companyName} specifically:
-- Use the company's REPORTING CURRENCY (£ for UK companies, € for Eurozone, ¥ for Japan, CAD for Canada, AUD for Australia, etc.)
-- Revenue, net income, market cap, and key ratios (ROE, NIM, CET1 for banks; gross margin, operating margin for others) are available in your training data from annual reports and financial press coverage
-- Populate revenueHistory for at least 3-4 years (FY2021 through FY2024 where available)
-- For banks specifically: NIM, CET1 ratio, ROE, cost-to-income ratio are the standard keyMetrics — use these instead of gross/operating margin
-- Market cap should be estimated from your knowledge of the company's share price and float — do NOT return null for major listed companies
-- stockTicker: use the company's primary listing (e.g. BARC for Barclays on LSE, HSBA for HSBC, VOW3 for VW on Xetra)
-- revenueGrowth: calculate from the revenueHistory figures you provide
-
-Only use null for fields that are genuinely unavailable (e.g. stockPrice for private companies, P/E for loss-making firms). Never use null as a safe default for a well-known public company.`;
+Rationale: This report will be read by professionals. A blank field clearly signals a data gap. A confidently-stated but wrong revenue figure destroys credibility. Do not guess.`;
   }
 
   // ── Context supplement from Wikipedia (for all companies) ────────────────
@@ -1035,7 +1046,72 @@ export async function generateReport(companyName: string): Promise<unknown> {
   console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (FMP + Wiki + CEO + Haiku x2)`);
 
   const confidence = computeConfidence(partA, partB, fmpData.financials, fmpData.esg, currentCEO, wikiData);
-  return { ...(partA as object), ...(partB as object), confidence };
+
+  // ── Attach financials metadata ────────────────────────────────────────────
+  // Computed server-side from known data sources — never LLM-generated.
+  // This is injected into the report JSON so the UI can render source badges.
+  const financialsMeta: FinancialsMetadata = (() => {
+    const now = new Date().toISOString().slice(0, 10);
+    if (fmpData.financials) {
+      return {
+        source:      "FMP",
+        confidence:  "verified",
+        fiscalYear:  fmpData.financials.fiscalYear,
+        retrievedAt: now,
+      };
+    }
+    if (wikiData?.revenue || wikiData?.aum || wikiData?.netIncome) {
+      return {
+        source:      "Wikipedia",
+        confidence:  "wikipedia",
+        fiscalYear:  null,
+        retrievedAt: now,
+      };
+    }
+    // Check whether the LLM actually populated figures despite the prohibition
+    const partATyped = partA as any;
+    const llmHasData = partATyped?.financials?.revenue || partATyped?.financials?.netIncome;
+    return {
+      source:      llmHasData ? "LLM" : "none",
+      confidence:  llmHasData ? "estimated" : "unavailable",
+      fiscalYear:  partATyped?.financials?.fiscalYear ?? null,
+      retrievedAt: now,
+    };
+  })();
+
+  // ── Numeric sanity checks ─────────────────────────────────────────────────
+  // Run after generation; flag anomalies in confidence signals rather than
+  // silently passing bad data through to the UI.
+  const partATyped = partA as any;
+  if (financialsMeta.source === "FMP" && fmpData.financials) {
+    const fin = fmpData.financials;
+    const revHistory = fin.revenueHistory;
+    if (revHistory.length >= 2) {
+      // Check for implausible YoY swings (>300% growth or >90% decline)
+      for (let i = 0; i < revHistory.length - 1; i++) {
+        const curr = parseFloat(revHistory[i].revenue.replace(/[^0-9.]/g, ""));
+        const prev = parseFloat(revHistory[i + 1].revenue.replace(/[^0-9.]/g, ""));
+        if (prev > 0 && curr > 0) {
+          const change = Math.abs((curr - prev) / prev);
+          if (change > 3) {
+            console.warn(`⚠️  Sanity check: implausible revenue swing for ${companyName} (${revHistory[i+1].year}→${revHistory[i].year}: ${(change*100).toFixed(0)}%). Flagging.`);
+            financialsMeta.confidence = "single-source";
+          }
+        }
+      }
+    }
+  }
+
+  // ── Strip orphaned IT budget % when revenue is unavailable ────────────────
+  if (financialsMeta.confidence === "unavailable" || financialsMeta.confidence === "estimated") {
+    const techSpend = (partB as any)?.techSpend;
+    if (techSpend?.itBudgetAsPercentRevenue) {
+      console.log(`🧹 Stripping orphaned itBudgetAsPercentRevenue (no verified revenue for ${companyName})`);
+      techSpend.itBudgetAsPercentRevenue = null;
+    }
+  }
+
+  return { ...(partA as object), ...(partB as object), confidence, _financialsMeta: financialsMeta };
 }
 
 // ─── Sales Enablement ─────────────────────────────────────────────────────────

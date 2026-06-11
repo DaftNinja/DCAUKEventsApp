@@ -107,6 +107,32 @@ export function Dashboard() {
   const data = report.reportData as ReportData;
   const sales = report.salesEnablementData as SalesEnablement | null;
 
+  // ── Financial data source metadata ──────────────────────────────────────
+  const finMeta = (data as any)._financialsMeta as {
+    source: "FMP" | "Wikipedia" | "LLM" | "none";
+    confidence: "verified" | "single-source" | "wikipedia" | "estimated" | "unavailable";
+    fiscalYear: string | null;
+    retrievedAt: string;
+  } | undefined;
+
+  function SourceBadge() {
+    if (!finMeta) return null;
+    const cfg = {
+      verified:      { label: "Verified · FMP",        bg: "bg-emerald-900/60", text: "text-emerald-400", dot: "bg-emerald-400" },
+      "single-source": { label: "Single source · FMP", bg: "bg-blue-900/60",    text: "text-blue-400",    dot: "bg-blue-400" },
+      wikipedia:     { label: "Wikipedia",              bg: "bg-blue-900/60",    text: "text-blue-400",    dot: "bg-blue-400" },
+      estimated:     { label: "AI estimate · unverified", bg: "bg-amber-900/60", text: "text-amber-400",   dot: "bg-amber-400" },
+      unavailable:   { label: "No data source",         bg: "bg-slate-800",      text: "text-slate-400",   dot: "bg-slate-500" },
+    }[finMeta.confidence] ?? { label: "Unknown", bg: "bg-slate-800", text: "text-slate-400", dot: "bg-slate-500" };
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.text}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+        {cfg.label}
+        {finMeta.fiscalYear && <span className="opacity-60">· {finMeta.fiscalYear}</span>}
+      </span>
+    );
+  }
+
   return (
     <Layout>
       <div id="report-content">
@@ -312,6 +338,21 @@ function FinancialsTab({ data }: { data: ReportData }) {
 
       {/* Private company notice — shown above all content */}
       {isPrivate && <PrivateCompanyBanner companyName={data.companyName} />}
+
+      {/* Financial data source badge */}
+      <div className="flex items-center gap-2 mb-2">
+        <SourceBadge />
+        {finMeta?.confidence === "estimated" && (
+          <span className="text-xs text-amber-400/80">
+            ⚠ Financial figures are AI estimates from training data — verify against published accounts before use
+          </span>
+        )}
+        {finMeta?.confidence === "unavailable" && (
+          <span className="text-xs text-slate-400">
+            Financial data unavailable — check FMP API key or retry generation
+          </span>
+        )}
+      </div>
 
       {/* Top metric cards — for private companies, market-cap card is replaced with a locked placeholder */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
