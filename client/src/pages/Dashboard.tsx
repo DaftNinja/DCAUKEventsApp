@@ -225,7 +225,7 @@ function SummaryTab({ data }: { data: ReportData }) {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MetricCard label="CEO" value={es.ceo} delay={0} />
         <MetricCard label="Founded" value={es.founded} delay={80} />
-        <MetricCard label="Employees" value={es.employees} delay={160} />
+        <MetricCard label="Employees" value={es.employees ? (() => { const n = parseInt(String(es.employees).replace(/[^0-9]/g, ""), 10); return isNaN(n) ? es.employees : n.toLocaleString("en-GB"); })() : es.employees} delay={160} />
         <MetricCard label="HQ" value={es.headquarters} delay={240} />
       </div>
 
