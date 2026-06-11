@@ -114,14 +114,26 @@ async function resolveFMPTicker(companyName: string): Promise<string | null> {
 
     const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
     const query     = normalise(companyName);
-    const US_EXCHANGES = new Set(["NASDAQ", "NYSE", "AMEX", "NYSE ARCA"]);
+    const KNOWN_EXCHANGES = new Set([
+      // US
+      "NASDAQ", "NYSE", "AMEX", "NYSE ARCA",
+      // UK / Europe
+      "LSE", "LON", "LSE AIM", "EURONEXT", "XETRA", "EPA", "EBR", "AMS", "STO", "CPH", "HEL", "VIE",
+      // APAC
+      "TSX", "ASX", "NSE", "BSE", "HKEX", "TSE", "SGX", "NZX",
+      // Other
+      "JSE", "BOVESPA", "BMV",
+    ]);
 
-    // Only accept matches where the name meaningfully matches AND it's on a US exchange.
-    // Deliberately drop the results[0] fallback — it caused wrong-company matches
+    // Only accept matches where the name meaningfully matches AND it's on a recognised exchange.
+    // Deliberately avoid results[0] blind fallback — it caused wrong-company matches
     // (e.g. "Fidelity National Financial" for "Fidelity Investments").
     const match =
-      results.find(r => normalise(r.name) === query && US_EXCHANGES.has(r.exchangeShortName ?? "")) ??
-      results.find(r => normalise(r.name).includes(query) && US_EXCHANGES.has(r.exchangeShortName ?? ""));
+      results.find(r => normalise(r.name) === query && KNOWN_EXCHANGES.has(r.exchangeShortName ?? "")) ??
+      results.find(r => normalise(r.name).includes(query) && KNOWN_EXCHANGES.has(r.exchangeShortName ?? "")) ??
+      // Looser fallback: name match on any exchange (catches gaps in KNOWN_EXCHANGES list)
+      results.find(r => normalise(r.name) === query) ??
+      results.find(r => normalise(r.name).includes(query));
 
     if (!match) {
       console.log(`📈 FMP: no confident ticker match for "${companyName}" — will try Wikipedia fallback`);
@@ -624,8 +636,20 @@ Note: This company is private/unlisted. No stock price, market cap, P/E ratio, o
 Use the Wikipedia figures above for revenue, employees, and other available fields.
 For unavailable fields (stock price, market cap, EPS, analyst target), return null.`;
   } else {
-    finBlock = `No verified financial data from Financial Modeling Prep (common for non-US-listed or private companies).
-Use your training knowledge to populate the financials. For large publicly listed companies (FTSE 100, DAX 40, CAC 40, Nikkei 225, etc.) you will have good data on revenue, net income, market cap, margins, and growth from annual reports and financial databases. Fill in every field you can substantiate with reasonable confidence. Use the company's reporting currency (e.g. £ for UK companies, € for Eurozone). Only return null for fields where you genuinely have no basis for an estimate.`;
+    finBlock = `No verified financial data from Financial Modeling Prep — populate financials from your training knowledge.
+
+CRITICAL: For any large, well-known company (FTSE 100, DAX 40, CAC 40, Nikkei 225, Euro Stoxx 50, TSX 60, ASX 200, and any globally recognised firm), you MUST populate every financial field you can. These companies publish annual reports and their financials are widely reported. Returning null for a FTSE 100 company's revenue is unacceptable.
+
+For ${companyName} specifically:
+- Use the company's REPORTING CURRENCY (£ for UK companies, € for Eurozone, ¥ for Japan, CAD for Canada, AUD for Australia, etc.)
+- Revenue, net income, market cap, and key ratios (ROE, NIM, CET1 for banks; gross margin, operating margin for others) are available in your training data from annual reports and financial press coverage
+- Populate revenueHistory for at least 3-4 years (FY2021 through FY2024 where available)
+- For banks specifically: NIM, CET1 ratio, ROE, cost-to-income ratio are the standard keyMetrics — use these instead of gross/operating margin
+- Market cap should be estimated from your knowledge of the company's share price and float — do NOT return null for major listed companies
+- stockTicker: use the company's primary listing (e.g. BARC for Barclays on LSE, HSBA for HSBC, VOW3 for VW on Xetra)
+- revenueGrowth: calculate from the revenueHistory figures you provide
+
+Only use null for fields that are genuinely unavailable (e.g. stockPrice for private companies, P/E for loss-making firms). Never use null as a safe default for a well-known public company.`;
   }
 
   // ── Context supplement from Wikipedia (for all companies) ────────────────
@@ -886,8 +910,11 @@ function computeConfidence(
     signals.push({ label: "Revenue history", status: "warn" });
     signals.push({ label: "Market cap", status: "warn" }); // private — no market cap
   } else {
-    signals.push({ label: "Financial data", status: "fail" });
-    signals.push({ label: "Revenue history", status: "fail" });
+    // LLM-estimated financials — warn rather than fail for known public companies
+    const hasRevenue = partA?.financials?.revenue && partA.financials.revenue !== null;
+    signals.push({ label: "Financial data (LLM estimate)", status: hasRevenue ? "warn" : "fail" });
+    const hasHistory = (partA?.financials?.revenueHistory?.length ?? 0) >= 2;
+    signals.push({ label: "Revenue history", status: hasHistory ? "warn" : "fail" });
     signals.push({ label: "Market cap", status: "warn" });
   }
 
