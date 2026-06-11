@@ -464,9 +464,9 @@ PRIMARY RULES
 - Do NOT output markdown, prose, explanations, notes, or code fences.
 - Output must parse successfully with JSON.parse().
 - Never narrate reasoning or search activity.
-- Never invent data.
 - If data cannot be verified with high confidence, return null for scalars, [] for arrays, {} for objects.
-- Prefer omission over speculation.
+- Prefer omission over speculation for executive names, acquisition dates, funding amounts, and customer counts.
+- For well-known public companies, use training knowledge to populate financial figures (revenue, netIncome, marketCap, employees) when explicitly instructed — this is not "inventing data", it is applying known facts.
 - Never mix executives between companies.
 - Use concise factual language only.
 - When financial data is supplied in the prompt, treat it as authoritative and use it verbatim.
@@ -483,7 +483,8 @@ MISSING DATA POLICY
 - Unknown scalar values → null
 - Unknown arrays → []
 - Unknown objects → {}
-- Never fabricate: funding amounts, acquisition dates, executive names, office locations, customer counts, or revenue figures.
+- Never fabricate: funding amounts, acquisition dates, executive names, office locations, or customer counts.
+- Financial figures (revenue, netIncome, marketCap, employees) for well-known public companies: use training knowledge when explicitly instructed, do not return null.
 
 EXECUTIVE VALIDATION RULES
 Before returning any executive name:
