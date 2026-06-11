@@ -469,7 +469,8 @@ async function generatePartA(companyName: string, fmpFinancials?: FMPFinancials 
 ${fin.revenueHistory.map(r => `  ${r.year}: ${r.revenue} (${r.growth})`).join("\n")}
 
 Use ALL of the above values verbatim in the financials object. Do not substitute your own estimates for any field that has been provided.`
-    : `No verified financial data available (private or unlisted company). Use best estimates from training data where confident; return null for any value you cannot verify.`;
+    : `No verified financial data from Financial Modeling Prep (common for non-US-listed or private companies).
+Use your training knowledge to populate the financials. For large publicly listed companies (FTSE 100, DAX 40, CAC 40, Nikkei 225, etc.) you will have good data on revenue, net income, market cap, margins, and growth from annual reports and financial databases. Fill in every field you can substantiate with reasonable confidence. Use the company's reporting currency (e.g. £ for UK companies, € for Eurozone). Only return null for fields where you genuinely have no basis for an estimate.`;
 
   const socialBlock = socialContext
     ? `CURRENT INTELLIGENCE — LAST 30 DAYS (Reddit, X, YouTube, Hacker News, GitHub, Polymarket):
@@ -569,7 +570,13 @@ async function generatePartB(companyName: string, esgData?: FMPESGData | null, s
 - Data as of:          ${esgData.lastUpdated}
 
 Use ALL values verbatim in the esg object. Set overallRating to "${esgData.esgRating} (FMP)". Do not substitute estimates for any provided field.`
-    : `No verified ESG data available. Use best estimates from training data; return null for any value you cannot verify.`;
+    : `No verified ESG data from Financial Modeling Prep (common for non-US-listed companies).
+Use your training knowledge to populate the ESG fields. For large, publicly reported companies (FTSE 100, Euro Stoxx 50, etc.) you will have good data on:
+- Published ESG ratings from MSCI, Sustainalytics, or CDP (use these for overallRating, e.g. "A (MSCI)")
+- Net Zero targets, environmental commitments, and governance practices from annual/sustainability reports
+- Board diversity figures from corporate governance disclosures
+- ESG risk assessments from major rating agencies
+Fill in every field you can substantiate. Only return null for fields where you genuinely have no basis for an estimate — not as a precautionary default.`;
 
   const socialBlock = socialContext
     ? `CURRENT INTELLIGENCE — LAST 30 DAYS (Reddit, X, YouTube, Hacker News, GitHub, Polymarket):
