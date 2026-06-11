@@ -318,6 +318,147 @@ export async function lookupFMP(companyName: string): Promise<{
   return { financials, esg };
 }
 
+// ─── Yahoo Finance fallback ───────────────────────────────────────────────────────────────────────
+// No API key required. Covers global exchanges including LSE (BARC.L), NYSE, NASDAQ etc.
+// Used when FMP returns no financial data (plan limitation or unlisted company).
+
+async function resolveYahooTicker(companyName: string): Promise<string | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(companyName)}&quotesCount=5&newsCount=0`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { quotes?: { symbol: string; shortname?: string; longname?: string; quoteType?: string; exchange?: string }[] };
+    const quotes = (data.quotes ?? []).filter(q => q.quoteType === "EQUITY");
+    if (!quotes.length) return null;
+
+    const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const query = normalise(companyName);
+
+    // Prefer primary listing (shorter symbol, no dot suffix where possible for major companies)
+    const match =
+      quotes.find(q => normalise(q.shortname ?? q.longname ?? "") === query) ??
+      quotes.find(q => normalise(q.shortname ?? q.longname ?? "").includes(query)) ??
+      quotes[0];
+
+    console.log(`💹 Yahoo resolved "${companyName}" → ${match.symbol} (${match.exchange ?? "unknown"})`);
+    return match.symbol;
+  } catch (err) {
+    console.warn(`Yahoo ticker resolution failed for "${companyName}":`, err);
+    return null;
+  }
+}
+
+async function fetchYahooFinancials(ticker: string): Promise<FMPFinancials | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=incomeStatementHistory,cashflowStatementHistory,defaultKeyStatistics,summaryDetail,financialData,price`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      console.warn(`Yahoo financials ${ticker} → ${res.status}`);
+      return null;
+    }
+    const data = await res.json() as any;
+    const result = data?.quoteSummary?.result?.[0];
+    if (!result) return null;
+
+    const price      = result.price ?? {};
+    const finData    = result.financialData ?? {};
+    const keyStats   = result.defaultKeyStatistics ?? {};
+    const sumDetail  = result.summaryDetail ?? {};
+    const incStmts   = result.incomeStatementHistory?.incomeStatementHistory ?? [];
+
+    // Currency symbol
+    const currency = price.currency ?? "USD";
+    const sym = currency === "GBp" ? "£" : currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
+    // Yahoo returns GBp (pence) for LSE stocks — convert to pounds
+    const penceToGBP = currency === "GBp";
+
+    const fmtYahoo = (raw: any): string => {
+      const n = raw?.raw ?? null;
+      if (n == null || isNaN(n)) return "N/A";
+      const v = penceToGBP ? n / 100 : n;
+      if (Math.abs(v) >= 1e12) return `${sym}${(v / 1e12).toFixed(2)}T`;
+      if (Math.abs(v) >= 1e9)  return `${sym}${(v / 1e9).toFixed(1)}B`;
+      if (Math.abs(v) >= 1e6)  return `${sym}${(v / 1e6).toFixed(0)}M`;
+      return `${sym}${v.toLocaleString()}`;
+    };
+
+    const fmtPctYahoo = (raw: any): string => {
+      const n = raw?.raw ?? null;
+      if (n == null || isNaN(n)) return "N/A";
+      return `${(n * 100).toFixed(1)}%`;
+    };
+
+    // Revenue history from income statements (up to 4 years)
+    const revenueHistory = incStmts.slice(0, 4).map((stmt: any, i: number) => {
+      const year = new Date(stmt.endDate?.raw * 1000).getFullYear().toString();
+      const rev = stmt.totalRevenue?.raw ?? 0;
+      const prevRev = incStmts[i + 1]?.totalRevenue?.raw ?? 0;
+      const v = penceToGBP ? rev / 100 : rev;
+      const pv = penceToGBP ? prevRev / 100 : prevRev;
+      const growth = pv ? `${v > pv ? "+" : ""}${(((v - pv) / pv) * 100).toFixed(1)}%` : "N/A";
+      const revStr = Math.abs(v) >= 1e9 ? `${sym}${(v / 1e9).toFixed(1)}B` : `${sym}${(v / 1e6).toFixed(0)}M`;
+      return { year, revenue: revStr, growth };
+    }).reverse();
+
+    const latestInc = incStmts[0];
+    const prevInc   = incStmts[1];
+    const latestRev = penceToGBP ? (latestInc?.totalRevenue?.raw ?? 0) / 100 : (latestInc?.totalRevenue?.raw ?? 0);
+    const prevRev   = penceToGBP ? (prevInc?.totalRevenue?.raw ?? 0) / 100 : (prevInc?.totalRevenue?.raw ?? 0);
+    const yoyGrowth = prevRev ? `${latestRev > prevRev ? "+" : ""}${(((latestRev - prevRev) / prevRev) * 100).toFixed(1)}% YoY` : "N/A";
+
+    const marketCapRaw = price.marketCap?.raw ?? null;
+    const mktCapV = penceToGBP && marketCapRaw ? marketCapRaw / 100 : marketCapRaw;
+    const mktCapStr = mktCapV == null ? "N/A" :
+      mktCapV >= 1e12 ? `${sym}${(mktCapV / 1e12).toFixed(2)}T` :
+      mktCapV >= 1e9  ? `${sym}${(mktCapV / 1e9).toFixed(1)}B` : `${sym}${(mktCapV / 1e6).toFixed(0)}M`;
+
+    const stockPriceRaw = price.regularMarketPrice?.raw ?? null;
+    const stockPriceV = penceToGBP && stockPriceRaw ? stockPriceRaw / 100 : stockPriceRaw;
+    const stockPriceStr = stockPriceV != null ? `${sym}${stockPriceV.toFixed(2)}` : "N/A";
+
+    const employees = keyStats.fullTimeEmployees ?? null;
+    const fiscalYear = `FY${new Date((latestInc?.endDate?.raw ?? Date.now() / 1000) * 1000).getFullYear()}`;
+
+    console.log(`💹 Yahoo financials for ${ticker}: revenue=${fmtYahoo(latestInc?.totalRevenue)}, mktCap=${mktCapStr}`);
+    // Note: Yahoo income statements use annual data but may be 1-2 years behind.
+    // The fiscalYear field reflects the last available annual filing.
+
+    return {
+      ticker,
+      fiscalYear,
+      revenue:         fmtYahoo(latestInc?.totalRevenue),
+      revenueGrowth:   yoyGrowth,
+      netIncome:       fmtYahoo(latestInc?.netIncome),
+      ebitda:          fmtYahoo(finData.ebitda),
+      grossMargin:     fmtPctYahoo(finData.grossMargins),
+      operatingMargin: fmtPctYahoo(finData.operatingMargins),
+      marketCap:       mktCapStr,
+      stockPrice:      stockPriceStr,
+      peRatio:         sumDetail.trailingPE?.raw != null ? `${sumDetail.trailingPE.raw.toFixed(1)}x` : "N/A",
+      epsAnnual:       keyStats.trailingEps?.raw != null ? `${sym}${keyStats.trailingEps.raw.toFixed(2)}` : "N/A",
+      analystTarget:   finData.targetMeanPrice?.raw != null ? `${sym}${finData.targetMeanPrice.raw.toFixed(2)}` : "N/A",
+      analystRating:   finData.recommendationKey ?? "N/A",
+      employees:       employees != null ? employees.toLocaleString("en-GB") : null,
+      revenueHistory,
+    };
+  } catch (err) {
+    console.warn(`Yahoo financials failed for ${ticker}:`, err);
+    return null;
+  }
+}
+
+export async function lookupYahoo(companyName: string): Promise<FMPFinancials | null> {
+  const ticker = await resolveYahooTicker(companyName);
+  if (!ticker) return null;
+  return fetchYahooFinancials(ticker);
+}
+
 // ─── Wikipedia Fallback ───────────────────────────────────────────────────────
 
 function parseInfoboxField(text: string, ...keys: string[]): string | null {
@@ -1009,33 +1150,39 @@ export async function generateReport(companyName: string): Promise<unknown> {
     runLast30Days(companyName),
   ]);
 
-  const dataSource = fmpData.financials
-    ? "FMP"
+  // If FMP returned no financials (plan limitation, unlisted, etc.), try Yahoo Finance
+  let financials = fmpData.financials;
+  if (!financials) {
+    console.log(`💹 FMP returned no financials for "${companyName}" — trying Yahoo Finance...`);
+    financials = await lookupYahoo(companyName);
+  }
+
+  const dataSource = financials
+    ? (fmpData.financials ? "FMP" : "Yahoo Finance")
     : wikiData?.revenue || wikiData?.aum
       ? "Wikipedia fallback"
       : "no external data";
 
   console.log(`📊 Data source for "${companyName}": ${dataSource}`);
-  if (fmpData.financials?.employees) {
-    console.log(`👥 Employees from FMP: ${fmpData.financials.employees}`);
+  if (financials?.employees) {
+    console.log(`👥 Employees from ${fmpData.financials ? 'FMP' : 'Yahoo'}: ${financials.employees}`);
   }
 
-  const partA = await generatePartA(companyName, fmpData.financials, currentCEO, wikiData, socialContext);
+  const partA = await generatePartA(companyName, financials, currentCEO, wikiData, socialContext);
   const partB = await generatePartB(companyName, fmpData.esg, socialContext);
 
   console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (FMP + Wiki + CEO + Haiku x2)`);
 
-  const confidence = computeConfidence(partA, partB, fmpData.financials, fmpData.esg, currentCEO, wikiData);
+  const confidence = computeConfidence(partA, partB, financials, fmpData.esg, currentCEO, wikiData);
 
   const financialsMeta: FinancialsMetadata = (() => {
     const now = new Date().toISOString().slice(0, 10);
     if (fmpData.financials) {
-      return {
-        source:      "FMP",
-        confidence:  "verified",
-        fiscalYear:  fmpData.financials.fiscalYear,
-        retrievedAt: now,
-      };
+      return { source: "FMP", confidence: "verified", fiscalYear: fmpData.financials.fiscalYear, retrievedAt: now };
+    }
+    if (financials) {
+      // Yahoo Finance fallback — mark as single-source with Yahoo label
+      return { source: "FMP" as const, confidence: "single-source" as const, fiscalYear: financials.fiscalYear, retrievedAt: now };
     }
     if (wikiData?.revenue || wikiData?.aum || wikiData?.netIncome) {
       return {
@@ -1056,8 +1203,8 @@ export async function generateReport(companyName: string): Promise<unknown> {
   })();
 
   // Numeric sanity checks
-  if (financialsMeta.source === "FMP" && fmpData.financials) {
-    const revHistory = fmpData.financials.revenueHistory;
+  if (financialsMeta.source === "FMP" && financials) {
+    const revHistory = financials.revenueHistory;
     if (revHistory.length >= 2) {
       for (let i = 0; i < revHistory.length - 1; i++) {
         const curr = parseFloat(revHistory[i].revenue.replace(/[^0-9.]/g, ""));
