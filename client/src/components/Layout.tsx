@@ -1,7 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
-
-const ADMIN_EMAIL = "andrew.mccreath@1giglabs.com";
+import { useAuth } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home" },
@@ -13,14 +12,20 @@ const NAV_ITEMS = [
 ];
 
 export function Navbar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, loading, logout } = useAuth();
 
   useEffect(() => { setMenuOpen(false); }, [location]);
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [menuOpen]);
+
+  async function handleLogout() {
+    await logout();
+    setLocation("/");
+  }
 
   return (
     <>
@@ -54,10 +59,13 @@ export function Navbar() {
                 </Link>
               );
             })}
-            {/* Audit log — admin only, accessed via direct URL */}
-            {location.startsWith("/audit-log") && (
+            {user?.isAdmin && (
               <Link href="/audit-log">
-                <a className="px-3 py-1.5 rounded-md text-sm font-medium bg-amber-50 text-amber-700 flex items-center gap-1.5">
+                <a className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                  location.startsWith("/audit-log")
+                    ? "bg-amber-50 text-amber-700"
+                    : "text-amber-700 hover:bg-amber-50"
+                }`}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
@@ -74,6 +82,35 @@ export function Navbar() {
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
               <span className="text-xs font-medium text-blue-700">AI Live</span>
             </div>
+
+            {/* Auth state */}
+            {!loading && (
+              <div className="hidden sm:flex items-center gap-2">
+                {user ? (
+                  <>
+                    <div className="flex flex-col items-end leading-tight">
+                      <span className="text-xs font-medium text-[var(--text-primary)]">{user.firstName} {user.lastName}</span>
+                      <span className="text-[10px] text-[var(--text-muted)]">
+                        {user.isAdmin ? "Admin" : `${user.reportCredits} credit${user.reportCredits === 1 ? "" : "s"}`}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="rounded-md border border-[var(--border)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] transition-colors"
+                    >
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <Link href="/login">
+                    <a className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--primary-hover)] transition-colors">
+                      Sign in
+                    </a>
+                  </Link>
+                )}
+              </div>
+            )}
+
             {/* Hamburger */}
             <button
               className="md:hidden flex flex-col justify-center items-center h-9 w-9 rounded-md hover:bg-[var(--bg-secondary)] transition-colors gap-1.5"
@@ -109,6 +146,39 @@ export function Navbar() {
               </Link>
             );
           })}
+          {user?.isAdmin && (
+            <Link href="/audit-log">
+              <a className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-amber-700 hover:bg-amber-50">
+                Audit Log
+              </a>
+            </Link>
+          )}
+
+          <div className="border-t border-[var(--border)] mt-2 pt-3">
+            {!loading && (user ? (
+              <>
+                <div className="px-4 pb-2">
+                  <div className="text-sm font-medium text-[var(--text-primary)]">{user.firstName} {user.lastName}</div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    {user.isAdmin ? "Admin" : `${user.reportCredits} credit${user.reportCredits === 1 ? "" : "s"}`}
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <Link href="/login">
+                <a className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary-light)]">
+                  Sign in
+                </a>
+              </Link>
+            ))}
+          </div>
+
           <div className="px-4 pt-2 pb-1 flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
             <span className="text-xs font-medium text-blue-700">AI Live</span>

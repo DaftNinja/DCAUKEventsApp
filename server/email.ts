@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
-// Use RESEND_FROM env var or fall back to Resend's shared onboarding domain
-// (works without domain verification — change to noreply@1giglabs.com once domain is verified)
+// Sender — default uses the verified contact@1giglabs.com address.
+// Override with RESEND_FROM if needed.
 const FROM = process.env.RESEND_FROM ?? "1GigLabs <contact@1giglabs.com>";
 const APP_URL = process.env.APP_URL ?? "https://insights-generator-production.up.railway.app";
 
@@ -36,33 +36,39 @@ async function send(opts: { to: string; subject: string; html: string }): Promis
   }
 }
 
-export async function sendVerificationEmail(email: string, firstName: string, token: string): Promise<void> {
-  const link = `${APP_URL}/verify-email?token=${token}`;
-  console.log(`🔗 Verification link: ${link}`);
+// ─── Magic link sign-in ───────────────────────────────────────────────────────
+
+export async function sendMagicLinkEmail(
+  email: string,
+  firstName: string,
+  token: string
+): Promise<void> {
+  const link = `${APP_URL}/api/auth/callback?token=${token}`;
+  console.log(`🔗 Magic link: ${link}`);
 
   await send({
     to: email,
-    subject: "Verify your 1GigLabs account",
+    subject: "Your 1GigLabs sign-in link",
     html: `
-      <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #f8fafc;">
+      <div style="font-family: Inter, -apple-system, Segoe UI, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #f8fafc;">
         <div style="background: white; border-radius: 8px; padding: 32px; border: 1px solid #e2e8f0;">
           <div style="margin-bottom: 24px;">
             <div style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; margin-bottom: 16px;">
               <span style="color: white; font-weight: 700; font-size: 13px;">1GL</span>
             </div>
-            <h1 style="margin: 0; font-size: 22px; font-weight: 600; color: #0f1729;">Verify your email address</h1>
+            <h1 style="margin: 0; font-size: 22px; font-weight: 600; color: #0f1729;">Sign in to 1GigLabs</h1>
           </div>
           <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-            Hi ${firstName}, thanks for signing up to <strong>1GigLabs Insight Generator</strong>. Click the button below to activate your account.
+            Hi ${firstName}, click the button below to sign in to your <strong>1GigLabs Insight Generator</strong> account. This link can only be used once and expires in 15 minutes.
           </p>
           <a href="${link}" style="display: inline-block; background: #3b82f6; color: white; text-decoration: none; font-weight: 600; font-size: 14px; padding: 12px 24px; border-radius: 6px; margin-bottom: 24px;">
-            Verify Email Address
+            Sign in
           </a>
           <p style="color: #94a3b8; font-size: 13px; margin: 0 0 8px;">
-            This link expires in 24 hours. If you didn't create this account, ignore this email.
+            If you didn't request this, you can safely ignore this email.
           </p>
-          <p style="color: #cbd5e1; font-size: 12px; margin: 0;">
-            Or copy: <span style="color: #3b82f6;">${link}</span>
+          <p style="color: #cbd5e1; font-size: 12px; margin: 0; word-break: break-all;">
+            Or paste this URL into your browser: <span style="color: #3b82f6;">${link}</span>
           </p>
         </div>
         <p style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 16px;">1GigLabs · contact@1giglabs.com</p>
@@ -71,44 +77,14 @@ export async function sendVerificationEmail(email: string, firstName: string, to
   });
 }
 
-export async function sendPasswordResetEmail(email: string, firstName: string, token: string): Promise<void> {
-  const link = `${APP_URL}/reset-password?token=${token}`;
-  console.log(`🔗 Password reset link: ${link}`);
-
-  await send({
-    to: email,
-    subject: "Reset your 1GigLabs password",
-    html: `
-      <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #f8fafc;">
-        <div style="background: white; border-radius: 8px; padding: 32px; border: 1px solid #e2e8f0;">
-          <div style="margin-bottom: 24px;">
-            <div style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; margin-bottom: 16px;">
-              <span style="color: white; font-weight: 700; font-size: 13px;">1GL</span>
-            </div>
-            <h1 style="margin: 0; font-size: 22px; font-weight: 600; color: #0f1729;">Reset your password</h1>
-          </div>
-          <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-            Hi ${firstName}, click below to set a new password for your 1GigLabs account.
-          </p>
-          <a href="${link}" style="display: inline-block; background: #3b82f6; color: white; text-decoration: none; font-weight: 600; font-size: 14px; padding: 12px 24px; border-radius: 6px; margin-bottom: 24px;">
-            Reset Password
-          </a>
-          <p style="color: #94a3b8; font-size: 13px; margin: 0;">
-            This link expires in 1 hour. If you didn't request this, ignore this email.
-          </p>
-        </div>
-        <p style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 16px;">1GigLabs · contact@1giglabs.com</p>
-      </div>
-    `,
-  });
-}
+// ─── Credit limit notification ────────────────────────────────────────────────
 
 export async function sendCreditLimitEmail(email: string, firstName: string): Promise<void> {
   await send({
     to: email,
     subject: "You've used all your 1GigLabs report credits",
     html: `
-      <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #f8fafc;">
+      <div style="font-family: Inter, -apple-system, Segoe UI, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #f8fafc;">
         <div style="background: white; border-radius: 8px; padding: 32px; border: 1px solid #e2e8f0;">
           <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 600; color: #0f1729;">Report credits used</h1>
           <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">

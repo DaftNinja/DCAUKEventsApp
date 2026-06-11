@@ -13,6 +13,10 @@ import { sql } from "drizzle-orm";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3000");
+const IS_PROD = process.env.NODE_ENV === "production";
+
+// Behind Railway's proxy — needed for secure cookies.
+app.set("trust proxy", 1);
 
 // ─── Core middleware ──────────────────────────────────────────────────────────
 
@@ -26,12 +30,31 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// ─── Static files ─────────────────────────────────────────────────────────────
+// ─── Session (must be set up before API routes that use it) ──────────────────
+
+const PgStore = connectPgSimple(session);
+const sessionMiddleware = session({
+  store: new PgStore({ pool, createTableIfMissing: true }),
+  secret: process.env.SESSION_SECRET ?? "1giglabs-dev-secret-change-in-prod",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: IS_PROD,
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  },
+});
+
+// ─── API routes (session-aware) ───────────────────────────────────────────────
+
+app.use("/api/auth", sessionMiddleware, authRouter);
+app.use("/api", sessionMiddleware, router);
+
+// ─── Static files & SPA fallback ──────────────────────────────────────────────
 
 const publicPath = path.join(__dirname, "..", "dist", "public");
 app.use(express.static(publicPath));
-
-// ─── SPA fallback — MUST be before session so /verify-email etc. never need DB ─
 
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/")) return next();
@@ -42,24 +65,6 @@ app.use((req, res, next) => {
     }
   });
 });
-
-// ─── Session (only API requests reach here) ───────────────────────────────────
-
-const PgStore = connectPgSimple(session);
-app.use(
-  session({
-    store: new PgStore({ pool, createTableIfMissing: true }),
-    secret: process.env.SESSION_SECRET ?? "1giglabs-dev-secret-change-in-prod",
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: false, maxAge: 30 * 24 * 60 * 60 * 1000 },
-  })
-);
-
-// ─── API routes ───────────────────────────────────────────────────────────────
-
-app.use("/api/auth", authRouter);
-app.use("/api", router);
 
 // ─── Start listening ──────────────────────────────────────────────────────────
 
@@ -82,34 +87,48 @@ async function init() {
     }
   }
   try {
+    // Users table — passwordless auth, so no password_hash / is_verified.
     await db.execute(sql`CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-      first_name TEXT NOT NULL, last_name TEXT NOT NULL, company TEXT,
-      is_verified BOOLEAN NOT NULL DEFAULT FALSE, is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      company TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
       report_credits INTEGER NOT NULL DEFAULT 5,
-      created_at TIMESTAMP DEFAULT NOW(), last_login_at TIMESTAMP)`);
-    await db.execute(sql`CREATE TABLE IF NOT EXISTS email_tokens (
-      id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, token TEXT NOT NULL UNIQUE,
-      type TEXT NOT NULL, expires_at TIMESTAMP NOT NULL,
-      used_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`);
+      created_at TIMESTAMP DEFAULT NOW(),
+      last_login_at TIMESTAMP
+    )`);
+
+    // Migrate legacy schema — drop password-era columns if present.
+    await db.execute(sql`ALTER TABLE users DROP COLUMN IF EXISTS password_hash`);
+    await db.execute(sql`ALTER TABLE users DROP COLUMN IF EXISTS is_verified`);
+
+    // Magic-link sign-in tokens.
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS signin_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_signin_tokens_token ON signin_tokens(token)`);
+    // Legacy email_tokens table — leave in place if present; not used anymore.
+
     await db.execute(sql`CREATE TABLE IF NOT EXISTS audit_logs (
       id SERIAL PRIMARY KEY, user_id INTEGER, email TEXT, action TEXT NOT NULL,
-      detail TEXT, ip_address TEXT, user_agent TEXT, created_at TIMESTAMP DEFAULT NOW())`);
+      detail TEXT, ip_address TEXT, user_agent TEXT, created_at TIMESTAMP DEFAULT NOW()
+    )`);
+
     await db.execute(sql`CREATE TABLE IF NOT EXISTS reports (
       id SERIAL PRIMARY KEY, user_id INTEGER, company_name TEXT NOT NULL,
       company_slug TEXT NOT NULL UNIQUE, industry TEXT, report_data JSONB,
       sales_enablement_data JSONB, generated_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW(), is_generating BOOLEAN DEFAULT FALSE)`);
+      updated_at TIMESTAMP DEFAULT NOW(), is_generating BOOLEAN DEFAULT FALSE
+    )`);
+    await db.execute(sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS user_id INTEGER`);
 
-    // Migrate existing reports table to add user_id if it doesn't exist
-    await db.execute(sql`
-      ALTER TABLE reports ADD COLUMN IF NOT EXISTS user_id INTEGER
-    `);
-
-    // Migrate existing reports table — add user_id if it doesn't exist yet
-    await db.execute(sql`
-      ALTER TABLE reports ADD COLUMN IF NOT EXISTS user_id INTEGER
-    `);
     console.log("✅ Database initialised");
   } catch (err) {
     console.error("❌ Failed to create tables:", err);

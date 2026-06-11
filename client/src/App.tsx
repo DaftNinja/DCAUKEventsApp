@@ -7,6 +7,8 @@ import { Presentation } from "@/pages/Presentation";
 import { Batch } from "@/pages/Batch";
 import { Demo } from "@/pages/Demo";
 import { AuditLog } from "@/pages/AuditLog";
+import { Login } from "@/pages/Login";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 function NotFound() {
   return (
@@ -19,17 +21,30 @@ function NotFound() {
   );
 }
 
+// Wrap page components in a ProtectedRoute for gated routes.
+const gated = (Component: React.ComponentType, opts?: { admin?: boolean }) =>
+  () => (
+    <ProtectedRoute adminOnly={opts?.admin}>
+      <Component />
+    </ProtectedRoute>
+  );
+
 export default function App() {
   return (
     <Switch>
+      {/* Public */}
       <Route path="/" component={Home} />
-      <Route path="/reports" component={Reports} />
-      <Route path="/reports/:slug" component={Dashboard} />
-      <Route path="/mission" component={Mission} />
-      <Route path="/presentation" component={Presentation} />
-      <Route path="/batch" component={Batch} />
       <Route path="/demo" component={Demo} />
-      <Route path="/audit-log" component={AuditLog} />
+      <Route path="/login" component={Login} />
+
+      {/* Gated */}
+      <Route path="/reports" component={gated(Reports)} />
+      <Route path="/reports/:slug" component={gated(Dashboard)} />
+      <Route path="/mission" component={gated(Mission)} />
+      <Route path="/presentation" component={gated(Presentation)} />
+      <Route path="/batch" component={gated(Batch)} />
+      <Route path="/audit-log" component={gated(AuditLog, { admin: true })} />
+
       <Route component={NotFound} />
     </Switch>
   );

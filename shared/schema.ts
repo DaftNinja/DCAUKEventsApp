@@ -6,22 +6,20 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   company: text("company"),
-  isVerified: boolean("is_verified").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   reportCredits: integer("report_credits").default(5).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
 });
 
-export const emailTokens = pgTable("email_tokens", {
+// One-time magic-link sign-in tokens. Consumed on click, then marked used.
+export const signinTokens = pgTable("signin_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   token: text("token").notNull().unique(),
-  type: text("type").notNull(), // 'verify' | 'reset'
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -166,14 +164,27 @@ export const ExecutiveSummarySchema = z.object({
   ceo: z.string(),
   keyExecutives: z.array(z.object({ name: z.string(), title: z.string() })),
   stockExchange: z.string().optional(),
+  website: z.string().nullable().optional(),
   highlights: z.array(z.string()),
   analystRating: z.string(),
   lastUpdated: z.string(),
 });
 
+
+export const ConfidenceSchema = z.object({
+  rating:  z.enum(["green", "amber", "red"]),
+  score:   z.number().min(0).max(100),
+  signals: z.array(z.object({
+    label:  z.string(),
+    status: z.enum(["pass", "warn", "fail"]),
+  })),
+  summary: z.string(),
+});
 export const ReportDataSchema = z.object({
   companyName: z.string(),
   industry: z.string(),
+  website: z.string().nullable().optional(),
+  confidence: ConfidenceSchema.optional(),
   executiveSummary: ExecutiveSummarySchema,
   financials: FinancialsSchema,
   strategy: StrategySchema,
@@ -205,9 +216,10 @@ export type Report = typeof reports.$inferSelect;
 export type InsertReport = typeof reports.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
-export type EmailToken = typeof emailTokens.$inferSelect;
+export type SigninToken = typeof signinTokens.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type ReportData = z.infer<typeof ReportDataSchema>;
+export type Confidence = z.infer<typeof ConfidenceSchema>;
 export type SalesEnablement = z.infer<typeof SalesEnablementSchema>;
 export type ExecutiveSummary = z.infer<typeof ExecutiveSummarySchema>;
 export type Financials = z.infer<typeof FinancialsSchema>;
@@ -217,24 +229,11 @@ export type DigitalTransformation = z.infer<typeof DigitalTransformationSchema>;
 
 // ─── Auth Zod Schemas ─────────────────────────────────────────────────────────
 
-export const RegisterSchema = z.object({
+// Single magic-link request form. First-time users supply name/company;
+// returning users can leave them blank — we ignore them.
+export const RequestLinkSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  company: z.string().optional(),
-});
-
-export const LoginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
-export const ForgotPasswordSchema = z.object({
-  email: z.string().email(),
-});
-
-export const ResetPasswordSchema = z.object({
-  token: z.string(),
-  password: z.string().min(8),
+  firstName: z.string().trim().min(1).max(80).optional(),
+  lastName: z.string().trim().min(1).max(80).optional(),
+  company: z.string().trim().min(1).max(120).optional(),
 });

@@ -9,14 +9,40 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(err.error ?? `Request failed: ${res.status}`);
+    const error: any = new Error(err.error ?? `Request failed: ${res.status}`);
+    error.status = res.status;
+    error.data = err;
+    throw error;
   }
 
   return res.json();
 }
 
+export interface AuthUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  company: string | null;
+  reportCredits: number;
+  isAdmin: boolean;
+}
+
 export const api = {
   auth: {
+    requestLink: (payload: {
+      email: string;
+      firstName?: string;
+      lastName?: string;
+      company?: string;
+    }) =>
+      request<{ message: string }>("/auth/request-link", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    me: () => request<{ user: AuthUser | null }>("/auth/me"),
+    logout: () =>
+      request<{ message: string }>("/auth/logout", { method: "POST" }),
     auditLog: (page = 1) => request<any>(`/auth/audit-log?page=${page}`),
   },
   reports: {

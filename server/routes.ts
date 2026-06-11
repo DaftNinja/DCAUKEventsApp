@@ -9,6 +9,18 @@ import { writeAuditLog } from "./auth.js";
 
 export const router = Router();
 
+// ─── Request helpers ──────────────────────────────────────────────────────────
+
+function getSessionUser(req: any): { id?: number; email?: string } {
+  const user = req.session?.user;
+  return { id: user?.id ?? undefined, email: user?.email ?? undefined };
+}
+
+function getClientIp(req: any): string | undefined {
+  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+    ?? req.socket?.remoteAddress;
+}
+
 // ─── Reports ──────────────────────────────────────────────────────────────────
 
 router.get("/reports", async (_req, res) => {
@@ -49,8 +61,8 @@ router.post("/reports/generate", async (req: any, res) => {
     if (!forceRefresh) {
       const existing = await getReportBySlug(slug);
       if (existing && (await isCacheValid(existing))) {
-        await writeAuditLog("REPORT_CACHE_HIT", companyName, undefined, undefined,
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress);
+        const { id: cacheUserId, email: cacheEmail } = getSessionUser(req);
+        await writeAuditLog("REPORT_CACHE_HIT", companyName, cacheUserId, cacheEmail, getClientIp(req));
         return res.json({ report: existing, cached: true });
       }
     }
@@ -77,8 +89,8 @@ router.post("/reports/generate", async (req: any, res) => {
     const industry = (reportData as { industry?: string }).industry ?? "Unknown";
     const saved = await createOrUpdateReport({ companyName, industry, reportData, isGenerating: false });
 
-    await writeAuditLog("REPORT_GENERATED", companyName, undefined, undefined,
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress);
+    const { id: genUserId, email: genEmail } = getSessionUser(req);
+    await writeAuditLog("REPORT_GENERATED", companyName, genUserId, genEmail, getClientIp(req));
 
     res.json({ report: saved, cached: false });
   } catch (err) {
@@ -102,6 +114,8 @@ router.post("/reports/:slug/sales-enablement", async (req, res) => {
       parse.data.sellerProduct
     );
     const updated = await updateSalesEnablement(req.params.slug, salesData);
+    const { id: seUserId, email: seEmail } = getSessionUser(req);
+    await writeAuditLog("SALES_ENABLEMENT_GENERATED", report.companyName, seUserId, seEmail, getClientIp(req));
     res.json({ salesEnablement: salesData, report: updated });
   } catch (err) {
     console.error("POST sales-enablement error:", err);
@@ -115,6 +129,8 @@ router.post("/reports/:slug/investor-presentation", async (req, res) => {
 
   try {
     const presentation = await generateInvestorPresentation(report.companyName, report.reportData);
+    const { id: invUserId, email: invEmail } = getSessionUser(req);
+    await writeAuditLog("INVESTOR_PRESENTATION_GENERATED", report.companyName, invUserId, invEmail, getClientIp(req));
     res.json({ presentation });
   } catch (err) {
     console.error("POST investor-presentation error:", err);
@@ -151,12 +167,16 @@ router.post("/reports/batch", async (req, res) => {
       const slug = slugify(company);
       const existing = await getReportBySlug(slug);
       if (existing && (await isCacheValid(existing))) {
+        const { id: bUserId, email: bEmail } = getSessionUser(req);
+        await writeAuditLog("REPORT_CACHE_HIT", company, bUserId, bEmail, getClientIp(req));
         results.push({ company, status: "cached", slug });
         continue;
       }
       const reportData = await generateReport(company);
       const industry = (reportData as { industry?: string }).industry ?? "Unknown";
       await createOrUpdateReport({ companyName: company, industry, reportData });
+      const { id: bgUserId, email: bgEmail } = getSessionUser(req);
+      await writeAuditLog("REPORT_GENERATED", company, bgUserId, bgEmail, getClientIp(req));
       results.push({ company, status: "generated", slug });
     } catch (err) {
       console.error(`Batch generation failed for ${company}:`, err);

@@ -1,16 +1,16 @@
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { db } from "./db.js";
-import { users, emailTokens, auditLogs } from "../shared/schema.js";
-import { eq, and, gt } from "drizzle-orm";
+import { users, signinTokens, auditLogs } from "../shared/schema.js";
+import { eq, and, gt, isNull } from "drizzle-orm";
 import type { User } from "../shared/schema.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const ADMIN_EMAIL = "andrew.mccreath@1giglabs.com";
 const FREE_CREDITS = 5;
+const MAGIC_LINK_EXPIRY_MINUTES = 15;
 
-// Common personal/free email domains to block
+// Personal/free email domains that aren't allowed to sign up.
 const BLOCKED_DOMAINS = new Set([
   "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "yahoo.fr",
   "hotmail.com", "hotmail.co.uk", "hotmail.fr", "outlook.com", "live.com",
@@ -25,71 +25,55 @@ export function isBusinessEmail(email: string): boolean {
   return !BLOCKED_DOMAINS.has(domain);
 }
 
+export function isAdmin(email: string): boolean {
+  return email.toLowerCase() === ADMIN_EMAIL;
+}
+
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
-export function generateToken(): string {
+function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-export async function createEmailToken(userId: number, type: "verify" | "reset"): Promise<string> {
+export async function createSigninToken(userId: number): Promise<string> {
   const token = generateToken();
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + (type === "reset" ? 1 : 24));
-
-  await db.insert(emailTokens).values({ userId, token, type, expiresAt });
+  const expiresAt = new Date(Date.now() + MAGIC_LINK_EXPIRY_MINUTES * 60 * 1000);
+  await db.insert(signinTokens).values({ userId, token, expiresAt });
   return token;
 }
 
-export async function consumeToken(token: string, type: "verify" | "reset"): Promise<User | null> {
+/**
+ * Look up and consume a magic-link token. Returns the user if the token is
+ * valid, unused, and not expired; otherwise returns null. Marks the token
+ * as used atomically so it can only be redeemed once.
+ */
+export async function consumeSigninToken(token: string): Promise<User | null> {
   const now = new Date();
-  const rows = await db
-    .select()
-    .from(emailTokens)
+
+  // Mark used only if currently unused and unexpired — single atomic write.
+  const updated = await db
+    .update(signinTokens)
+    .set({ usedAt: now })
     .where(
       and(
-        eq(emailTokens.token, token),
-        eq(emailTokens.type, type),
-        gt(emailTokens.expiresAt, now),
+        eq(signinTokens.token, token),
+        gt(signinTokens.expiresAt, now),
+        isNull(signinTokens.usedAt),
       )
     )
+    .returning();
+
+  if (!updated[0]) return null;
+
+  const userRows = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, updated[0].userId))
     .limit(1);
-
-  if (!rows[0] || rows[0].usedAt) return null;
-
-  // Mark token used
-  await db.update(emailTokens).set({ usedAt: now }).where(eq(emailTokens.token, token));
-
-  // Return the user
-  const userRows = await db.select().from(users).where(eq(users.id, rows[0].userId)).limit(1);
   return userRows[0] ?? null;
 }
 
 // ─── User management ──────────────────────────────────────────────────────────
-
-export async function createUser(
-  email: string,
-  password: string,
-  firstName: string,
-  lastName: string,
-  company?: string
-): Promise<User> {
-  const passwordHash = await bcrypt.hash(password, 12);
-  const isAdmin = email.toLowerCase() === ADMIN_EMAIL;
-
-  const [user] = await db.insert(users).values({
-    email: email.toLowerCase(),
-    passwordHash,
-    firstName,
-    lastName,
-    company,
-    isVerified: false,
-    isActive: true,
-    // Admin gets unlimited credits (represented as very high number)
-    reportCredits: isAdmin ? 999999 : FREE_CREDITS,
-  }).returning();
-
-  return user;
-}
 
 export async function getUserByEmail(email: string): Promise<User | null> {
   const rows = await db
@@ -105,17 +89,23 @@ export async function getUserById(id: number): Promise<User | null> {
   return rows[0] ?? null;
 }
 
-export async function verifyPassword(user: User, password: string): Promise<boolean> {
-  return bcrypt.compare(password, user.passwordHash);
-}
-
-export async function markEmailVerified(userId: number): Promise<void> {
-  await db.update(users).set({ isVerified: true }).where(eq(users.id, userId));
-}
-
-export async function updatePassword(userId: number, newPassword: string): Promise<void> {
-  const passwordHash = await bcrypt.hash(newPassword, 12);
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+export async function createUser(
+  email: string,
+  firstName: string,
+  lastName: string,
+  company?: string
+): Promise<User> {
+  const admin = isAdmin(email);
+  const [user] = await db.insert(users).values({
+    email: email.toLowerCase(),
+    firstName,
+    lastName,
+    company,
+    isActive: true,
+    // Admin gets effectively unlimited credits.
+    reportCredits: admin ? 999999 : FREE_CREDITS,
+  }).returning();
+  return user;
 }
 
 export async function updateLastLogin(userId: number): Promise<void> {
@@ -128,10 +118,6 @@ export async function decrementCredits(userId: number): Promise<number> {
   const newCredits = Math.max(0, user.reportCredits - 1);
   await db.update(users).set({ reportCredits: newCredits }).where(eq(users.id, userId));
   return newCredits;
-}
-
-export function isAdmin(email: string): boolean {
-  return email.toLowerCase() === ADMIN_EMAIL;
 }
 
 // ─── Audit logging ────────────────────────────────────────────────────────────
@@ -154,7 +140,7 @@ export async function writeAuditLog(
       userAgent: userAgent ?? null,
     });
   } catch (err) {
-    // Never let audit logging crash the main flow
+    // Audit logging must never break the main request flow.
     console.error("Audit log write failed:", err);
   }
 }

@@ -5,15 +5,15 @@ import { formatDate } from "@/lib/utils";
 
 const ACTION_COLORS: Record<string, string> = {
   LOGIN: "badge-blue",
-  LOGIN_FAILED: "badge-red",
   LOGOUT: "badge-gray",
   REGISTER: "badge-green",
-  EMAIL_VERIFIED: "badge-green",
+  LINK_REQUESTED: "badge-blue",
+  LINK_INVALID: "badge-red",
+  LINK_BLOCKED_PERSONAL: "badge-amber",
+  LINK_DENIED_INACTIVE: "badge-red",
   REPORT_GENERATED: "badge-blue",
   REPORT_CACHE_HIT: "badge-gray",
   REPORT_CREDIT_DENIED: "badge-red",
-  PASSWORD_RESET_REQUESTED: "badge-amber",
-  PASSWORD_RESET_COMPLETE: "badge-green",
 };
 
 export function AuditLog() {

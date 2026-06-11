@@ -7,58 +7,44 @@ const TIMELINE = [
   {
     tag: "FOUNDATION",
     title: "AI-Powered Analysis Engine",
-    desc: "Built the core analysis engine using Claude (Anthropic) to generate comprehensive 10-section strategic reports covering financials, strategy, market position, ESG, SWOT, growth, risk, digital transformation, and sales enablement.",
+    desc: "Built the core analysis engine using Claude (Anthropic) to generate comprehensive 10-section strategic reports covering financials, strategy, market position, and more.",
     color: "border-blue-200 bg-blue-50/50",
     tagColor: "text-blue-600",
   },
   {
-    tag: "LIVE DATA",
-    title: "Real-Time Financial Data",
-    desc: "Integrated Financial Modeling Prep (FMP) to inject verified, real-time financials — revenue, net income, EBITDA, market cap, stock price, P/E ratio, EPS, and analyst ratings — directly into every report. CEO is independently verified via live web search.",
-    color: "border-emerald-200 bg-emerald-50/50",
-    tagColor: "text-emerald-600",
-  },
-  {
-    tag: "PRIVATE COS",
-    title: "Wikipedia Fallback for Private Companies",
-    desc: "When FMP returns no data (private or unlisted companies), the platform automatically falls back to the Wikipedia API — parsing infobox fields for revenue, AUM, employees, headquarters, and founding date. The Financials tab surfaces a clear private-company notice so data limitations are always transparent.",
+    tag: "DEPTH",
+    title: "Expanded Report Sections",
+    desc: "Added ESG & Sustainability, SWOT Analysis, Growth Opportunities, Risk Assessment, and Digital Transformation sections for truly comprehensive coverage.",
     color: "border-violet-200 bg-violet-50/50",
     tagColor: "text-violet-600",
   },
   {
     tag: "SCALE",
     title: "Batch Processing & Caching",
-    desc: "Introduced CSV batch upload for processing 20–50 companies simultaneously, plus intelligent 2-month caching to minimise AI costs and improve response times across repeat queries.",
-    color: "border-amber-200 bg-amber-50/50",
-    tagColor: "text-amber-600",
-  },
-  {
-    tag: "EXPORT",
-    title: "Multi-Format Export",
-    desc: "Added professional PDF, PowerPoint (PPTX), and HTML export for every company report. All exports include full financials, SWOT, risk assessment, and strategic analysis in 1GigLabs branded templates.",
-    color: "border-blue-200 bg-blue-50/50",
-    tagColor: "text-blue-600",
-  },
-  {
-    tag: "QUALITY",
-    title: "Confidence Scoring",
-    desc: "Every report is automatically scored across 9 data quality signals — financial data source, CEO verification, ESG coverage, vision/mission, key executives, SWOT, and risk assessment. Reports display a green/amber/red confidence rating so users always know how much to rely on the data.",
-    color: "border-violet-200 bg-violet-50/50",
-    tagColor: "text-violet-600",
-  },
-  {
-    tag: "GLOBAL",
-    title: "Multi-Currency Support",
-    desc: "Revenue charts and financial displays now correctly handle any currency — £, €, ¥, or $ — detected automatically from the data. UK, European, and Asian companies render correctly without manual configuration.",
+    desc: "Introduced CSV batch upload for processing 20–50 companies simultaneously, plus 2-month intelligent caching to minimise AI costs and improve response times.",
     color: "border-emerald-200 bg-emerald-50/50",
     tagColor: "text-emerald-600",
   },
   {
-    tag: "PRESENTATION",
-    title: "Investor Presentation Generator",
-    desc: "Generates a structured 10–12-slide investor deck from any report — cover, thesis, financials, market, SWOT, growth, risks, and conclusion. Slides are viewable in a full-screen lightbox with keyboard navigation, and the complete deck downloads as a branded PPTX with one click.",
+    tag: "EXPORT",
+    title: "Multi-Format Export",
+    desc: "Added professional PDF, PowerPoint (PPTX), and HTML export capabilities, enabling users to share and present findings in any format.",
     color: "border-amber-200 bg-amber-50/50",
     tagColor: "text-amber-600",
+  },
+  {
+    tag: "INTELLIGENCE",
+    title: "Contact Discovery",
+    desc: "Integrated Apollo.io as the primary B2B contact source with AI-powered fallback, CSV import/export, and contact verification tools.",
+    color: "border-blue-200 bg-blue-50/50",
+    tagColor: "text-blue-600",
+  },
+  {
+    tag: "PRESENTATION",
+    title: "Investor Presentation Generator",
+    desc: "Built a branded, 8-slide investor presentation generator with one-click PowerPoint export — turning raw analysis into boardroom-ready materials.",
+    color: "border-violet-200 bg-violet-50/50",
+    tagColor: "text-violet-600",
   },
 ];
 
@@ -69,64 +55,64 @@ const PERSONAS = [
     icon: "↗",
     iconBg: "bg-blue-50 text-blue-600",
     title: "Investors & Analysts",
-    desc: "Equity research reports, due diligence packs, and competitive benchmarking typically require teams of analysts working for weeks. Our platform delivers institutional-grade strategic analysis — covering verified financials, SWOT, ESG, risk, and growth opportunities — in a single request, with a confidence score so you always know the data quality.",
+    desc: "Equity research reports, due diligence packs, and competitive benchmarking typically require teams of analysts working for weeks. Our platform delivers institutional-grade strategic analysis — covering financials, SWOT, ESG, risk, and growth opportunities — in a single request.",
     tradCost: "$3,000 – $8,000",
     tradTime: "2 – 4 weeks",
     platformTime: "Minutes",
     savings: "Up to 95%",
     useCases: [
-      "Company due diligence with real-time financial data",
-      "Portfolio-wide competitive screening via batch upload",
+      "Company due diligence reports",
+      "Portfolio-wide competitive screening",
       "ESG & sustainability risk assessments",
-      "Investor presentations generated and exported as PPTX",
+      "Market positioning and SWOT analysis",
     ],
   },
   {
     icon: "○",
     iconBg: "bg-violet-50 text-violet-600",
     title: "Researchers & Consultants",
-    desc: "Market research firms charge thousands per report. Strategy consultants bill hundreds per hour for the same analysis. Our platform compresses weeks of desk research into a single automated workflow — covering public and private companies globally, with Wikipedia fallback ensuring coverage even where market data is unavailable.",
+    desc: "Market research firms charge thousands per report. Strategy consultants bill hundreds per hour for the same analysis. Our platform compresses weeks of desk research, data gathering, and report writing into a single automated workflow — without sacrificing depth.",
     tradCost: "$5,000 – $15,000",
     tradTime: "3 – 6 weeks",
     platformTime: "Minutes",
     savings: "Up to 97%",
     useCases: [
-      "Public and private company analysis",
-      "Technology spend and digital transformation assessments",
+      "Industry landscape reports",
+      "Technology spend analysis",
+      "Digital transformation assessments",
       "Multi-company batch analysis (up to 50 at once)",
-      "Exportable reports in PDF, PPTX, and HTML",
     ],
   },
   {
     icon: "⚇",
     iconBg: "bg-emerald-50 text-emerald-600",
     title: "Sales Teams",
-    desc: "Sales professionals spend hours researching prospects before outreach. Our platform combines deep company intelligence with a dedicated Sales Enablement tab — pre-built with conversation starters, pain points mapped to solutions, quantified ROI use cases, and recommended next steps tailored to your product.",
+    desc: "Sales professionals spend hours researching prospects before outreach. Contact enrichment tools charge per-seat monthly fees. Our platform combines deep company intelligence with contact discovery — giving your team the strategic context they need to have meaningful conversations from the first touchpoint.",
     tradCost: "$50 – $200 / user / month",
     tradTime: "Hours per prospect",
     platformTime: "Seconds",
     savings: "Up to 90%",
     useCases: [
       "Pre-call company intelligence briefs",
-      "Pain points and solution mapping",
-      "Quantified ROI use cases per prospect",
-      "Competitive positioning and next-step recommendations",
+      "Key decision-maker identification",
+      "Competitive landscape for positioning",
+      "Exportable reports for client-facing presentations",
     ],
   },
   {
     icon: "◧",
     iconBg: "bg-amber-50 text-amber-600",
     title: "Marketing Professionals",
-    desc: "Competitive analysis, market sizing, and brand positioning projects are expensive agency engagements. Our platform delivers the same strategic intelligence — from market analysis and growth opportunities to ESG positioning — for any company globally, with multi-currency support for UK, European, and Asian markets.",
+    desc: "Competitive analysis, market sizing, and brand positioning projects are expensive agency engagements. Our platform delivers the same strategic intelligence that informs marketing campaigns — from market analysis to growth opportunities — at a fraction of the cost and turnaround time.",
     tradCost: "$5,000 – $20,000",
     tradTime: "4 – 8 weeks",
     platformTime: "Minutes",
     savings: "Up to 96%",
     useCases: [
       "Competitive landscape and positioning",
-      "Market opportunity and TAM analysis",
+      "Market opportunity analysis",
       "Industry trend identification",
-      "Investor-quality branded presentations",
+      "Branded investor-quality presentations",
     ],
   },
 ];
@@ -135,7 +121,7 @@ const PERSONAS = [
 
 const STATS = [
   { value: "10", label: "Report Sections" },
-  { value: "4", label: "Export Formats" },
+  { value: "3", label: "Export Formats" },
   { value: "50", label: "Companies per Batch" },
   { value: "~2 min", label: "Per Report" },
 ];
@@ -159,7 +145,7 @@ export function Mission() {
           Replacing weeks of expensive analyst work with AI-powered reports delivered in minutes — making institutional-grade company analysis accessible to every investor, researcher, sales professional, and marketer.
         </p>
         <p className="text-[var(--text-secondary)] leading-relaxed">
-          We believe that deep company insight should not be locked behind six-figure consulting fees or month-long research cycles. By combining real-time financial data, live CEO verification, Wikipedia fallback for private companies, and the latest advances in AI, we deliver the same depth of analysis that Fortune 500 strategy teams rely on — at a fraction of the cost and turnaround time.
+          We believe that deep company insight should not be locked behind six-figure consulting fees or month-long research cycles. By combining the latest advances in AI with structured analytical frameworks, we deliver the same depth of analysis that Fortune 500 strategy teams rely on — at a fraction of the cost and turnaround time.
         </p>
       </section>
 
@@ -279,10 +265,9 @@ export function Mission() {
 
       {/* ── Disclaimer & footer tagline ───────────────────────────────────── */}
       <section className="space-y-4">
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            <strong className="font-semibold text-[var(--text-primary)]">Data disclaimer:</strong>{" "}
-            AI-generated content for strategic guidance only. Financial data sourced from Financial Modeling Prep (public companies) and Wikipedia (private/unlisted companies) where available. Data may be outdated or incomplete. Verify critical information against primary sources before making investment or strategic decisions.
+        <div className="rounded-xl border border-amber-900/30 bg-amber-950/10 px-6 py-4">
+          <p className="text-xs text-amber-400/80 leading-relaxed">
+            <strong>Data Disclaimer:</strong> Reports are generated using AI (Claude by Anthropic) and are intended for informational and strategic planning purposes. Data may not reflect the most current financials or public filings. Always verify critical data points against primary sources before making investment or business decisions.
           </p>
         </div>
         <p className="text-center text-xs text-[var(--text-muted)]">

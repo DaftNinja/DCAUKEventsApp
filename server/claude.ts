@@ -1,10 +1,4 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import * as path from "path";
-import { existsSync as fsExistsSync } from "fs";
-
-const execFileAsync = promisify(execFile);
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -52,6 +46,23 @@ export interface FMPESGData {
   lastUpdated:        string;
 }
 
+// ── Wikipedia supplemental data type ─────────────────────────────────────────
+
+export interface WikipediaData {
+  title:       string;
+  extract:     string;   // plain-text intro paragraph(s)
+  founded:     string | null;
+  headquarters: string | null;
+  employees:   string | null;
+  revenue:     string | null;
+  netIncome:   string | null;
+  aum:         string | null;   // assets under management (finance companies)
+  totalAssets: string | null;
+  website:     string | null;
+  parentOrg:   string | null;
+  source:      "wikipedia";
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n: number | undefined | null): string {
@@ -95,15 +106,21 @@ async function resolveFMPTicker(companyName: string): Promise<string | null> {
     const results = await res.json() as { symbol: string; name: string; exchangeShortName?: string }[];
     if (!results?.length) return null;
 
-    // Prefer US exchange equity
     const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
     const query     = normalise(companyName);
     const US_EXCHANGES = new Set(["NASDAQ", "NYSE", "AMEX", "NYSE ARCA"]);
 
+    // Only accept matches where the name meaningfully matches AND it's on a US exchange.
+    // Deliberately drop the results[0] fallback — it caused wrong-company matches
+    // (e.g. "Fidelity National Financial" for "Fidelity Investments").
     const match =
       results.find(r => normalise(r.name) === query && US_EXCHANGES.has(r.exchangeShortName ?? "")) ??
-      results.find(r => normalise(r.name).includes(query)) ??
-      results[0];
+      results.find(r => normalise(r.name).includes(query) && US_EXCHANGES.has(r.exchangeShortName ?? ""));
+
+    if (!match) {
+      console.log(`📈 FMP: no confident ticker match for "${companyName}" — will try Wikipedia fallback`);
+      return null;
+    }
 
     console.log(`📈 FMP resolved "${companyName}" → ${match.symbol}`);
     return match.symbol;
@@ -269,6 +286,122 @@ export async function lookupFMP(companyName: string): Promise<{
   return { financials, esg };
 }
 
+// ─── Wikipedia Fallback ───────────────────────────────────────────────────────
+// Used when FMP returns no data (private companies, non-US listed, etc.)
+// Calls the Wikipedia REST API — no API key required.
+
+/**
+ * Parse a value out of a Wikipedia infobox plain-text block.
+ * The infobox is embedded in the extract as key: value lines, e.g.:
+ *   "revenue = US$27.6 billion (2023)"
+ * Returns the raw matched string or null.
+ */
+function parseInfoboxField(text: string, ...keys: string[]): string | null {
+  for (const key of keys) {
+    // Match "key = value" or "key: value" patterns (case-insensitive)
+    const re = new RegExp(`(?:^|\\n)\\s*${key}\\s*[=:]\\s*([^\\n]+)`, "i");
+    const m  = text.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
+/**
+ * Strip Wikipedia citation noise and template markup from a value string.
+ * e.g. "US$27.6 billion (2023)[4]" → "US$27.6 billion (2023)"
+ */
+function cleanWikiValue(val: string | null): string | null {
+  if (!val) return null;
+  return val
+    .replace(/\[\d+\]/g, "")          // remove [4] citation refs
+    .replace(/\{\{[^}]*\}\}/g, "")    // remove {{template}} markup
+    .replace(/\s+/g, " ")
+    .trim() || null;
+}
+
+export async function lookupWikipedia(companyName: string): Promise<WikipediaData | null> {
+  try {
+    // 1. Search Wikipedia for the company
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(companyName)}&srlimit=3&format=json&origin=*`;
+    const searchRes = await fetch(searchUrl, { headers: { "User-Agent": "1GLInsightsBot/1.0" } });
+    if (!searchRes.ok) return null;
+
+    const searchJson = await searchRes.json() as {
+      query?: { search?: { title: string; snippet: string }[] };
+    };
+    const hits = searchJson.query?.search ?? [];
+    if (!hits.length) return null;
+
+    // Pick the best match: exact name match first, then first result
+    const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const query = normalise(companyName);
+    const bestHit =
+      hits.find(h => normalise(h.title) === query) ??
+      hits.find(h => normalise(h.title).includes(query)) ??
+      hits[0];
+
+    console.log(`📖 Wikipedia: searching "${companyName}" → matched "${bestHit.title}"`);
+
+    // 2. Fetch the full page summary + infobox via the REST summary endpoint
+    const pageTitle  = encodeURIComponent(bestHit.title.replace(/ /g, "_"));
+    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${pageTitle}`;
+    const summaryRes = await fetch(summaryUrl, { headers: { "User-Agent": "1GLInsightsBot/1.0" } });
+    if (!summaryRes.ok) return null;
+
+    const summaryJson = await summaryRes.json() as {
+      title?: string;
+      extract?: string;
+      content_urls?: { desktop?: { page?: string } };
+    };
+
+    const extract = summaryJson.extract ?? "";
+
+    // 3. Also fetch the infobox data via the parse API (returns wikitext with structured fields)
+    const parseUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&titles=${pageTitle}&format=json&origin=*`;
+    const parseRes = await fetch(parseUrl, { headers: { "User-Agent": "1GLInsightsBot/1.0" } });
+    let wikitext = "";
+    if (parseRes.ok) {
+      const parseJson = await parseRes.json() as { query?: { pages?: Record<string, { revisions?: { slots?: { main?: { "*"?: string } } }[] }> } };
+      const pages = parseJson.query?.pages ?? {};
+      const page  = Object.values(pages)[0];
+      wikitext    = page?.revisions?.[0]?.slots?.main?.["*"] ?? "";
+    }
+
+    // 4. Parse infobox fields from wikitext (more reliable than extract for structured data)
+    const textToParse = wikitext || extract;
+
+    const founded     = cleanWikiValue(parseInfoboxField(textToParse, "founded", "foundation", "established", "formation"));
+    const headquarters = cleanWikiValue(parseInfoboxField(textToParse, "headquarters", "hq_location", "location_city", "location"));
+    const employees   = cleanWikiValue(parseInfoboxField(textToParse, "num_employees", "employees", "workforce"));
+    const revenue     = cleanWikiValue(parseInfoboxField(textToParse, "revenue", "total_revenue", "income"));
+    const netIncome   = cleanWikiValue(parseInfoboxField(textToParse, "net_income", "profit", "net_profit"));
+    const aum         = cleanWikiValue(parseInfoboxField(textToParse, "aum", "assets_under_management", "assets under management", "AUM"));
+    const totalAssets = cleanWikiValue(parseInfoboxField(textToParse, "total_assets", "assets"));
+    const website     = cleanWikiValue(parseInfoboxField(textToParse, "website", "url", "homepage"));
+    const parentOrg   = cleanWikiValue(parseInfoboxField(textToParse, "parent", "parent_organization", "owner"));
+
+    console.log(`📖 Wikipedia data for "${companyName}": revenue=${revenue}, employees=${employees}, aum=${aum}`);
+
+    return {
+      title:        bestHit.title,
+      extract:      extract.slice(0, 1500), // cap to avoid token bloat
+      founded,
+      headquarters,
+      employees,
+      revenue,
+      netIncome,
+      aum,
+      totalAssets,
+      website,
+      parentOrg,
+      source:       "wikipedia",
+    };
+  } catch (err) {
+    console.warn(`Wikipedia lookup failed for "${companyName}":`, err);
+    return null;
+  }
+}
+
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM = `ROLE
@@ -331,61 +464,6 @@ OUTPUT REQUIREMENTS
 - No additional keys outside the requested schema.
 - Analytical, dense, neutral, executive-grade tone.`;
 
-// ─── last30days enrichment ──────────────────────────────────────────────────────
-// Shells out to the last30days Python engine (installed via npx skills add).
-// Returns a compact context block (~600 chars) suitable for injecting into prompts.
-// Non-fatal: if the skill isn't installed or times out, the report still generates.
-
-async function runLast30Days(companyName: string): Promise<string | null> {
-  // Priority: env override → vendored tools/last30days → global agent-skills install
-  const skillDir = [
-    process.env.LAST30DAYS_SKILL_PATH,
-    path.resolve(process.cwd(), "tools", "last30days"),
-    path.join(process.env.HOME ?? "/root", ".agents", "skills", "last30days", "scripts"),
-  ].filter((p): p is string => Boolean(p)).find(fsExistsSync);
-
-  if (!skillDir) {
-    console.warn("📡 last30days: engine not installed — run scripts/install-last30days.sh");
-    return null;
-  }
-  const scriptPath = path.join(skillDir, "last30days.py");
-
-  try {
-    const { stdout } = await execFileAsync(
-      "python3",
-      // Flags first, then `--` so a company name can never be parsed as a flag
-      [scriptPath, "--emit=context", "--quick", "--", companyName],
-      {
-        timeout: 75_000,
-        env: { ...process.env },
-        maxBuffer: 1024 * 1024,
-      }
-    );
-    const result = stdout.trim();
-
-    // Quality gate — a degraded run still emits a well-formed but empty block.
-    // Injecting "no evidence found" into prompts hurts more than it helps.
-    const clusterSection = result.split("Top clusters:")[1] ?? "";
-    const noEvidence =
-      !result ||
-      result.includes("No candidates survived") ||
-      !/^- /m.test(clusterSection);
-    if (noEvidence) {
-      console.warn(`📡 last30days: no usable evidence for "${companyName}" — skipping enrichment`);
-      return null;
-    }
-
-    console.log(`📡 last30days: enrichment fetched for "${companyName}" (${result.length} chars)`);
-    return result;
-  } catch (err: any) {
-    const reason = err.code === "ENOENT" ? "python3 not found"
-      : err.killed ? "timed out after 75s"
-      : err.message?.slice(0, 80);
-    console.warn(`📡 last30days: skipped for "${companyName}" — ${reason}`);
-    return null;
-  }
-}
-
 // ─── CEO lookup via web search (minimal token footprint) ──────────────────────
 
 async function lookupCEO(companyName: string): Promise<string> {
@@ -444,13 +522,21 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
 
 // ─── Report Part A: overview + financials + strategy + market ─────────────────
 
-async function generatePartA(companyName: string, fmpFinancials?: FMPFinancials | null, currentCEO?: string, socialContext?: string | null): Promise<unknown> {
+async function generatePartA(
+  companyName: string,
+  fmpFinancials?: FMPFinancials | null,
+  currentCEO?: string,
+  wikiData?: WikipediaData | null,
+): Promise<unknown> {
   const ceo = currentCEO ?? await lookupCEO(companyName);
 
-  // Build verified financial injection block from FMP data
+  // ── Financial data block ──────────────────────────────────────────────────
+  // Priority: FMP (real-time, structured) > Wikipedia (encyclopaedic, text-parsed) > LLM estimates
   const fin = fmpFinancials;
-  const finBlock = fin
-    ? `VERIFIED FINANCIAL DATA (Financial Modeling Prep — use verbatim, do not alter):
+
+  let finBlock: string;
+  if (fin) {
+    finBlock = `VERIFIED FINANCIAL DATA (Financial Modeling Prep — use verbatim, do not alter):
 - Ticker:               ${fin.ticker}
 - Fiscal Year:          ${fin.fiscalYear}
 - Revenue:              ${fin.revenue}
@@ -468,30 +554,68 @@ async function generatePartA(companyName: string, fmpFinancials?: FMPFinancials 
 - Revenue History (chronological):
 ${fin.revenueHistory.map(r => `  ${r.year}: ${r.revenue} (${r.growth})`).join("\n")}
 
-Use ALL of the above values verbatim in the financials object. Do not substitute your own estimates for any field that has been provided.`
-    : `No verified financial data from Financial Modeling Prep (common for non-US-listed or private companies).
-Use your training knowledge to populate the financials. For large publicly listed companies (FTSE 100, DAX 40, CAC 40, Nikkei 225, etc.) you will have good data on revenue, net income, market cap, margins, and growth from annual reports and financial databases. Fill in every field you can substantiate with reasonable confidence. Use the company's reporting currency (e.g. £ for UK companies, € for Eurozone). Only return null for fields where you genuinely have no basis for an estimate.`;
+Use ALL of the above values verbatim in the financials object. Do not substitute your own estimates for any field that has been provided.`;
+  } else if (wikiData) {
+    // Build a structured injection from whatever Wikipedia returned
+    const wikiLines: string[] = [];
+    if (wikiData.revenue)     wikiLines.push(`- Revenue:              ${wikiData.revenue}`);
+    if (wikiData.netIncome)   wikiLines.push(`- Net Income:           ${wikiData.netIncome}`);
+    if (wikiData.aum)         wikiLines.push(`- AUM:                  ${wikiData.aum}`);
+    if (wikiData.totalAssets) wikiLines.push(`- Total Assets:         ${wikiData.totalAssets}`);
+    if (wikiData.employees)   wikiLines.push(`- Employees:            ${wikiData.employees}`);
+    if (wikiData.founded)     wikiLines.push(`- Founded:              ${wikiData.founded}`);
+    if (wikiData.headquarters)wikiLines.push(`- Headquarters:         ${wikiData.headquarters}`);
+    if (wikiData.website)     wikiLines.push(`- Website:              ${wikiData.website}`);
 
-  const socialBlock = socialContext
-    ? `CURRENT INTELLIGENCE — LAST 30 DAYS (Reddit, X, YouTube, Hacker News, GitHub, Polymarket):
-${socialContext}
+    finBlock = `SUPPLEMENTAL DATA (Wikipedia — private/unlisted company; use as directional reference):
+${wikiLines.join("\n")}
 
-Use this real-time signal to strengthen: executiveSummary.highlights, marketAnalysis.marketTrends, strategy.coreInitiatives. Prioritise recent facts over training-data assumptions where they conflict. Do not fabricate sources or citations.`
-    : "";
+COMPANY CONTEXT (Wikipedia extract — use to enrich overview, strategy, and market sections):
+${wikiData.extract}
+
+Note: This company is private/unlisted. No stock price, market cap, P/E ratio, or analyst ratings are available.
+Use the Wikipedia figures above for revenue, employees, and other available fields.
+For unavailable fields (stock price, market cap, EPS, analyst target), return null.`;
+  } else {
+    finBlock = `No verified financial data available (private or unlisted company). Use best estimates from training data where confident; return null for any value you cannot verify.`;
+  }
+
+  // ── Context supplement from Wikipedia (for all companies) ────────────────
+  // Even for public companies, Wikipedia may add useful context (founded, HQ, etc.)
+  const wikiContextBlock = (!fin && wikiData)
+    ? "" // already embedded in finBlock above
+    : (wikiData
+      ? `\nSUPPLEMENTAL CONTEXT (Wikipedia):
+- Founded: ${wikiData.founded ?? "N/A"}
+- Headquarters: ${wikiData.headquarters ?? "N/A"}
+- Employees: ${wikiData.employees ?? "N/A"}
+- Website: ${wikiData.website ?? "N/A"}`
+      : "");
 
   const prompt = `Generate strategic intelligence PART A for: ${companyName}
 
-${socialBlock ? socialBlock + "\n\n" : ""}EXECUTIVE INSTRUCTIONS
+EXECUTIVE INSTRUCTIONS
 - Set executiveSummary.ceo to exactly: ${ceo}
 - Do NOT include the CEO in keyExecutives.
 - keyExecutives: 3–8 other verified senior leaders (CFO, COO, CTO, division presidents). Real names only. Omit anyone you cannot verify. Never invent or recombine names.
 
+STRATEGY INSTRUCTIONS
+- vision and mission must be populated for all well-known public companies — this data is always available in annual reports, investor relations pages, or company websites.
+- Never return "" (empty string) for vision or mission. Use the company's actual stated purpose, tagline, or strategic intent.
+- For financial institutions specifically: Barclays purpose → "Deploying finance responsibly to support people and businesses acting with empathy and integrity"; HSBC purpose → "Opening up a world of opportunity"; Lloyds → "Helping Britain Prosper"; JPMorgan → "Making dreams possible for everyone everywhere".
+- For tech: Apple → "To make the best products on earth"; Microsoft → "To empower every person and organisation on the planet to achieve more"; Google → "To organise the world's information and make it universally accessible".
+- If the exact statement is uncertain, derive a concise purpose statement from the company's known business model, market position, and sector — do not leave blank.
+- For any company you know enough about to generate a report, you know enough to write a one-sentence vision and mission. Treat these as required fields.
+- Only return null for genuinely unknown private companies where you have minimal information.
+
 ${finBlock}
+${wikiContextBlock}
 
 Return ONLY this JSON:
 {
   "companyName": "Official company name",
   "industry": "Primary industry sector",
+  "website": "e.g. https://www.barclays.com or null",
   "executiveSummary": {
     "companyOverview": "2-3 sentence overview",
     "headquarters": "City, Country",
@@ -499,6 +623,7 @@ Return ONLY this JSON:
     "employees": "e.g. 250,000 or null",
     "ceo": "Full name",
     "keyExecutives": [{"name": "Name", "title": "Title"}, {"name": "Name", "title": "Title"}, {"name": "Name", "title": "Title"}],
+    "website": "e.g. https://www.hsbc.com or null",
     "stockExchange": "e.g. NYSE: AAPL or null if private",
     "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3", "Key highlight 4"],
     "analystRating": "e.g. Buy / Overweight / Hold or null",
@@ -528,8 +653,8 @@ Return ONLY this JSON:
     "outlook": "2-sentence financial outlook or null"
   },
   "strategy": {
-    "vision": "Company vision statement or null",
-    "mission": "Company mission statement or null",
+    "vision": "Company's stated vision or purpose (e.g. from annual report, website, investor docs) — never empty string, use null only if genuinely undiscoverable",
+    "mission": "Company's stated mission or strategic purpose — never empty string, use null only if genuinely undiscoverable",
     "coreInitiatives": [{"title": "Initiative name", "description": "Brief description", "timeline": "e.g. 2024-2026"}],
     "geographicFocus": ["Region 1", "Region 2", "Region 3"],
     "mAndA": "M&A strategy description or null",
@@ -557,7 +682,7 @@ Return ONLY this JSON:
 
 // ─── Report Part B: tech + ESG + SWOT + growth + risk + digital ──────────────
 
-async function generatePartB(companyName: string, esgData?: FMPESGData | null, socialContext?: string | null): Promise<unknown> {
+async function generatePartB(companyName: string, esgData?: FMPESGData | null): Promise<unknown> {
   // Build verified ESG injection block from FMP data
   const esgBlock = esgData
     ? `VERIFIED ESG DATA (Financial Modeling Prep — use verbatim, do not alter):
@@ -570,24 +695,11 @@ async function generatePartB(companyName: string, esgData?: FMPESGData | null, s
 - Data as of:          ${esgData.lastUpdated}
 
 Use ALL values verbatim in the esg object. Set overallRating to "${esgData.esgRating} (FMP)". Do not substitute estimates for any provided field.`
-    : `No verified ESG data from Financial Modeling Prep (common for non-US-listed companies).
-Use your training knowledge to populate the ESG fields. For large, publicly reported companies (FTSE 100, Euro Stoxx 50, etc.) you will have good data on:
-- Published ESG ratings from MSCI, Sustainalytics, or CDP (use these for overallRating, e.g. "A (MSCI)")
-- Net Zero targets, environmental commitments, and governance practices from annual/sustainability reports
-- Board diversity figures from corporate governance disclosures
-- ESG risk assessments from major rating agencies
-Fill in every field you can substantiate. Only return null for fields where you genuinely have no basis for an estimate — not as a precautionary default.`;
-
-  const socialBlock = socialContext
-    ? `CURRENT INTELLIGENCE — LAST 30 DAYS (Reddit, X, YouTube, Hacker News, GitHub, Polymarket):
-${socialContext}
-
-Use this real-time signal to strengthen: swot (opportunities and threats especially), riskAssessment.risks, growthOpportunities.opportunities, digitalTransformation. Prioritise recent facts over training-data assumptions where they conflict. Do not fabricate sources or citations.`
-    : "";
+    : `No verified ESG data available. Use best estimates from training data; return null for any value you cannot verify.`;
 
   const prompt = `Generate strategic intelligence PART B for: ${companyName}
 
-${socialBlock ? socialBlock + "\n\n" : ""}${esgBlock}
+${esgBlock}
 
 Return ONLY this JSON:
 {
@@ -608,8 +720,6 @@ Return ONLY this JSON:
     "environmentScore": "e.g. 68.1 / 100 or null",
     "socialScore": "e.g. 75.2 / 100 or null",
     "governanceScore": "e.g. 71.0 / 100 or null",
-    "governanceRating": "e.g. Strong / Moderate / Weak or null",
-    "boardDiversity": "e.g. 40% female representation or null",
     "netZeroTarget": "e.g. 2030 / 2050 / Not committed or null",
     "environmentalInitiatives": ["Initiative 1", "Initiative 2"],
     "socialInitiatives": ["Initiative 1", "Initiative 2"],
@@ -682,27 +792,114 @@ Return ONLY this JSON:
   return callClaude(prompt, 5500);
 }
 
+// ─── Confidence scoring ───────────────────────────────────────────────────────
+// Computed server-side from inspectable data quality signals — not LLM-generated.
+
+function computeConfidence(
+  partA: any,
+  partB: any,
+  fmpFinancials: import("./claude.js").FMPFinancials | null,
+  fmpESG: import("./claude.js").FMPESGData | null,
+  ceo: string,
+  wikiData?: WikipediaData | null,
+): { rating: "green" | "amber" | "red"; score: number; signals: { label: string; status: "pass" | "warn" | "fail" }[]; summary: string } {
+
+  const signals: { label: string; status: "pass" | "warn" | "fail" }[] = [];
+
+  // FMP financials — Wikipedia is a valid (amber) fallback
+  if (fmpFinancials) {
+    signals.push({ label: "Financial data (FMP)", status: "pass" });
+    signals.push({ label: "Revenue history", status: (fmpFinancials.revenueHistory?.length ?? 0) >= 3 ? "pass" : "warn" });
+    signals.push({ label: "Market cap", status: fmpFinancials.marketCap && fmpFinancials.marketCap !== "N/A" ? "pass" : "warn" });
+  } else if (wikiData?.revenue || wikiData?.aum) {
+    signals.push({ label: "Financial data (Wikipedia)", status: "warn" });
+    signals.push({ label: "Revenue history", status: "warn" });
+    signals.push({ label: "Market cap", status: "warn" }); // private — no market cap
+  } else {
+    signals.push({ label: "Financial data", status: "fail" });
+    signals.push({ label: "Revenue history", status: "fail" });
+    signals.push({ label: "Market cap", status: "warn" });
+  }
+
+  // CEO
+  const ceoOk = ceo && ceo !== "See company website for current CEO";
+  signals.push({ label: "CEO verified", status: ceoOk ? "pass" : "warn" });
+
+  // ESG
+  signals.push({ label: "ESG data (FMP)", status: fmpESG ? "pass" : "warn" });
+
+  // Vision / Mission
+  const vision  = partA?.strategy?.vision;
+  const mission = partA?.strategy?.mission;
+  signals.push({ label: "Vision / Mission", status: (vision && vision !== "" && mission && mission !== "") ? "pass" : "warn" });
+
+  // Website
+  signals.push({ label: "Company website", status: partA?.website || partA?.executiveSummary?.website ? "pass" : "warn" });
+
+  // Key executives
+  const execCount = partA?.executiveSummary?.keyExecutives?.length ?? 0;
+  signals.push({ label: "Key executives", status: execCount >= 3 ? "pass" : execCount > 0 ? "warn" : "fail" });
+
+  // SWOT populated
+  const swotOk = (partB?.swot?.strengths?.length ?? 0) >= 2;
+  signals.push({ label: "SWOT analysis", status: swotOk ? "pass" : "warn" });
+
+  // Risk assessment
+  const risksOk = (partB?.riskAssessment?.risks?.length ?? 0) >= 2;
+  signals.push({ label: "Risk assessment", status: risksOk ? "pass" : "warn" });
+
+  // Score: pass=10pts, warn=5pts, fail=0pts
+  const maxScore = signals.length * 10;
+  const score    = Math.round(
+    (signals.reduce((acc, s) => acc + (s.status === "pass" ? 10 : s.status === "warn" ? 5 : 0), 0) / maxScore) * 100
+  );
+
+  const fails  = signals.filter(s => s.status === "fail").length;
+  const warns  = signals.filter(s => s.status === "warn").length;
+  const rating: "green" | "amber" | "red" =
+    fails > 0 || score < 40  ? "red"   :
+    warns > 2  || score < 70 ? "amber" : "green";
+
+  const summary =
+    rating === "green" ? "High confidence — verified data across all key sections." :
+    rating === "amber" ? `Moderate confidence — ${warns} section(s) could not be fully verified.` :
+    `Low confidence — significant data gaps detected. Treat with caution.`;
+
+  return { rating, score, signals, summary };
+}
+
 // ─── Public: generate full report ─────────────────────────────────────────────
 
 export async function generateReport(companyName: string): Promise<unknown> {
   const start = Date.now();
 
-  // FMP, CEO, and last30days all run in parallel — all are external calls
-  // with no Anthropic token cost. last30days is best-effort and may return null.
-  const [fmpData, currentCEO, socialContext] = await Promise.all([
+  // FMP lookup (financials + ESG), CEO lookup, and Wikipedia lookup all run in parallel.
+  // Wikipedia runs unconditionally — we'll only use it if FMP comes back empty,
+  // but starting it in parallel costs nothing extra in wall-clock time.
+  const [fmpData, currentCEO, wikiData] = await Promise.all([
     lookupFMP(companyName),
     lookupCEO(companyName),
-    runLast30Days(companyName),
+    lookupWikipedia(companyName),
   ]);
 
+  // Decide data source for logging
+  const dataSource = fmpData.financials
+    ? "FMP"
+    : wikiData?.revenue || wikiData?.aum
+      ? "Wikipedia fallback"
+      : "LLM estimates only";
+
+  console.log(`📊 Data source for "${companyName}": ${dataSource}`);
+
   // Part A and Part B run sequentially to respect Anthropic token rate limits.
-  // CEO is passed in to avoid a second web search call inside generatePartA.
-  const partA = await generatePartA(companyName, fmpData.financials, currentCEO, socialContext);
-  const partB = await generatePartB(companyName, fmpData.esg, socialContext);
+  // Pass wikiData into Part A so it can supplement the financial block.
+  const partA = await generatePartA(companyName, fmpData.financials, currentCEO, wikiData);
+  const partB = await generatePartB(companyName, fmpData.esg);
 
-  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (FMP + CEO + Haiku x2)`);
+  console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (FMP + Wiki + CEO + Haiku x2)`);
 
-  return { ...(partA as object), ...(partB as object) };
+  const confidence = computeConfidence(partA, partB, fmpData.financials, fmpData.esg, currentCEO, wikiData);
+  return { ...(partA as object), ...(partB as object), confidence };
 }
 
 // ─── Sales Enablement ─────────────────────────────────────────────────────────
