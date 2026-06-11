@@ -505,9 +505,9 @@ async function fetchYahooFinancials(ticker: string): Promise<FMPFinancials | nul
 }
 
 export async function lookupYahoo(companyName: string): Promise<FMPFinancials | null> {
-  // Yahoo Finance blocks server-side requests with 401/429.
-  // Use Claude web search instead — pulls live data from financial news, annual reports etc.
-  return lookupFinancialsViaWebSearch(companyName);
+  // Yahoo Finance and web search fallbacks are too unreliable/expensive for the token budget.
+  // Return null — the LLM fallback in generatePartA will use training knowledge with strict rules.
+  return null;
 }
 
 // ─── Financial data via Claude web search ──────────────────────────────────────────────────────────────────────
@@ -968,19 +968,17 @@ Note: This company is private/unlisted. No stock price, market cap, P/E ratio, o
 Use the Wikipedia figures above for revenue, employees, and other available fields. Set executiveSummary.employees verbatim from the Wikipedia figure above if present.
 For unavailable fields (stock price, market cap, EPS, analyst target), return null.`;
   } else {
-    finBlock = `No verified financial data is available from any external source for ${companyName}.
+    finBlock = `No verified financial data is available from a live API for ${companyName}.
 
-IMPORTANT — DATA INTEGRITY RULES FOR FINANCIALS:
-- Do NOT populate revenue, netIncome, ebitda, marketCap, stockPrice, or revenueHistory with estimates from your training knowledge.
-- Return null for ALL financial figures. These fields will be flagged as unavailable in the UI.
-- The only exception: stockTicker (e.g. BARC, HSBA) may be returned if you are highly confident — it helps the system fetch live data on retry.
-- keyMetrics: return [] (empty array).
-- revenueHistory: return [] (empty array).
-- fiscalYear: return null.
-- outlook: you MAY provide a qualitative 1-2 sentence outlook based on publicly known context, but do not include any specific figures.
-- executiveSummary.employees: return null. Do not estimate headcount.
-
-Rationale: This report will be read by professionals. A blank field clearly signals a data gap. A confidently-stated but wrong number destroys credibility. Do not guess.`;
+FINANCIALS FROM TRAINING KNOWLEDGE — RULES:
+- Use your training knowledge to populate financials for well-known public companies.
+- Use the company's reporting currency (£ for UK, € for Eurozone, ¥ for Japan, etc.).
+- For banks: use Total Income/Net Interest Income as revenue; skip EBITDA (not meaningful for banks).
+- State the fiscal year you are drawing from (e.g. FY2024, FY2023).
+- Populate revenueHistory for 3-4 years where you have data.
+- For genuinely unknown figures (e.g. current stock price, analyst targets), return null.
+- Do NOT fabricate precise figures you are not confident in. Round estimates are acceptable (e.g. "£25B" not "£25.374B").
+- executiveSummary.employees: populate from your best knowledge if available, else null.`;
   }
 
   const wikiContextBlock = (!fin && wikiData)
@@ -1335,11 +1333,12 @@ export async function generateReport(companyName: string): Promise<unknown> {
         retrievedAt: now,
       };
     }
+    // LLM training knowledge — always mark as estimated regardless of whether data was returned
     const partATyped = partA as any;
-    const llmHasData = partATyped?.financials?.revenue || partATyped?.financials?.netIncome;
+    const llmHasData = partATyped?.financials?.revenue && partATyped?.financials?.revenue !== null && partATyped?.financials?.revenue !== 'N/A';
     return {
-      source:      llmHasData ? "LLM" : "none",
-      confidence:  llmHasData ? "estimated" : "unavailable",
+      source:      "LLM" as const,
+      confidence:  llmHasData ? "estimated" as const : "unavailable" as const,
       fiscalYear:  partATyped?.financials?.fiscalYear ?? null,
       retrievedAt: now,
     };
