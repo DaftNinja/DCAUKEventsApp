@@ -31,7 +31,7 @@ export async function createOrUpdateReport(data: Partial<InsertReport> & { compa
   if (existing) {
     const [updated] = await db
       .update(reports)
-      .set({ ...data, companySlug: slug, updatedAt: new Date() })
+      .set({ ...data, companySlug: slug, generatedAt: new Date(), updatedAt: new Date() })
       .where(eq(reports.companySlug, slug))
       .returning();
     return updated;
