@@ -108,30 +108,8 @@ export function Dashboard() {
   const sales = report.salesEnablementData as SalesEnablement | null;
 
   // ── Financial data source metadata ──────────────────────────────────────
-  const finMeta = (data as any)._financialsMeta as {
-    source: "FMP" | "Wikipedia" | "LLM" | "none";
-    confidence: "verified" | "single-source" | "wikipedia" | "estimated" | "unavailable";
-    fiscalYear: string | null;
-    retrievedAt: string;
-  } | undefined;
+  const finMeta = (data as any)._financialsMeta as FinMetaType;
 
-  function SourceBadge() {
-    if (!finMeta) return null;
-    const cfg = {
-      verified:      { label: "Verified · FMP",        bg: "bg-emerald-900/60", text: "text-emerald-400", dot: "bg-emerald-400" },
-      "single-source": { label: "Single source · FMP", bg: "bg-blue-900/60",    text: "text-blue-400",    dot: "bg-blue-400" },
-      wikipedia:     { label: "Wikipedia",              bg: "bg-blue-900/60",    text: "text-blue-400",    dot: "bg-blue-400" },
-      estimated:     { label: "AI estimate · unverified", bg: "bg-amber-900/60", text: "text-amber-400",   dot: "bg-amber-400" },
-      unavailable:   { label: "No data source",         bg: "bg-slate-800",      text: "text-slate-400",   dot: "bg-slate-500" },
-    }[finMeta.confidence] ?? { label: "Unknown", bg: "bg-slate-800", text: "text-slate-400", dot: "bg-slate-500" };
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.text}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-        {cfg.label}
-        {finMeta.fiscalYear && <span className="opacity-60">· {finMeta.fiscalYear}</span>}
-      </span>
-    );
-  }
 
   return (
     <Layout>
@@ -217,7 +195,7 @@ export function Dashboard() {
         {/* Tab Content */}
         <div className="animate-fade-up">
           {activeTab === "summary" && <SummaryTab data={data} />}
-          {activeTab === "financials" && <FinancialsTab data={data} />}
+          {activeTab === "financials" && <FinancialsTab data={data} finMeta={finMeta} />}
           {activeTab === "strategy" && <StrategyTab data={data} />}
           {activeTab === "market" && <MarketTab data={data} />}
           {activeTab === "tech" && <TechTab data={data} />}
@@ -329,9 +307,34 @@ function PrivateCompanyBanner({ companyName }: { companyName: string }) {
   );
 }
 
-function FinancialsTab({ data }: { data: ReportData }) {
+type FinMetaType = {
+  source: "FMP" | "Wikipedia" | "LLM" | "none";
+  confidence: "verified" | "single-source" | "wikipedia" | "estimated" | "unavailable";
+  fiscalYear: string | null;
+  retrievedAt: string;
+} | undefined;
+
+function FinancialsTab({ data, finMeta }: { data: ReportData; finMeta: FinMetaType }) {
   const fin = data.financials;
   const isPrivate = isPrivateCompany(fin);
+
+  function SourceBadge() {
+    if (!finMeta) return null;
+    const cfg = {
+      verified:        { label: "Verified · FMP",          bg: "bg-emerald-900/60", text: "text-emerald-400", dot: "bg-emerald-400" },
+      "single-source": { label: "Single source · FMP",    bg: "bg-blue-900/60",    text: "text-blue-400",    dot: "bg-blue-400" },
+      wikipedia:       { label: "Wikipedia",               bg: "bg-blue-900/60",    text: "text-blue-400",    dot: "bg-blue-400" },
+      estimated:       { label: "AI estimate · unverified", bg: "bg-amber-900/60", text: "text-amber-400",   dot: "bg-amber-400" },
+      unavailable:     { label: "No data source",          bg: "bg-slate-800",      text: "text-slate-400",   dot: "bg-slate-500" },
+    }[finMeta.confidence] ?? { label: "Unknown", bg: "bg-slate-800", text: "text-slate-400", dot: "bg-slate-500" };
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.text}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+        {cfg.label}
+        {finMeta.fiscalYear && <span className="opacity-60">· {finMeta.fiscalYear}</span>}
+      </span>
+    );
+  }
 
   return (
     <div className="space-y-6">
