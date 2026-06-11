@@ -320,11 +320,45 @@ function parseInfoboxField(text: string, ...keys: string[]): string | null {
 
 function cleanWikiValue(val: string | null): string | null {
   if (!val) return null;
-  return val
-    .replace(/\[\d+\]/g, "")
-    .replace(/\{\{[^}]*\}\}/g, "")
-    .replace(/\s+/g, " ")
-    .trim() || null;
+
+  let s = val;
+
+  // Strip [[File:...]] and [[Image:...]] wikilinks entirely
+  s = s.replace(/\[\[(?:File|Image)[^\]]*\]\]/gi, "");
+
+  // Strip nested {{ }} templates iteratively (handles {{increase}}{{plaintext|{{formatnum:25376}}}} etc.)
+  // Keep stripping innermost {{ }} until none remain
+  let prev = "";
+  while (prev !== s) {
+    prev = s;
+    s = s.replace(/\{\{[^{}]*\}\}/g, (match) => {
+      // Extract the last pipe-delimited segment as the human-readable value
+      // e.g. {{formatnum:25376}} → "25376", {{plaintext|£25.4 billion}} → "£25.4 billion"
+      const inner = match.slice(2, -2);
+      const parts = inner.split("|");
+      const last = parts[parts.length - 1].trim();
+      // If it looks like a bare template name (no digits/currency), drop it
+      return /[\d£$€¥₹]/.test(last) ? last : "";
+    });
+  }
+
+  // Strip wikilinks: [[target|label]] → label, [[target]] → target
+  s = s.replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, "$2");
+  s = s.replace(/\[\[([^\]]+)\]\]/g, "$1");
+
+  // Strip citation refs [1], [2], etc.
+  s = s.replace(/\[\d+\]/g, "");
+
+  // Strip HTML tags
+  s = s.replace(/<[^>]+>/g, "");
+
+  // Strip ref tags
+  s = s.replace(/<ref[^/]*/gi, "");
+
+  // Normalise whitespace
+  s = s.replace(/\s+/g, " ").trim();
+
+  return s || null;
 }
 
 export async function lookupWikipedia(companyName: string): Promise<WikipediaData | null> {
