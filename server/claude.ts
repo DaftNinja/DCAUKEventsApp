@@ -117,6 +117,7 @@ async function fmpGet<T>(path: string): Promise<T | null> {
 
 async function resolveFMPTicker(companyName: string): Promise<string | null> {
   if (!FMP_KEY) { console.warn("FMP_API_KEY not set — skipping FMP lookup"); return null; }
+  console.log(`📈 FMP key present (length=${FMP_KEY.length}, first4=${FMP_KEY.slice(0,4)})`);
   try {
     const res = await fetch(
       `${FMP_BASE}/v3/search?query=${encodeURIComponent(companyName)}&limit=5&apikey=${FMP_KEY}`

@@ -242,7 +242,7 @@ function SummaryTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title">Key Highlights</div>
           <ul className="space-y-2">
-            {es.highlights.map((h, i) => (
+            {(es.highlights ?? []).map((h, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
                 <span className="text-[var(--primary)] mt-0.5">◆</span>
                 {h}
@@ -253,7 +253,7 @@ function SummaryTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title">Senior Leadership</div>
           <ul className="space-y-2">
-            {es.keyExecutives.map((exec, i) => (
+            {(es.keyExecutives ?? []).map((exec, i) => (
               <li key={i} className="flex items-center justify-between text-sm">
                 <span className="text-[var(--text-primary)] font-medium">{exec.name}</span>
                 <span className="text-[var(--text-muted)] text-xs">{exec.title}</span>
@@ -385,12 +385,12 @@ function FinancialsTab({ data, finMeta }: { data: ReportData; finMeta: FinMetaTy
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card">
           <div className="section-title">Revenue History</div>
-          <RevenueChart data={fin.revenueHistory} />
+          <RevenueChart data={fin.revenueHistory ?? []} />
         </div>
         <div className="card">
           <div className="section-title">Key Metrics</div>
           <div className="space-y-3">
-            {fin.keyMetrics.map((m, i) => {
+            {(fin.keyMetrics ?? []).map((m, i) => {
               const isLocked = isPrivate && MARKET_ONLY_METRICS.has(m.label);
               return (
                 <div
@@ -449,7 +449,7 @@ function StrategyTab({ data }: { data: ReportData }) {
       <div className="card">
         <div className="section-title">Core Strategic Initiatives</div>
         <div className="space-y-4">
-          {s.coreInitiatives.map((init, i) => (
+          {(s.coreInitiatives ?? []).map((init, i) => (
             <div key={i} className="flex gap-4 p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-xs font-bold text-[var(--primary)] font-display">
                 {i + 1}
@@ -478,7 +478,7 @@ function StrategyTab({ data }: { data: ReportData }) {
       <div className="card">
         <div className="section-title">Geographic Focus</div>
         <div className="flex flex-wrap gap-2">
-          {s.geographicFocus.map((region, i) => (
+          {(s.geographicFocus ?? []).map((region, i) => (
             <span key={i} className="badge badge-blue">{region}</span>
           ))}
         </div>
@@ -504,7 +504,7 @@ function MarketTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title">Top Competitors</div>
           <div className="space-y-3">
-            {m.competitors.map((c, i) => (
+            {(m.competitors ?? []).map((c, i) => (
               <div key={i} className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-medium text-[var(--text-primary)]">{c.name}</div>
@@ -520,7 +520,7 @@ function MarketTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title">Customer Segments</div>
           <div className="flex flex-wrap gap-2">
-            {m.customerSegments.map((seg, i) => (
+            {(m.customerSegments ?? []).map((seg, i) => (
               <span key={i} className="badge badge-blue">{seg}</span>
             ))}
           </div>
@@ -528,7 +528,7 @@ function MarketTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title">Geographic Revenue Mix</div>
           <div className="space-y-2">
-            {m.geographicPresence.map((g, i) => (
+            {(m.geographicPresence ?? []).map((g, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="w-20 text-xs text-[var(--text-muted)]">{g.region}</div>
                 <div className="flex-1 h-2 rounded-full bg-[var(--bg-secondary)]">
@@ -546,7 +546,7 @@ function MarketTab({ data }: { data: ReportData }) {
       <div className="card">
         <div className="section-title">Market Trends</div>
         <ul className="space-y-2">
-          {m.marketTrends.map((t, i) => (
+          {(m.marketTrends ?? []).map((t, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
               <span className="text-[var(--primary)] mt-0.5 shrink-0">→</span>
               {t}
@@ -569,7 +569,7 @@ function TechTab({ data }: { data: ReportData }) {
       <div className="card">
         <div className="section-title">Cloud Platforms</div>
         <div className="flex flex-wrap gap-2">
-          {t.cloudPlatforms.map((p, i) => (
+          {(t.cloudPlatforms ?? []).map((p, i) => (
             <span key={i} className="badge badge-blue">{p}</span>
           ))}
         </div>
@@ -587,7 +587,7 @@ function TechTab({ data }: { data: ReportData }) {
               </tr>
             </thead>
             <tbody>
-              {t.keyVendors.map((v, i) => (
+              {(t.keyVendors ?? []).map((v, i) => (
                 <tr key={i} className="border-b border-[var(--border)] last:border-0">
                   <td className="py-2.5 font-medium text-[var(--text-primary)]">{v.vendor}</td>
                   <td className="py-2.5 text-[var(--text-muted)]">{v.category}</td>
@@ -599,7 +599,7 @@ function TechTab({ data }: { data: ReportData }) {
         </div>
         {/* Mobile stacked list */}
         <div className="sm:hidden space-y-3">
-          {t.keyVendors.map((v, i) => (
+          {(t.keyVendors ?? []).map((v, i) => (
             <div key={i} className="rounded-lg bg-[var(--bg-secondary)] p-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-[var(--text-primary)]">{v.vendor}</span>
@@ -623,7 +623,7 @@ function TechTab({ data }: { data: ReportData }) {
       <div className="card">
         <div className="section-title">Emerging Technology Investments</div>
         <div className="flex flex-wrap gap-2">
-          {t.emergingTech.map((tech, i) => (
+          {(t.emergingTech ?? []).map((tech, i) => (
             <span key={i} className="badge badge-violet">{tech}</span>
           ))}
         </div>
@@ -646,7 +646,7 @@ function ESGTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title text-[var(--primary)]">Environmental Initiatives</div>
           <ul className="space-y-2">
-            {e.environmentalInitiatives.map((item, i) => (
+            {(e.environmentalInitiatives ?? []).map((item, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
                 <span className="text-[var(--primary)] shrink-0">🌱</span>{item}
               </li>
@@ -656,7 +656,7 @@ function ESGTab({ data }: { data: ReportData }) {
         <div className="card">
           <div className="section-title text-blue-400">Social Initiatives</div>
           <ul className="space-y-2">
-            {e.socialInitiatives.map((item, i) => (
+            {(e.socialInitiatives ?? []).map((item, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
                 <span className="text-blue-400 shrink-0">🤝</span>{item}
               </li>
@@ -667,7 +667,7 @@ function ESGTab({ data }: { data: ReportData }) {
       <div className="card">
         <div className="section-title">ESG Risk Factors</div>
         <div className="flex flex-wrap gap-2">
-          {e.esgRisks.map((risk, i) => (
+          {(e.esgRisks ?? []).map((risk, i) => (
             <span key={i} className="badge badge-amber">{risk}</span>
           ))}
         </div>
@@ -692,7 +692,7 @@ function GrowthTab({ data }: { data: ReportData }) {
         <p className="text-sm text-[var(--text-secondary)]">{g.summary}</p>
       </div>
       <div className="space-y-4">
-        {g.opportunities.map((opp, i) => (
+        {(g.opportunities ?? []).map((opp, i) => (
           <div key={i} className="card-hover animate-fade-up" style={{ animationDelay: `${i * 80}ms` }}>
             <div className="flex items-start justify-between gap-4 mb-2">
               <h4 className="font-display text-base font-bold text-[var(--text-primary)]">{opp.title}</h4>
