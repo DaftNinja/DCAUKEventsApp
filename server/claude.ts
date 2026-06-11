@@ -572,9 +572,47 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
 
   try {
     return JSON.parse(cleaned);
-  } catch {
-    console.error("JSON parse failed. Raw:", cleaned.slice(0, 500));
-    throw new Error("Failed to parse API response. Please try again.");
+  } catch (firstErr) {
+    // Attempt structural repair for truncated responses — close any open
+    // arrays/objects so JSON.parse can recover a partial but usable result.
+    try {
+      let repaired = cleaned;
+      // Count unclosed braces/brackets
+      let opens = 0;
+      let inString = false;
+      let escape = false;
+      for (const ch of repaired) {
+        if (escape) { escape = false; continue; }
+        if (ch === '\\' && inString) { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (!inString) {
+          if (ch === '{' || ch === '[') opens++;
+          if (ch === '}' || ch === ']') opens--;
+        }
+      }
+      // Trim trailing partial token (incomplete string or comma)
+      repaired = repaired.replace(/,\s*$/, "").replace(/"[^"]*$/, '"..."}');
+      // Re-close opens
+      const stack: string[] = [];
+      inString = false; escape = false;
+      for (const ch of repaired) {
+        if (escape) { escape = false; continue; }
+        if (ch === '\\' && inString) { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (!inString) {
+          if (ch === '{') stack.push('}');
+          else if (ch === '[') stack.push(']');
+          else if ((ch === '}' || ch === ']') && stack.length) stack.pop();
+        }
+      }
+      repaired += stack.reverse().join("");
+      const result = JSON.parse(repaired);
+      console.warn(`⚠️  JSON repair succeeded — response was likely truncated at ${maxTokens} tokens`);
+      return result;
+    } catch {
+      console.error("JSON parse failed (and repair failed). Raw:", cleaned.slice(0, 500));
+      throw new Error("Failed to parse API response. Please try again.");
+    }
   }
 }
 
@@ -756,7 +794,7 @@ Return ONLY this JSON:
   }
 }`;
 
-  return callClaude(prompt, 6000);
+  return callClaude(prompt, 8000);
 }
 
 // ─── Report Part B: tech + ESG + SWOT + growth + risk + digital ──────────────
@@ -883,7 +921,7 @@ Return ONLY this JSON:
   }
 }`;
 
-  return callClaude(prompt, 5500);
+  return callClaude(prompt, 8000);
 }
 
 // ─── Confidence scoring ───────────────────────────────────────────────────────
@@ -1045,7 +1083,7 @@ Return ONLY this JSON:
   ]
 }`;
 
-  return callClaude(prompt, 4000);
+  return callClaude(prompt, 5000);
 }
 
 // ─── Investor Presentation ────────────────────────────────────────────────────
