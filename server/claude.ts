@@ -353,16 +353,73 @@ async function resolveYahooTicker(companyName: string): Promise<string | null> {
 
 async function fetchYahooFinancials(ticker: string): Promise<FMPFinancials | null> {
   try {
-    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=incomeStatementHistory,cashflowStatementHistory,defaultKeyStatistics,summaryDetail,financialData,price`;
+    // Step 1: Get a crumb (Yahoo requires this for authenticated data endpoints)
+    const crumbRes = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    // If crumb endpoint fails, try the v8 no-auth endpoint instead
+    let crumb = "";
+    if (crumbRes.ok) {
+      crumb = await crumbRes.text();
+    }
+
+    const cookieHeader = crumbRes.headers.get("set-cookie") ?? "";
+
+    // Step 2: Fetch quote summary with crumb
+    const modules = "incomeStatementHistory,defaultKeyStatistics,summaryDetail,financialData,price";
+    const url = crumb
+      ? `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}&crumb=${encodeURIComponent(crumb)}`
+      : `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
+
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        ...(cookieHeader ? { "Cookie": cookieHeader.split(";")[0] } : {}),
+      },
       signal: AbortSignal.timeout(10000),
     });
+
     if (!res.ok) {
       console.warn(`Yahoo financials ${ticker} → ${res.status}`);
       return null;
     }
     const data = await res.json() as any;
+
+    // Handle v8 chart fallback (only gives price/market cap, no income statements)
+    if (!crumb) {
+      const chart = data?.chart?.result?.[0];
+      if (!chart) return null;
+      const meta = chart.meta ?? {};
+      const currency = meta.currency ?? "USD";
+      const sym = currency === "GBp" ? "£" : currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
+      const penceToGBP = currency === "GBp";
+      const price = meta.regularMarketPrice ?? null;
+      const priceV = penceToGBP && price ? price / 100 : price;
+      const mktCap = meta.marketCap ?? null;
+      const mktCapV = penceToGBP && mktCap ? mktCap / 100 : mktCap;
+      const mktCapStr = mktCapV == null ? "N/A" :
+        mktCapV >= 1e12 ? `${sym}${(mktCapV/1e12).toFixed(2)}T` :
+        mktCapV >= 1e9  ? `${sym}${(mktCapV/1e9).toFixed(1)}B` : `${sym}${(mktCapV/1e6).toFixed(0)}M`;
+      console.log(`💹 Yahoo chart fallback for ${ticker}: price=${priceV?.toFixed(2)}, mktCap=${mktCapStr}`);
+      return {
+        ticker, fiscalYear: `FY${new Date().getFullYear() - 1}`,
+        revenue: "N/A", revenueGrowth: "N/A", netIncome: "N/A", ebitda: "N/A",
+        grossMargin: "N/A", operatingMargin: "N/A",
+        marketCap: mktCapStr,
+        stockPrice: priceV != null ? `${sym}${priceV.toFixed(2)}` : "N/A",
+        peRatio: "N/A", epsAnnual: "N/A", analystTarget: "N/A", analystRating: "N/A",
+        employees: null, revenueHistory: [],
+      };
+    }
+
     const result = data?.quoteSummary?.result?.[0];
     if (!result) return null;
 
@@ -372,10 +429,8 @@ async function fetchYahooFinancials(ticker: string): Promise<FMPFinancials | nul
     const sumDetail  = result.summaryDetail ?? {};
     const incStmts   = result.incomeStatementHistory?.incomeStatementHistory ?? [];
 
-    // Currency symbol
     const currency = price.currency ?? "USD";
     const sym = currency === "GBp" ? "£" : currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
-    // Yahoo returns GBp (pence) for LSE stocks — convert to pounds
     const penceToGBP = currency === "GBp";
 
     const fmtYahoo = (raw: any): string => {
@@ -394,7 +449,6 @@ async function fetchYahooFinancials(ticker: string): Promise<FMPFinancials | nul
       return `${(n * 100).toFixed(1)}%`;
     };
 
-    // Revenue history from income statements (up to 4 years)
     const revenueHistory = incStmts.slice(0, 4).map((stmt: any, i: number) => {
       const year = new Date(stmt.endDate?.raw * 1000).getFullYear().toString();
       const rev = stmt.totalRevenue?.raw ?? 0;
@@ -409,8 +463,8 @@ async function fetchYahooFinancials(ticker: string): Promise<FMPFinancials | nul
     const latestInc = incStmts[0];
     const prevInc   = incStmts[1];
     const latestRev = penceToGBP ? (latestInc?.totalRevenue?.raw ?? 0) / 100 : (latestInc?.totalRevenue?.raw ?? 0);
-    const prevRev   = penceToGBP ? (prevInc?.totalRevenue?.raw ?? 0) / 100 : (prevInc?.totalRevenue?.raw ?? 0);
-    const yoyGrowth = prevRev ? `${latestRev > prevRev ? "+" : ""}${(((latestRev - prevRev) / prevRev) * 100).toFixed(1)}% YoY` : "N/A";
+    const prevRevVal = penceToGBP ? (prevInc?.totalRevenue?.raw ?? 0) / 100 : (prevInc?.totalRevenue?.raw ?? 0);
+    const yoyGrowth = prevRevVal ? `${latestRev > prevRevVal ? "+" : ""}${(((latestRev - prevRevVal) / prevRevVal) * 100).toFixed(1)}% YoY` : "N/A";
 
     const marketCapRaw = price.marketCap?.raw ?? null;
     const mktCapV = penceToGBP && marketCapRaw ? marketCapRaw / 100 : marketCapRaw;
@@ -426,12 +480,9 @@ async function fetchYahooFinancials(ticker: string): Promise<FMPFinancials | nul
     const fiscalYear = `FY${new Date((latestInc?.endDate?.raw ?? Date.now() / 1000) * 1000).getFullYear()}`;
 
     console.log(`💹 Yahoo financials for ${ticker}: revenue=${fmtYahoo(latestInc?.totalRevenue)}, mktCap=${mktCapStr}`);
-    // Note: Yahoo income statements use annual data but may be 1-2 years behind.
-    // The fiscalYear field reflects the last available annual filing.
 
     return {
-      ticker,
-      fiscalYear,
+      ticker, fiscalYear,
       revenue:         fmtYahoo(latestInc?.totalRevenue),
       revenueGrowth:   yoyGrowth,
       netIncome:       fmtYahoo(latestInc?.netIncome),
