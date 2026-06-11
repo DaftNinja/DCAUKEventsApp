@@ -132,35 +132,36 @@ async function resolveFMPTicker(companyName: string): Promise<string | null> {
       return null;
     }
 
-    const results = await res.json() as { symbol: string; name: string; exchangeShortName?: string }[];
+    const results = await res.json() as { symbol: string; name: string; exchangeShortName?: string; exchange?: string }[];
     console.log(`📈 FMP results: ${JSON.stringify(results.slice(0,3))}`);
     if (!results?.length) return null;
 
     const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
     const query     = normalise(companyName);
-    const KNOWN_EXCHANGES = new Set([
-      // US
+
+    const US_EXCHANGES  = new Set(["NASDAQ", "NYSE", "AMEX", "NYSE ARCA"]);
+    const ALL_EXCHANGES = new Set([
       "NASDAQ", "NYSE", "AMEX", "NYSE ARCA",
-      // UK / Europe
       "LSE", "LON", "LSE AIM", "EURONEXT", "XETRA", "EPA", "EBR", "AMS", "STO", "CPH", "HEL", "VIE",
-      // APAC
       "TSX", "ASX", "NSE", "BSE", "HKEX", "TSE", "SGX", "NZX",
-      // Other
       "JSE", "BOVESPA", "BMV",
     ]);
 
+    const nameMatch = (r: { symbol: string; name: string; exchange?: string }) =>
+      normalise(r.name) === query || normalise(r.name).includes(query);
+
+    // Prefer US exchange listing (full FMP coverage) over international
     const match =
-      results.find(r => normalise(r.name) === query && KNOWN_EXCHANGES.has(r.exchangeShortName ?? "")) ??
-      results.find(r => normalise(r.name).includes(query) && KNOWN_EXCHANGES.has(r.exchangeShortName ?? "")) ??
-      results.find(r => normalise(r.name) === query) ??
-      results.find(r => normalise(r.name).includes(query));
+      results.find(r => nameMatch(r) && US_EXCHANGES.has(r.exchange ?? "")) ??
+      results.find(r => nameMatch(r) && ALL_EXCHANGES.has(r.exchange ?? "")) ??
+      results.find(r => nameMatch(r));
 
     if (!match) {
       console.log(`📈 FMP: no confident ticker match for "${companyName}" — will try Wikipedia fallback`);
       return null;
     }
 
-    console.log(`📈 FMP resolved "${companyName}" → ${match.symbol}`);
+    console.log(`📈 FMP resolved "${companyName}" → ${match.symbol} (${match.exchange ?? 'unknown exchange'})`);
     return match.symbol;
   } catch (err) {
     console.warn(`FMP ticker resolution failed for "${companyName}":`, err);
