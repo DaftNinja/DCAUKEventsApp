@@ -68,7 +68,7 @@ export function Dashboard() {
     setExporting(format);
     try {
       const data = report.reportData as ReportData;
-      if (format === "pdf") await exportToPDF(report.companyName);
+      if (format === "pdf") await exportToPDF(report.companyName, data);
       else if (format === "pptx") await exportToPPTX(data);
       else exportToHTML(data);
     } catch (err) {
