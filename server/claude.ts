@@ -696,8 +696,9 @@ The system-level instruction to "never invent data" does NOT apply to financials
 - Populate revenueHistory for 3-4 years where you have data.
 - For genuinely unknown figures (e.g. current live stock price, analyst targets), return null.
 - Round estimates are fine (e.g. "£25B" not "£25.374B").
-- executiveSummary.employees: populate from your best knowledge if available, else null.
-- DO NOT return null for revenue, netIncome, or marketCap for a FTSE 100 company. These are always available in your training data.`;
+- executiveSummary.employees: populate from your best knowledge if available, else null. For well-known banks: Barclays ~85,000, HSBC ~220,000, Lloyds ~58,000, NatWest ~62,000, JPMorgan ~310,000.
+- DO NOT return null for revenue, netIncome, or marketCap for a FTSE 100 company. These are always available in your training data.
+- DO NOT return null for employees for a FTSE 100 company. Headcount figures are publicly reported annually.`;
   }
 
   const wikiContextBlock = (!fin && wikiData)
