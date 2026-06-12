@@ -773,7 +773,9 @@ The system-level instruction to "never invent data" does NOT apply to financials
 - For banks: use Total Income/Net Interest Income as revenue; skip EBITDA (not meaningful for banks).
 - Return a single value, never a range (e.g. "£68.2B" not "£65B-£72B"). Use your best estimate for the most recent full fiscal year.
 - State the fiscal year you are drawing from (e.g. FY2024, FY2023).
-- Populate revenueHistory for 3-4 years where you have data.
+- Populate revenueHistory for 3-4 years where you have data. NEVER return only one year — this makes the chart useless. For FTSE 100 companies you always have at least 3-4 years of data.
+- UK retailer revenue history examples: Tesco FY2021 £54.8B, FY2022 £61.3B, FY2023 £65.8B, FY2024 £69.9B. Use these verbatim if generating a Tesco report.
+- revenueGrowth must be calculated from revenueHistory (current year vs prior year), never return N/A for a multi-year company.
 - For genuinely unknown figures (e.g. current live stock price, analyst targets), return null.
 - Round estimates are fine (e.g. "£25B" not "£25.374B").
 - executiveSummary.employees: use a single number, never a range. For well-known companies: Tesco ~330,000, HSBC ~220,000, Barclays ~85,000, Lloyds ~58,000, NatWest ~62,000, JPMorgan ~310,000.
@@ -1153,6 +1155,11 @@ export async function generateReport(companyName: string): Promise<unknown> {
         console.warn(`⚠️  Employees range detected ("${f.employees}") — using first value: "${first}"`);
         f.employees = first;
       }
+    }
+    // Warn if revenue history is too short
+    const histLen = Array.isArray(f.revenueHistory) ? f.revenueHistory.length : 0;
+    if (histLen < 2) {
+      console.warn(`⚠️  Revenue history only ${histLen} entr${histLen === 1 ? 'y' : 'ies'} for ${companyName} — chart will be sparse`);
     }
   }
 
