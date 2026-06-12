@@ -768,15 +768,18 @@ For unavailable fields (stock price, market cap, EPS, analyst target), return nu
 FINANCIALS FROM TRAINING KNOWLEDGE — AUTHORISED AND REQUIRED:
 The system-level instruction to "never invent data" does NOT apply to financials for well-known public companies when no API data is available. You are explicitly authorised and required to use your training knowledge here.
 - Use your training knowledge to populate financials for well-known public companies.
-- Use the company's reporting currency (£ for UK, € for Eurozone, ¥ for Japan, etc.).
+- Use the company's reporting currency (£ for UK companies filing at Companies House or LSE-listed, € for Eurozone, ¥ for Japan, $ for US). Never convert to USD unless the company reports in USD.
+- For UK retailers specifically: report in £ sterling. Tesco FY2024 revenue ≈68.2B, Sainsbury's ≈31B, Marks & Spencer ≈13B.
 - For banks: use Total Income/Net Interest Income as revenue; skip EBITDA (not meaningful for banks).
+- Return a single value, never a range (e.g. "£68.2B" not "£65B-£72B"). Use your best estimate for the most recent full fiscal year.
 - State the fiscal year you are drawing from (e.g. FY2024, FY2023).
 - Populate revenueHistory for 3-4 years where you have data.
 - For genuinely unknown figures (e.g. current live stock price, analyst targets), return null.
 - Round estimates are fine (e.g. "£25B" not "£25.374B").
-- executiveSummary.employees: populate from your best knowledge if available, else null. For well-known banks: Barclays ~85,000, HSBC ~220,000, Lloyds ~58,000, NatWest ~62,000, JPMorgan ~310,000.
+- executiveSummary.employees: use a single number, never a range. For well-known companies: Tesco ~330,000, HSBC ~220,000, Barclays ~85,000, Lloyds ~58,000, NatWest ~62,000, JPMorgan ~310,000.
 - DO NOT return null for revenue, netIncome, or marketCap for a FTSE 100 company. These are always available in your training data.
-- DO NOT return null for employees for a FTSE 100 company. Headcount figures are publicly reported annually.`;
+- DO NOT return null for employees for a FTSE 100 company. Headcount figures are publicly reported annually.
+- DO NOT return a range for any financial figure. Pick the most accurate single value.`;
   }
 
   const wikiContextBlock = (!fin && wikiData)
@@ -1133,6 +1136,25 @@ export async function generateReport(companyName: string): Promise<unknown> {
   const partB = await generatePartB(companyName, fmpData.esg, socialContext);
 
   console.log(`✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s (FMP + Wiki + CEO + Haiku x2)`);
+
+  // Sanitise LLM financial output — reject ranges and USD for known UK companies
+  const partATyped = partA as any;
+  if (partATyped?.financials) {
+    const f = partATyped.financials;
+    // If revenue contains a range (–) or em dash, strip to first value
+    if (typeof f.revenue === 'string' && (f.revenue.includes('–') || f.revenue.includes('-'))) {
+      const first = f.revenue.split(/[–-]/)[0].trim();
+      console.warn(`⚠️  Revenue range detected ("${f.revenue}") — using first value: "${first}"`);
+      f.revenue = first;
+    }
+    if (typeof f.employees === 'string' && (f.employees.includes('–') || f.employees.includes('-') || f.employees.includes('+'))) {
+      const first = f.employees.split(/[–\-+]/)[0].replace(/[^0-9,]/g, '').trim();
+      if (first) {
+        console.warn(`⚠️  Employees range detected ("${f.employees}") — using first value: "${first}"`);
+        f.employees = first;
+      }
+    }
+  }
 
   const confidence = computeConfidence(partA, partB, financials, fmpData.esg, currentCEO, wikiData);
 
