@@ -15,12 +15,43 @@ Use real accurate data for well-known companies. Estimates for smaller ones.
 CRITICAL: For CEO and key executives, only provide names you are highly confident are currently accurate.
 If uncertain about the current CEO, set "ceo" to "See company website for current CEO".
 Never confuse executives across different companies.
-All currency in USD unless the company primarily operates in another currency.
 Dates in dd/mm/yyyy format.
 Be concise — keep string values short (1-2 sentences max), keep arrays to 3-5 items max except keyExecutives (3-8 entries, verified names only).
-FINANCIAL FIELDS: You MUST provide a non-empty value for every financial field. 
-Never use "—", "N/A", or leave fields blank. Use estimates if exact figures unavailable 
-and note them as "e.g. ~4.2B (est.)". For revenue history provide EXACTLY 4 years of data.`;
+FINANCIAL FIELDS: You MUST provide a non-empty value for every financial field.
+Never use "—", "N/A", or leave fields blank. Use estimates if exact figures unavailable
+and note them as "e.g. ~4.2B (est.)". For revenue history provide EXACTLY 4 years of data.
+
+CURRENCY RULES — CRITICAL:
+- ALWAYS use the native currency SYMBOL of the company's headquarters country. NEVER use ISO codes (GBP, USD, EUR, JPY).
+- UK / British companies → £ (e.g. £68.5B, £2.4B)
+- Eurozone companies (Germany, France, Italy, Spain, Netherlands, etc.) → € (e.g. €142.0B)
+- US companies → $ (e.g. $391.0B)
+- Japanese companies → ¥ (e.g. ¥10.0T)
+- Swiss companies → CHF (e.g. CHF 94.0B)
+- Canadian companies → C$ (e.g. C$18.0B)
+- Australian companies → A$ (e.g. A$12.0B)
+- Do NOT convert to USD. Report in the company's home currency only.
+- Examples: Tesco → £, BMW → €, Apple → $, Toyota → ¥, Nestlé → CHF`;
+
+// ─── Currency helper ──────────────────────────────────────────────────────────
+// Maps a headquarters country/region to its native currency symbol.
+function currencySymbol(hq: string): string {
+  const h = hq.toLowerCase();
+  if (/uk|united kingdom|england|scotland|wales|britain/.test(h)) return "£";
+  if (/germany|france|italy|spain|netherlands|belgium|austria|finland|ireland|portugal|greece|luxembourg/.test(h)) return "€";
+  if (/japan/.test(h)) return "¥";
+  if (/switzerland/.test(h)) return "CHF ";
+  if (/canada/.test(h)) return "C$";
+  if (/australia/.test(h)) return "A$";
+  if (/sweden/.test(h)) return "kr";
+  if (/norway/.test(h)) return "kr";
+  if (/denmark/.test(h)) return "kr";
+  if (/china/.test(h)) return "¥";
+  if (/india/.test(h)) return "₹";
+  if (/brazil/.test(h)) return "R$";
+  // Default: USD
+  return "$";
+}
 
 // ─── FMP API Helper ───────────────────────────────────────────────────────────
 const FMP_BASE = "https://financialmodelingprep.com/api/v3";
@@ -34,6 +65,7 @@ interface FMPFinancials {
   peRatio?: string;
   eps?: string;
   operatingMargin?: string;
+  currency?: string; // e.g. "GBP", "USD", "EUR"
 }
 
 async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
@@ -42,9 +74,9 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
 
   try {
     const [profileRes, incomeRes, ratiosRes] = await Promise.all([
-      fetch(`${FMP_BASE}/profile/${ticker}?apikey={key}`),
-      fetch(`${FMP_BASE}/income-statement/${ticker}?limit=4&apikey={key}`),
-      fetch(`${FMP_BASE}/ratios-ttm/${ticker}?apikey={key}`),
+      fetch(`${FMP_BASE}/profile/${ticker}?apikey=${key}`),
+      fetch(`${FMP_BASE}/income-statement/${ticker}?limit=4&apikey=${key}`),
+      fetch(`${FMP_BASE}/ratios-ttm/${ticker}?apikey=${key}`),
     ]);
 
     const [profile, income, ratios] = await Promise.all([
@@ -57,18 +89,26 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
     const r = Array.isArray(ratios) ? ratios[0] : null;
     const incomeList = Array.isArray(income) ? income : [];
 
-    // Format large numbers into readable strings
+    // Determine currency symbol from FMP profile currency field
+    const fmpCurrency: string = p?.currency ?? "USD";
+    const hqCountry: string = p?.country ?? "";
+    // Prefer HQ-based symbol detection; fall back to FMP currency code mapping
+    const sym = hqCountry
+      ? currencySymbol(hqCountry)
+      : fmpCurrencyToSymbol(fmpCurrency);
+
+    // Format large numbers with the correct currency symbol
     const fmt = (n: number | undefined): string | undefined => {
       if (n == null || isNaN(n)) return undefined;
-      if (Math.abs(n) >= 1e12) return `{(n / 1e12).toFixed(2)}T`;
-      if (Math.abs(n) >= 1e9) return `{(n / 1e9).toFixed(2)}B`;
-      if (Math.abs(n) >= 1e6) return `{(n / 1e6).toFixed(2)}M`;
-      return n.toFixed(2);
+      if (Math.abs(n) >= 1e12) return `${sym}${(n / 1e12).toFixed(2)}T`;
+      if (Math.abs(n) >= 1e9) return `${sym}${(n / 1e9).toFixed(2)}B`;
+      if (Math.abs(n) >= 1e6) return `${sym}${(n / 1e6).toFixed(2)}M`;
+      return `${sym}${n.toFixed(2)}`;
     };
 
     const fmtPct = (n: number | undefined): string | undefined => {
       if (n == null || isNaN(n)) return undefined;
-      return `{(n * 100).toFixed(1)}%`;
+      return `${(n * 100).toFixed(1)}%`;
     };
 
     // Build revenue history from income statements
@@ -80,7 +120,7 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
         const prevRev = idx > 0 ? (arr[idx - 1].revenue as number) : null;
         const growth =
           prevRev && prevRev > 0
-            ? `{(((rev - prevRev) / prevRev) * 100).toFixed(1)}%`
+            ? `${(((rev - prevRev) / prevRev) * 100).toFixed(1)}%`
             : "N/A";
         return {
           year: String(y.calendarYear || y.date?.slice(0, 4) || ""),
@@ -94,15 +134,36 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
       ebitda: fmt(incomeList[0]?.ebitda),
       grossMargin: fmtPct(r?.grossProfitMarginTTM),
       operatingMargin: fmtPct(r?.operatingProfitMarginTTM),
-      stockPrice: p?.price != null ? String(p.price.toFixed(2)) : undefined,
-      peRatio: r?.peRatioTTM != null ? `{r.peRatioTTM.toFixed(1)}x` : undefined,
-      eps: r?.epsTTM != null ? String(r.epsTTM.toFixed(2)) : undefined,
+      stockPrice: p?.price != null ? `${sym}${p.price.toFixed(2)}` : undefined,
+      peRatio: r?.peRatioTTM != null ? `${r.peRatioTTM.toFixed(1)}x` : undefined,
+      eps: r?.epsTTM != null ? `${sym}${r.epsTTM.toFixed(2)}` : undefined,
       revenueHistory: revenueHistory.length >= 2 ? revenueHistory : undefined,
+      currency: fmpCurrency,
     };
   } catch (err) {
-    console.warn(`FMP fetch failed for {ticker}:`, err);
+    console.warn(`FMP fetch failed for ${ticker}:`, err);
     return {};
   }
+}
+
+// Maps FMP ISO currency codes to display symbols (fallback when no HQ country)
+function fmpCurrencyToSymbol(code: string): string {
+  const map: Record<string, string> = {
+    GBP: "£",
+    EUR: "€",
+    USD: "$",
+    JPY: "¥",
+    CHF: "CHF ",
+    CAD: "C$",
+    AUD: "A$",
+    SEK: "kr",
+    NOK: "kr",
+    DKK: "kr",
+    INR: "₹",
+    CNY: "¥",
+    BRL: "R$",
+  };
+  return map[code.toUpperCase()] ?? "$";
 }
 
 // ─── CEO lookup via web search ────────────────────────────────────────────────
@@ -117,7 +178,7 @@ async function lookupCEO(companyName: string): Promise<string> {
       messages: [
         {
           role: "user",
-          content: `Who is the current CEO of {companyName}? Search the web and return only their full name.`,
+          content: `Who is the current CEO of ${companyName}? Search the web and return only their full name.`,
         },
       ],
     });
@@ -133,7 +194,7 @@ async function lookupCEO(companyName: string): Promise<string> {
       return text;
     }
   } catch (err) {
-    console.warn(`CEO lookup failed for {companyName}:`, err);
+    console.warn(`CEO lookup failed for ${companyName}:`, err);
   }
   return "See company website for current CEO";
 }
@@ -148,7 +209,7 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
   });
 
   if (message.stop_reason === "max_tokens") {
-    console.error(`Response truncated at {maxTokens} tokens — increase max_tokens`);
+    console.error(`Response truncated at ${maxTokens} tokens — increase max_tokens`);
     throw new Error("Response was too long and got cut off. Please try again.");
   }
 
@@ -170,7 +231,6 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
 }
 
 // ─── Merge FMP data into Claude financials ────────────────────────────────────
-// FMP verified data always wins over Claude estimates for specific fields.
 function mergeFinancials(claudeFinancials: any, fmp: FMPFinancials): any {
   const merged = { ...claudeFinancials };
 
@@ -181,7 +241,6 @@ function mergeFinancials(claudeFinancials: any, fmp: FMPFinancials): any {
     merged.revenueHistory = fmp.revenueHistory;
   }
 
-  // Merge key metrics — override matching labels with FMP verified values
   if (Array.isArray(merged.keyMetrics)) {
     merged.keyMetrics = merged.keyMetrics.map((m: any) => {
       const label = m.label?.toLowerCase() ?? "";
@@ -212,13 +271,22 @@ async function generatePartA(
 ): Promise<unknown> {
   const currentCEO = await lookupCEO(companyName);
 
-  const tickerContext = ticker ? ` (Ticker: {ticker})` : "";
-  const industryContext = industry ? ` operating in the {industry} sector` : "";
+  const tickerContext = ticker ? ` (Ticker: ${ticker})` : "";
+  const industryContext = industry ? ` operating in the ${industry} sector` : "";
 
-  const prompt = `Generate strategic intelligence PART A for: ${companyName}${tickerContext}{industryContext}
+  const prompt = `Generate strategic intelligence PART A for: ${companyName}${tickerContext}${industryContext}
 
-The current CEO is: {currentCEO} — use this exact name in the executiveSummary.ceo field. Do NOT include the CEO again in keyExecutives.
+The current CEO is: ${currentCEO} — use this exact name in the executiveSummary.ceo field. Do NOT include the CEO again in keyExecutives.
 For keyExecutives: include between 3 and 8 other senior leaders you are certain exist (CFO, COO, CTO, division presidents, etc). STRICT RULES: real verified names only — if uncertain about a person, omit them entirely. Never invent, guess, or recombine names. Quality over quantity.
+
+CURRENCY RULE — MANDATORY:
+Identify the company's headquarters country and use the correct native currency symbol throughout ALL financial fields.
+- UK company → use £ for ALL values (e.g. £68.5B, £2.4B, £225.00)
+- Eurozone company → use € for ALL values (e.g. €142.0B, €8.5B)
+- US company → use $ for ALL values (e.g. $391.0B, $93.7B)
+- Japanese company → use ¥ for ALL values (e.g. ¥10.0T, ¥500B)
+- Swiss company → use CHF for ALL values (e.g. CHF 94.0B)
+NEVER write "GBP", "USD", "EUR", "JPY" — always the symbol.
 
 FINANCIAL FIELDS — MANDATORY RULES:
 - Every field MUST have a real value. NEVER use "—", null, or "N/A".
@@ -227,7 +295,7 @@ FINANCIAL FIELDS — MANDATORY RULES:
 - keyMetrics MUST include Gross Margin, Operating Margin, P/E Ratio, and EPS — all 4 required.
 - stockPrice and stockTicker are required for public companies.
 
-Return ONLY this JSON:
+Return ONLY this JSON (use correct currency symbol throughout, NOT ISO codes):
 {
   "companyName": "Official company name",
   "industry": "Primary industry sector",
@@ -236,33 +304,33 @@ Return ONLY this JSON:
     "headquarters": "City, Country",
     "founded": "Year",
     "employees": "e.g. 250,000",
-    "ceo": "{currentCEO}",
+    "ceo": "${currentCEO}",
     "keyExecutives": [{"name": "Name", "title": "Title"}],
-    "stockExchange": "e.g. NYSE: AAPL or N/A if private",
+    "stockExchange": "e.g. LSE: TSCO or N/A if private",
     "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3", "Key highlight 4"],
     "analystRating": "e.g. Buy / Overweight / Hold",
     "lastUpdated": "Today dd/mm/yyyy"
   },
   "financials": {
-    "revenue": "e.g. 391.0B",
+    "revenue": "e.g. £68.5B for UK, €142.0B for Germany, $391.0B for US",
     "revenueGrowth": "e.g. +8.1% YoY",
-    "netIncome": "e.g. 93.7B",
-    "ebitda": "e.g. 125.8B",
-    "marketCap": "e.g. 3.4T",
-    "stockTicker": "e.g. AAPL",
-    "stockPrice": "e.g. 225.00",
+    "netIncome": "e.g. £2.4B",
+    "ebitda": "e.g. £4.8B",
+    "marketCap": "e.g. £42.5B",
+    "stockTicker": "e.g. TSCO",
+    "stockPrice": "e.g. £3.24",
     "fiscalYear": "e.g. FY2024",
     "keyMetrics": [
-      {"label": "Gross Margin", "value": "45.2%", "trend": "up"},
-      {"label": "Operating Margin", "value": "31.5%", "trend": "up"},
-      {"label": "P/E Ratio", "value": "32.1x", "trend": "neutral"},
-      {"label": "EPS", "value": "6.11", "trend": "up"}
+      {"label": "Gross Margin", "value": "28.1%", "trend": "up"},
+      {"label": "Operating Margin", "value": "7.0%", "trend": "up"},
+      {"label": "P/E Ratio", "value": "18.2x", "trend": "neutral"},
+      {"label": "EPS", "value": "£0.24", "trend": "up"}
     ],
     "revenueHistory": [
-      {"year": "2021", "revenue": "X.XB", "growth": "+X%"},
-      {"year": "2022", "revenue": "X.XB", "growth": "+X%"},
-      {"year": "2023", "revenue": "X.XB", "growth": "+X%"},
-      {"year": "2024", "revenue": "X.XB", "growth": "+X%"}
+      {"year": "2021", "revenue": "£X.XB", "growth": "+X%"},
+      {"year": "2022", "revenue": "£X.XB", "growth": "+X%"},
+      {"year": "2023", "revenue": "£X.XB", "growth": "+X%"},
+      {"year": "2024", "revenue": "£X.XB", "growth": "+X%"}
     ],
     "outlook": "2-sentence financial outlook"
   },
@@ -276,14 +344,14 @@ Return ONLY this JSON:
     "summary": "2-3 sentence strategy summary"
   },
   "marketAnalysis": {
-    "totalAddressableMarket": "e.g. 2.1T",
-    "marketShare": "e.g. 18.5%",
+    "totalAddressableMarket": "e.g. £1.1T",
+    "marketShare": "e.g. 27%",
     "marketPosition": "e.g. Market leader / Strong #2",
     "competitors": [{"name": "Competitor name", "strength": "Brief strength", "threat": "high|medium|low"}],
     "customerSegments": ["Segment 1", "Segment 2", "Segment 3"],
     "geographicPresence": [
-      {"region": "Americas", "percentage": "XX%"},
-      {"region": "EMEA", "percentage": "XX%"},
+      {"region": "UK & Ireland", "percentage": "XX%"},
+      {"region": "Europe", "percentage": "XX%"},
       {"region": "APAC", "percentage": "XX%"}
     ],
     "marketTrends": ["Trend 1", "Trend 2", "Trend 3"],
@@ -300,15 +368,17 @@ async function generatePartB(
   industry?: string,
   ticker?: string
 ): Promise<unknown> {
-  const tickerContext = ticker ? ` (Ticker: {ticker})` : "";
-  const industryContext = industry ? ` operating in the {industry} sector` : "";
+  const tickerContext = ticker ? ` (Ticker: ${ticker})` : "";
+  const industryContext = industry ? ` operating in the ${industry} sector` : "";
 
-  const prompt = `Generate strategic intelligence PART B for: ${companyName}${tickerContext}{industryContext}
+  const prompt = `Generate strategic intelligence PART B for: ${companyName}${tickerContext}${industryContext}
+
+CURRENCY RULE: Use the native currency symbol of the company's headquarters country throughout (£ for UK, € for Eurozone, $ for US, ¥ for Japan, CHF for Switzerland). NEVER use ISO codes like GBP, USD, EUR.
 
 Return ONLY this JSON:
 {
   "techSpend": {
-    "annualITBudget": "e.g. 4.2B",
+    "annualITBudget": "e.g. £1.8B for UK company",
     "itBudgetAsPercentRevenue": "e.g. 4.8%",
     "cloudPlatforms": ["AWS", "Azure", "GCP"],
     "keyVendors": [{"vendor": "Vendor name", "category": "Category", "relationship": "Strategic partner / key vendor / etc"}],
@@ -356,12 +426,12 @@ Return ONLY this JSON:
       {
         "title": "Opportunity title",
         "description": "Detailed description",
-        "potentialValue": "e.g. 50-100B",
+        "potentialValue": "e.g. £5-10B",
         "timeframe": "e.g. 2025-2027",
         "confidence": "high|medium|low"
       }
     ],
-    "totalOpportunityValue": "e.g. 200-400B across identified opportunities",
+    "totalOpportunityValue": "e.g. £20-40B across identified opportunities",
     "summary": "2-3 sentence growth summary"
   },
   "riskAssessment": {
@@ -400,8 +470,6 @@ export async function generateReport(
 ): Promise<any> {
   const start = Date.now();
 
-  // Run Part A (with CEO lookup) and Part B sequentially to avoid rate limits,
-  // then fetch FMP data in parallel with Part B to save time.
   const [partA, partBAndFMP] = await Promise.all([
     generatePartA(companyName, industry, ticker),
     Promise.all([
@@ -412,7 +480,6 @@ export async function generateReport(
 
   const [partB, fmpData] = partBAndFMP;
 
-  // Merge FMP verified financials into Claude's Part A financials
   const mergedPartA = partA as any;
   if (mergedPartA.financials && Object.keys(fmpData).length > 0) {
     mergedPartA.financials = mergeFinancials(mergedPartA.financials, fmpData);
@@ -420,8 +487,8 @@ export async function generateReport(
   }
 
   console.log(
-    `✅ Report generated in {((Date.now() - start) / 1000).toFixed(1)}s` +
-    `{Object.keys(fmpData).length > 0 ? " (FMP verified)" : " (AI estimates)"}`
+    `✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s` +
+    `${Object.keys(fmpData).length > 0 ? " (FMP verified)" : " (AI estimates)"}`
   );
 
   return { ...mergedPartA, ...(partB as object) };
@@ -435,15 +502,15 @@ export async function generateSalesEnablement(
 ): Promise<unknown> {
   const prompt = `Generate a sales enablement brief.
 
-Target Company: {companyName}
-Seller's Product/Service: {sellerProduct}
+Target Company: ${companyName}
+Seller's Product/Service: ${sellerProduct}
 
 Company Intelligence:
-{JSON.stringify(reportData, null, 2)}
+${JSON.stringify(reportData, null, 2)}
 
 Return ONLY this JSON:
 {
-  "sellerProduct": "{sellerProduct}",
+  "sellerProduct": "${sellerProduct}",
   "salesSummary": "2-3 sentence executive summary of the sales opportunity",
   "conversationStarters": ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"],
   "painPoints": [
@@ -456,11 +523,11 @@ Return ONLY this JSON:
     {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "How it applies to this company"},
     {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "How it applies to this company"}
   ],
-  "totalValueOpportunity": "e.g. 2-5M ACV based on company profile",
+  "totalValueOpportunity": "e.g. £2-5M ACV based on company profile",
   "currentChallenges": ["Challenge 1", "Challenge 2", "Challenge 3", "Challenge 4"],
   "potentialSavings": [
-    {"area": "Area name", "estimate": "e.g. 500K-1M annually"},
-    {"area": "Area name", "estimate": "e.g. 200K annually"},
+    {"area": "Area name", "estimate": "e.g. £500K-1M annually"},
+    {"area": "Area name", "estimate": "e.g. £200K annually"},
     {"area": "Area name", "estimate": "e.g. 20% efficiency gain"}
   ],
   "competitivePositioning": "How to position against likely alternatives this company uses",
@@ -479,14 +546,14 @@ export async function generateInvestorPresentation(
   companyName: string,
   reportData: unknown
 ): Promise<unknown> {
-  const prompt = `Generate a structured investor presentation for {companyName}.
+  const prompt = `Generate a structured investor presentation for ${companyName}.
 
 Based on this data:
-{JSON.stringify(reportData, null, 2)}
+${JSON.stringify(reportData, null, 2)}
 
 Return ONLY this JSON:
 {
-  "title": "{companyName}: Investment Analysis",
+  "title": "${companyName}: Investment Analysis",
   "date": "dd/mm/yyyy",
   "slides": [
     {
