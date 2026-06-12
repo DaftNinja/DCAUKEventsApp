@@ -1096,10 +1096,10 @@ export async function generateReport(companyName: string): Promise<unknown> {
 
   // For private/unlisted companies (no FMP data), run a targeted web search
   // to pull funding, investors, key deals, and revenue estimates.
-  let privateIntel: PrivateCompanyIntel | null = null;
-  if (!financials) {
-    privateIntel = await lookupPrivateCompanyIntel(companyName);
-  }
+  // Runs after FMP so we know whether we need it, but before Part A generation.
+  const privateIntel = !financials
+    ? await lookupPrivateCompanyIntel(companyName)
+    : null;
 
   const dataSource = financials
     ? "FMP"
