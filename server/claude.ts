@@ -23,7 +23,7 @@ export interface FinancialsMetadata {
   retrievedAt: string;          // ISO date string
 }
 
-// ─── Models ───────────────────────────────────────────────────────────────────
+// ─── NEW Models ───────────────────────────────────────────────────────────────────
 const MODEL_GROUNDED = "claude-haiku-4-5-20251001";
 const MODEL_FAST     = "claude-haiku-4-5-20251001";
 
