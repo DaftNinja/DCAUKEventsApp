@@ -30,7 +30,8 @@ transformation, and sales enablement — in under 60 seconds.
 Report generation runs in two parallel streams:
 
 
-generateReport(companyName, industry?, ticker?)
+
+        generateReport(companyName, industry?, ticker?)
         │
         ├── generatePartA()          ← Executive summary, financials,
         │       └── lookupCEO()          strategy, market analysis
@@ -125,7 +126,7 @@ http://localhost:3000.
 
 ---
 
-## Railway Deployment
+## Railway Deployment
 
 1. Create a Railway project
 
@@ -163,7 +164,7 @@ migration needed.
 
 ---
 
-## Project Structure
+## Project Structure
 
 
 client/
@@ -201,7 +202,7 @@ server/claude.ts — Key Exports & Helpers
 
 ---
 
-## API Reference
+## API Reference
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -218,7 +219,7 @@ server/claude.ts — Key Exports & Helpers
 
 ---
 
-## Report Caching
+## Report Caching
 
 Reports are cached for 2 months. On generation:
 
@@ -228,7 +229,7 @@ Reports are cached for 2 months. On generation:
 
 ---
 
-## Financial Data — Verified vs Estimated
+## Financial Data — Verified vs Estimated
 
 Each report clearly distinguishes between verified and estimated figures:
 
@@ -243,7 +244,7 @@ the appropriate verification badge.
 
 ---
 
-## Export Formats
+## Export Formats
 
 From any report page:
 
