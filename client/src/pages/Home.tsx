@@ -23,7 +23,11 @@ export function Home() {
       const { report } = await api.reports.generate(company.trim());
       navigate(`/reports/${report.companySlug}`);
     } catch (err: any) {
-      setError(err.message ?? "Something went wrong. Please try again.");
+      if (err?.status === 403 || err?.data?.code === "NO_CREDITS") {
+        setError("You've used all your report credits. Contact us at contact@stellanordc.com to get more.");
+      } else {
+        setError(err.message ?? "Something went wrong. Please try again.");
+      }
       setLoading(false);
     }
   };

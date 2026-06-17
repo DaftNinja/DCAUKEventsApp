@@ -5,7 +5,7 @@ import {
   updateSalesEnablement, deleteReport, isCacheValid, slugify,
 } from "./storage.js";
 import { generateReport, generateSalesEnablement, generateInvestorPresentation } from "./claude.js";
-import { writeAuditLog } from "./auth.js";
+import { writeAuditLog, getUserById, decrementCredits, isAdmin } from "./auth.js";
 
 export const router = Router();
 
@@ -55,15 +55,29 @@ router.post("/reports/generate", async (req: any, res) => {
 
   const { companyName, forceRefresh } = parse.data;
   const slug = slugify(companyName);
+  const { id: userId, email: userEmail } = getSessionUser(req);
 
   try {
-    // Check cache first
+    // Check cache first — cache hits never cost a credit
     if (!forceRefresh) {
       const existing = await getReportBySlug(slug);
       if (existing && (await isCacheValid(existing))) {
-        const { id: cacheUserId, email: cacheEmail } = getSessionUser(req);
-        await writeAuditLog("REPORT_CACHE_HIT", companyName, cacheUserId, cacheEmail, getClientIp(req));
+        await writeAuditLog("REPORT_CACHE_HIT", companyName, userId, userEmail, getClientIp(req));
         return res.json({ report: existing, cached: true });
+      }
+    }
+
+    // ── Credit check ──────────────────────────────────────────────────────
+    // Admins bypass the credit system entirely.
+    // All other authenticated users must have at least 1 credit remaining.
+    if (userId) {
+      const user = await getUserById(userId);
+      if (user && !isAdmin(user.email) && user.reportCredits <= 0) {
+        await writeAuditLog("REPORT_BLOCKED_NO_CREDITS", companyName, userId, userEmail, getClientIp(req));
+        return res.status(403).json({
+          error: "You've used all your report credits. Contact us to get more.",
+          code: "NO_CREDITS",
+        });
       }
     }
 
@@ -77,7 +91,6 @@ router.post("/reports/generate", async (req: any, res) => {
       } catch (err: any) {
         lastError = err;
         const status = err?.status ?? 0;
-        // 429 = rate limited — wait and retry
         if (status === 429) {
           const retryAfter = parseInt(err?.headers?.['retry-after'] ?? '10', 10);
           const waitMs = Math.min((retryAfter + 2) * 1000, 30000);
@@ -85,7 +98,6 @@ router.post("/reports/generate", async (req: any, res) => {
           await new Promise(r => setTimeout(r, waitMs));
           continue;
         }
-        // Other 4xx errors (except 429) — don't retry
         if (status >= 400 && status < 500) throw err;
         if (attempt === 0) {
           console.warn(`Report generation attempt 1 failed (${status}), retrying…`);
@@ -98,9 +110,15 @@ router.post("/reports/generate", async (req: any, res) => {
     const industry = (reportData as { industry?: string }).industry ?? "Unknown";
     const saved = await createOrUpdateReport({ companyName, industry, reportData, isGenerating: false });
 
-    const { id: genUserId, email: genEmail } = getSessionUser(req);
-    await writeAuditLog("REPORT_GENERATED", companyName, genUserId, genEmail, getClientIp(req));
+    // ── Decrement credit after successful generation only ──────────────────
+    if (userId) {
+      const user = await getUserById(userId);
+      if (user && !isAdmin(user.email)) {
+        await decrementCredits(userId);
+      }
+    }
 
+    await writeAuditLog("REPORT_GENERATED", companyName, userId, userEmail, getClientIp(req));
     res.json({ report: saved, cached: false });
   } catch (err: any) {
     console.error("POST /reports/generate error:", err);
