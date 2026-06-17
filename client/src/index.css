@@ -4,23 +4,24 @@
 
 @layer base {
   :root {
-    --bg-primary: hsl(210, 40%, 98%);
-    --bg-secondary: hsl(210, 40%, 96.1%);
-    --bg-card: hsl(0, 0%, 100%);
-    --bg-card-hover: hsl(210, 40%, 97%);
-    --border: hsl(214.3, 31.8%, 91.4%);
-    --border-light: hsl(214.3, 31.8%, 85%);
-    --primary: hsl(221, 83%, 53%);
-    --primary-hover: hsl(221, 83%, 46%);
-    --primary-light: hsl(221, 83%, 96%);
-    --primary-dim: hsl(221, 83%, 90%);
-    --text-primary: hsl(222, 47%, 11%);
-    --text-secondary: hsl(215.4, 16.3%, 46.9%);
-    --text-muted: hsl(215, 16%, 65%);
+    /* Stellanor brand — dark navy background, purple #AA65FF accent */
+    --bg-primary: #0a0a14;
+    --bg-secondary: #111122;
+    --bg-card: #13132a;
+    --bg-card-hover: #1a1a35;
+    --border: rgba(170, 101, 255, 0.15);
+    --border-light: rgba(170, 101, 255, 0.25);
+    --primary: #aa65ff;
+    --primary-hover: #9b50f5;
+    --primary-light: rgba(170, 101, 255, 0.12);
+    --primary-dim: rgba(170, 101, 255, 0.25);
+    --text-primary: #f0eeff;
+    --text-secondary: #9b96c4;
+    --text-muted: #5e5a80;
     --destructive: hsl(0, 84.2%, 60.2%);
     --success: hsl(142, 71%, 45%);
     --amber: hsl(38, 92%, 50%);
-    --violet: hsl(262, 83%, 58%);
+    --violet: #aa65ff;
     --radius: 0.5rem;
   }
 
@@ -55,8 +56,8 @@
   }
 
   ::selection {
-    background: hsl(221, 83%, 90%);
-    color: hsl(222, 47%, 11%);
+    background: rgba(170, 101, 255, 0.3);
+    color: #f0eeff;
   }
 
   ::-webkit-scrollbar {
@@ -74,7 +75,7 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(221, 83%, 75%);
+    background: var(--primary-dim);
   }
 }
 
@@ -88,11 +89,11 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center gap-2 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white transition-all duration-150 hover:bg-[var(--primary-hover)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center gap-2 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[#0a0a14] transition-all duration-150 hover:bg-[var(--primary-hover)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition-all duration-150 hover:bg-[var(--bg-secondary)] hover:border-[var(--border-light)] disabled:opacity-50;
+    @apply inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition-all duration-150 hover:bg-[var(--bg-card)] hover:border-[var(--border-light)] disabled:opacity-50;
   }
 
   .btn-ghost {
@@ -104,27 +105,27 @@
   }
 
   .badge-blue {
-    @apply badge bg-blue-50 text-blue-700 border border-blue-200;
+    @apply badge bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary-dim)];
   }
 
   .badge-green {
-    @apply badge bg-green-50 text-green-700 border border-green-200;
+    @apply badge bg-green-950 text-green-400 border border-green-800;
   }
 
   .badge-amber {
-    @apply badge bg-amber-50 text-amber-700 border border-amber-200;
+    @apply badge bg-amber-950 text-amber-400 border border-amber-800;
   }
 
   .badge-red {
-    @apply badge bg-red-50 text-red-700 border border-red-200;
+    @apply badge bg-red-950 text-red-400 border border-red-800;
   }
 
   .badge-violet {
-    @apply badge bg-violet-50 text-violet-700 border border-violet-200;
+    @apply badge bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary-dim)];
   }
 
   .badge-gray {
-    @apply badge bg-gray-100 text-gray-600 border border-gray-200;
+    @apply badge bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)];
   }
 
   .metric-card {

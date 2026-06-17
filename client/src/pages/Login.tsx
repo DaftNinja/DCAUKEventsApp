@@ -31,14 +31,12 @@ export function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
 
-  // Surface ?error=... query params from the magic-link callback.
   useEffect(() => {
     const q = parseQuery();
     const err = q.get("error");
     if (err && ERROR_MESSAGES[err]) setError(ERROR_MESSAGES[err]);
   }, []);
 
-  // If already signed in, bounce to `next` (or /).
   useEffect(() => {
     if (!loading && user) {
       const next = parseQuery().get("next") ?? "/";
@@ -59,7 +57,6 @@ export function Login() {
       });
       setStage("sent");
     } catch (err: any) {
-      // Server signals "newUser: true" when names are required for a first-time sign-up.
       if (err?.data?.newUser) {
         setStage("signup");
         setError(err.message);
@@ -84,12 +81,12 @@ export function Login() {
       <div className="w-full max-w-md">
         <Link href="/">
           <a className="mb-8 flex items-center justify-center gap-2.5">
-            <StellanorMark size={40} />
+            <StellanorMark height={40} />
             <span className="text-base font-semibold text-[var(--text-primary)]">Stellanor</span>
           </a>
         </Link>
 
-        <div className="rounded-xl border border-[var(--border)] bg-white p-8 shadow-sm">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-8 shadow-sm">
           {stage === "sent" ? (
             <SentPanel email={email} onBack={() => { setStage("form"); setError(""); }} />
           ) : (
@@ -104,7 +101,7 @@ export function Login() {
               </p>
 
               {error && (
-                <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="mt-4 rounded-md border border-red-800 bg-red-950 px-3 py-2 text-sm text-red-400">
                   {error}
                 </div>
               )}
@@ -180,7 +177,7 @@ export function Login() {
 }
 
 const INPUT_CLS =
-  "w-full rounded-md border border-[var(--border)] bg-white py-2.5 px-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-blue-100 disabled:opacity-60";
+  "w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] py-2.5 px-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-dim)] disabled:opacity-60";
 
 function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
@@ -194,8 +191,8 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor: string; c
 function SentPanel({ email, onBack }: { email: string; onBack: () => void }) {
   return (
     <div className="text-center">
-      <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary-light)]">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#aa65ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
           <polyline points="22,6 12,13 2,6" />
         </svg>

@@ -36,9 +36,9 @@ export function Home() {
     <Layout>
       {/* Hero */}
       <section className="flex flex-col items-center justify-center py-10 sm:py-20 text-center">
-        <div className="animate-fade-up mb-5 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-          <span className="text-xs font-medium text-blue-700 uppercase tracking-widest">
+        <div className="animate-fade-up mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--primary-dim)] bg-[var(--primary-light)] px-3 py-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
+          <span className="text-xs font-medium text-[var(--primary)] uppercase tracking-widest">
             Stellanor Intelligence Platform
           </span>
         </div>
@@ -70,7 +70,7 @@ export function Home() {
                 onKeyDown={handleKeyDown}
                 placeholder="e.g. Apple, HSBC, Barclays…"
                 disabled={loading}
-                className="w-full rounded-lg sm:rounded-r-none border border-[var(--border)] bg-white py-3.5 pl-10 pr-4 text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-blue-100 disabled:opacity-60 text-sm shadow-sm sm:shadow-none"
+                className="w-full rounded-lg sm:rounded-r-none border border-[var(--border)] bg-[var(--bg-secondary)] py-3.5 pl-10 pr-4 text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-dim)] disabled:opacity-60 text-sm shadow-sm sm:shadow-none"
               />
             </div>
             <button
@@ -98,7 +98,7 @@ export function Home() {
           </div>
 
           {error && (
-            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+            <div className="mt-3 rounded-lg border border-red-800 bg-red-950 px-4 py-2.5 text-sm text-red-400">
               {error}
             </div>
           )}
@@ -108,7 +108,7 @@ export function Home() {
           <div className="animate-fade-up mt-6 card max-w-xs w-full text-center shadow-md mx-4">
             <div className="flex justify-center mb-3">
               <div className="relative h-9 w-9">
-                <div className="absolute inset-0 rounded-full border-2 border-blue-100" />
+                <div className="absolute inset-0 rounded-full border-2 border-[var(--primary-dim)]" />
                 <div className="absolute inset-0 rounded-full border-t-2 border-[var(--primary)] animate-spin" />
               </div>
             </div>
@@ -124,7 +124,7 @@ export function Home() {
               <button
                 key={company}
                 onClick={() => handleGenerate(company)}
-                className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-[var(--text-secondary)] transition-all hover:border-blue-300 hover:text-[var(--primary)] hover:bg-blue-50 shadow-sm"
+                className="rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-1 text-xs text-[var(--text-secondary)] transition-all hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary-light)] shadow-sm"
               >
                 {company}
               </button>
@@ -151,7 +151,7 @@ export function Home() {
               style={{ animationDelay: `${i * 50}ms` }}
             >
               <div className="mb-2 flex justify-center">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 border border-blue-100 text-sm">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary-light)] border border-[var(--primary-dim)] text-sm">
                   {icon}
                 </div>
               </div>
@@ -164,14 +164,14 @@ export function Home() {
 
       {/* Export callout */}
       <section className="py-8 sm:py-10 border-t border-[var(--border)]">
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-5 py-7 sm:px-8 sm:py-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-lg border border-[var(--primary-dim)] bg-[var(--primary-light)] px-5 py-7 sm:px-8 sm:py-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-[var(--text-primary)] mb-1.5">Export in any format</h3>
             <p className="text-[var(--text-secondary)] text-sm">PDF, PowerPoint, or HTML — ready for client presentations and briefs.</p>
           </div>
           <div className="flex gap-2 sm:gap-3 shrink-0">
             {["PDF", "PPTX", "HTML"].map((fmt) => (
-              <div key={fmt} className="flex items-center rounded-md border border-blue-200 bg-white px-3 py-2 shadow-sm">
+              <div key={fmt} className="flex items-center rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 shadow-sm">
                 <span className="text-[var(--primary)] font-mono text-xs sm:text-sm font-semibold">.{fmt.toLowerCase()}</span>
               </div>
             ))}

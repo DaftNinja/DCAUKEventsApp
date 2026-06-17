@@ -30,7 +30,7 @@ export function Navbar() {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 border-b border-[var(--border)] bg-white/95 backdrop-blur-md shadow-sm">
+      <nav className="sticky top-0 z-50 border-b border-[var(--border)] bg-[#0a0a14]/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           {/* Logo */}
           <Link href="/">
@@ -49,7 +49,7 @@ export function Navbar() {
                 <Link key={href} href={href}>
                   <a className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
                     active ? "bg-[var(--primary-light)] text-[var(--primary)]"
-                    : highlight ? "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
+                    : highlight ? "bg-[var(--primary)] text-[#0a0a14] hover:bg-[var(--primary-hover)]"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
                   }`}>
                     {highlight && <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="2,1 9,5 2,9" /></svg>}
@@ -62,8 +62,8 @@ export function Navbar() {
               <Link href="/audit-log">
                 <a className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
                   location.startsWith("/audit-log")
-                    ? "bg-amber-50 text-amber-700"
-                    : "text-amber-700 hover:bg-amber-50"
+                    ? "bg-[var(--primary-light)] text-[var(--primary)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
                 }`}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -77,9 +77,9 @@ export function Navbar() {
 
           {/* Right */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-xs font-medium text-blue-700">AI Live</span>
+            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-[var(--primary-dim)] bg-[var(--primary-light)] px-2.5 py-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
+              <span className="text-xs font-medium text-[var(--primary)]">AI Live</span>
             </div>
 
             {/* Auth state */}
@@ -95,14 +95,14 @@ export function Navbar() {
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="rounded-md border border-[var(--border)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] transition-colors"
+                      className="rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-card)] transition-colors"
                     >
                       Sign out
                     </button>
                   </>
                 ) : (
                   <Link href="/login">
-                    <a className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--primary-hover)] transition-colors">
+                    <a className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[#0a0a14] hover:bg-[var(--primary-hover)] transition-colors">
                       Sign in
                     </a>
                   </Link>
@@ -125,10 +125,10 @@ export function Navbar() {
       </nav>
 
       {/* Mobile overlay */}
-      {menuOpen && <div className="fixed inset-0 z-40 bg-black/20 md:hidden" onClick={() => setMenuOpen(false)} />}
+      {menuOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMenuOpen(false)} />}
 
       {/* Mobile menu */}
-      <div className={`fixed top-14 left-0 right-0 z-40 md:hidden bg-white border-b border-[var(--border)] shadow-lg transition-all duration-200 ${menuOpen ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}>
+      <div className={`fixed top-14 left-0 right-0 z-40 md:hidden bg-[#0a0a14] border-b border-[var(--border)] shadow-lg transition-all duration-200 ${menuOpen ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}>
         <div className="px-4 py-3 space-y-1">
           {NAV_ITEMS.map(({ href, label, highlight }) => {
             const active = href === "/" ? location === "/" : location.startsWith(href);
@@ -136,7 +136,7 @@ export function Navbar() {
               <Link key={href} href={href}>
                 <a className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   active ? "bg-[var(--primary-light)] text-[var(--primary)]"
-                  : highlight ? "bg-[var(--primary)] text-white"
+                  : highlight ? "bg-[var(--primary)] text-[#0a0a14]"
                   : "text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
                 }`}>
                   {highlight && <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="2,1 9,5 2,9" /></svg>}
@@ -147,7 +147,7 @@ export function Navbar() {
           })}
           {user?.isAdmin && (
             <Link href="/audit-log">
-              <a className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-amber-700 hover:bg-amber-50">
+              <a className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]">
                 Audit Log
               </a>
             </Link>
@@ -179,8 +179,8 @@ export function Navbar() {
           </div>
 
           <div className="px-4 pt-2 pb-1 flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-xs font-medium text-blue-700">AI Live</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
+            <span className="text-xs font-medium text-[var(--primary)]">AI Live</span>
           </div>
         </div>
       </div>
@@ -207,9 +207,9 @@ export function PageHeader({ label, title, subtitle, children }: {
   return (
     <div className="mb-6 sm:mb-10 animate-fade-up">
       {label && (
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-          <span className="text-xs font-medium text-blue-700 uppercase tracking-widest">{label}</span>
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[var(--primary-dim)] bg-[var(--primary-light)] px-3 py-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+          <span className="text-xs font-medium text-[var(--primary)] uppercase tracking-widest">{label}</span>
         </div>
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
