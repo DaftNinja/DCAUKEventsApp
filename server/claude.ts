@@ -549,7 +549,7 @@ Return ONLY this JSON:
   }
 }`;
 
-  return callClaude(prompt, 3500);
+  return callClaude(prompt, 4000);
 }
 
 // ─── Public: generate full report ─────────────────────────────────────────────
@@ -560,19 +560,18 @@ export async function generateReport(
 ): Promise<any> {
   const start = Date.now();
 
-  // Run all three in parallel:
-  // ─ CEO lookup (Haiku + web search, fast)
-  // ─ Part B (Sonnet, no CEO dependency)
-  // ─ FMP financial data fetch
-  // Part A waits only for the CEO result, not for B or FMP.
-  const [ceo, partB, fmpData] = await Promise.all([
+  // Stage 1: CEO lookup + FMP fetch in parallel (both fast, neither blocks report gen)
+  const [ceo, fmpData] = await Promise.all([
     lookupCEO(companyName),
-    generatePartB(companyName, industry, ticker),
     ticker ? fetchFMPFinancials(ticker) : Promise.resolve({} as FMPFinancials),
   ]);
+  console.log(`  ✅ CEO="${ceo}" resolved in ${((Date.now()-start)/1000).toFixed(1)}s`);
 
-  // Now generate Part A with the CEO already resolved
-  const partA = await generatePartA(companyName, industry, ticker, ceo);
+  // Stage 2: Part A and Part B fully parallel — CEO is now known, FMP is done
+  const [partA, partB] = await Promise.all([
+    generatePartA(companyName, industry, ticker, ceo),
+    generatePartB(companyName, industry, ticker),
+  ]);
 
   const mergedPartA = partA as any;
   if (mergedPartA.financials && Object.keys(fmpData).length > 0) {
