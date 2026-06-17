@@ -6,7 +6,7 @@ import type { User } from "../shared/schema.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const ADMIN_EMAIL = "andrew.mccreath@stellanordc.com";
+export const ADMIN_EMAIL = "andrew.mccreath@1giglabs.com";
 const FREE_CREDITS = 5;
 const MAGIC_LINK_EXPIRY_MINUTES = 15;
 

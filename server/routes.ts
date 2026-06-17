@@ -12,8 +12,11 @@ export const router = Router();
 // ─── Request helpers ──────────────────────────────────────────────────────────
 
 function getSessionUser(req: any): { id?: number; email?: string } {
-  const user = req.session?.user;
-  return { id: user?.id ?? undefined, email: user?.email ?? undefined };
+  // Session stores userId and email directly on req.session (set in authRoutes.ts)
+  return {
+    id: req.session?.userId ?? undefined,
+    email: req.session?.email ?? undefined,
+  };
 }
 
 function getClientIp(req: any): string | undefined {
