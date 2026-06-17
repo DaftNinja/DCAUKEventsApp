@@ -642,7 +642,8 @@ Return ONLY this JSON:
       "rating": "Buy|Overweight|Neutral|Underweight|Sell|Hold|Outperform|Market Perform",
       "priceTarget": "e.g. £4.20 or $195.00 — use correct currency symbol for the company's home market. Null if private company.",
       "note": "1 sentence capturing the analyst's key thesis or reasoning — specific, not generic",
-      "date": "Approximate date e.g. Q1 2025 or March 2025"
+      "date": "Most recent quarter e.g. Q1 2026 or Q4 2025 — always the latest known, never older than necessary",
+      "stale": false
     }
   ],
   "analystConsensus": {
@@ -666,11 +667,15 @@ Return ONLY this JSON:
 }
 
 CRITICAL RULES FOR ANALYST CITATIONS:
-- Provide 5-8 real analyst citations from well-known institutions: JP Morgan, Barclays, Morgan Stanley, Wolfe Research, Jefferies, Goldman Sachs, Deutsche Bank, UBS, Citi, HSBC, RBC Capital Markets, BofA Securities, Berenberg, Numis, Peel Hunt, Panmure Gordon (UK-listed), etc.
-- For PUBLIC companies only: include real recent ratings and price targets. Use approximate dates (Q1 2025 etc). The note must reflect the analyst's actual known thesis — not generic filler.
-- For PRIVATE companies: set priceTarget to null, and note should focus on valuation, funding round assessments, or sector views from research notes.
-- Do NOT fabricate specific analyst names if uncertain — set analyst to null rather than guess.
-- Price targets MUST use the correct currency symbol (£ for UK, $ for US, € for Eurozone etc).
+- TODAY'S DATE IS: ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}. Use this to determine recency.
+- ALWAYS use the MOST RECENT rating available for each institution — the last published note, upgrade/downgrade, or price target revision.
+- Prefer citations from the last 6 months (i.e. after ${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}). If the most recent known rating is older than 6 months, still include it but set "stale": true in the object.
+- NEVER default to a date from 2023 or early 2024 if a more recent rating is known. If genuinely uncertain of the exact quarter, use the most recent fiscal quarter of the company (e.g. if it's June 2026, last quarter is Q1 2026).
+- For PUBLIC companies: include real recent ratings and price targets. The note must reflect the analyst's actual known thesis — specific, not generic.
+- For PRIVATE companies: set priceTarget to null; note should focus on valuation, funding round assessments, or sector views.
+- Do NOT fabricate analyst names — set analyst to null if uncertain.
+- Price targets MUST use the correct currency symbol (£ UK, $ US, € Eurozone).
+- Add a "stale" boolean field to each citation: true if the rating is more than 6 months old, false otherwise.
 - Include an "Analyst Consensus" slide (after risk factors) summarising the overall picture.
 
 Include 11-13 slides: cover, investment thesis, company overview, financial highlights, market opportunity, competitive position, strategic initiatives, SWOT, growth catalysts, risk factors, analyst consensus, valuation summary, conclusion.`;
