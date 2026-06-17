@@ -666,19 +666,34 @@ Return ONLY this JSON:
   "disclaimer": "Standard investment disclaimer"
 }
 
-CRITICAL RULES FOR ANALYST CITATIONS:
-- TODAY'S DATE IS: ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}. Use this to determine recency.
-- ALWAYS use the MOST RECENT rating available for each institution — the last published note, upgrade/downgrade, or price target revision.
-- Prefer citations from the last 6 months (i.e. after ${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}). If the most recent known rating is older than 6 months, still include it but set "stale": true in the object.
-- NEVER default to a date from 2023 or early 2024 if a more recent rating is known. If genuinely uncertain of the exact quarter, use the most recent fiscal quarter of the company (e.g. if it's June 2026, last quarter is Q1 2026).
-- For PUBLIC companies: include real recent ratings and price targets. The note must reflect the analyst's actual known thesis — specific, not generic.
-- For PRIVATE companies: set priceTarget to null; note should focus on valuation, funding round assessments, or sector views.
-- Do NOT fabricate analyst names — set analyst to null if uncertain.
-- Price targets MUST use the correct currency symbol (£ UK, $ US, € Eurozone).
-- Add a "stale" boolean field to each citation: true if the rating is more than 6 months old, false otherwise.
-- Include an "Analyst Consensus" slide (after risk factors) summarising the overall picture.
+ANALYST CITATION RULES — READ CAREFULLY:
+
+TODAY'S DATE: ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}.
+SIX MONTHS AGO: ${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}.
+
+STEP 1 — QUANTITY FIRST. Provide 8-12 analyst citations for public companies, 4-6 for private.
+The goal is COMPREHENSIVE coverage. Cast the net wide across:
+- Bulge bracket: JP Morgan, Goldman Sachs, Morgan Stanley, Barclays, Deutsche Bank, UBS, Citi, HSBC, BofA Securities
+- Mid-tier US: Jefferies, Wolfe Research, RBC Capital Markets, Raymond James, Piper Sandler, Evercore ISI, TD Cowen
+- UK/European specialists (for UK/EU companies): Berenberg, Numis, Peel Hunt, Panmure Gordon, Investec, Shore Capital, Liberum, Stifel
+- Sector specialists relevant to the company's industry
+
+STEP 2 — INCLUSION RULE. Include a bank if you have ANY knowledge of them covering this company,
+even if you are uncertain of the exact recent quarter. An estimated date is far better than omitting a bank entirely.
+Do NOT self-censor due to date uncertainty — include and mark stale if needed.
+
+STEP 3 — DATE RULE. For each citation:
+- Use the most recent rating/note you know about
+- If uncertain of exact date, estimate using the most recent fiscal quarter (today is ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}, so last quarter is Q${Math.ceil((new Date().getMonth() + 1) / 3) === 1 ? 4 : Math.ceil((new Date().getMonth() + 1) / 3) - 1} ${Math.ceil((new Date().getMonth() + 1) / 3) === 1 ? new Date().getFullYear() - 1 : new Date().getFullYear()})
+- Set stale: true if the rating is likely more than 6 months old; stale: false otherwise
+- NEVER leave out a bank just because you are unsure of the exact quarter
+
+STEP 4 — QUALITY. Each note must be specific to this company's situation — not generic filler.
+Analyst names: include if confident, null if not. Price targets: correct native currency symbol (£ UK, $ US, € Eurozone), null for private.
+
+Include an "Analyst Consensus" slide (after risk factors) summarising the overall picture.
 
 Include 11-13 slides: cover, investment thesis, company overview, financial highlights, market opportunity, competitive position, strategic initiatives, SWOT, growth catalysts, risk factors, analyst consensus, valuation summary, conclusion.`;
 
-  return callClaude(prompt, 8000);
+  return callClaude(prompt, 10000);
 }
