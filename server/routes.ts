@@ -161,6 +161,30 @@ router.post("/reports/:slug/investor-presentation", async (req, res) => {
   const report = await getReportBySlug(req.params.slug);
   if (!report) return res.status(404).json({ error: "Report not found" });
 
+  // Block investor presentations for private companies.
+  // Private companies have no public market price, no analyst consensus,
+  // and no verifiable financials — a deck would be misleading.
+  const reportData = report.reportData as any;
+  const stockExchange: string = reportData?.executiveSummary?.stockExchange ?? "";
+  const isPrivate =
+    !stockExchange ||
+    /^\s*(n\/?a|private|unlisted|not\s+listed|not\s+publicly|privately\s+held)\s*$/i.test(stockExchange);
+
+  if (isPrivate) {
+    const { id: invUserId, email: invEmail } = getSessionUser(req);
+    await writeAuditLog(
+      "INVESTOR_PRESENTATION_BLOCKED_PRIVATE",
+      report.companyName,
+      invUserId,
+      invEmail,
+      getClientIp(req)
+    );
+    return res.status(403).json({
+      error: "Investor presentations can only be generated for publicly listed companies.",
+      code: "PRIVATE_COMPANY",
+    });
+  }
+
   try {
     const presentation = await generateInvestorPresentation(report.companyName, report.reportData);
     const { id: invUserId, email: invEmail } = getSessionUser(req);

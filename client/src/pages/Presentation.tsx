@@ -80,8 +80,15 @@ export function Presentation() {
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxIndex, presentation]);
 
+  // Derive whether the selected report is for a private company
+  const selectedReport = reports.find(r => r.companySlug === selectedSlug);
+  const stockExchange: string = (selectedReport?.reportData as any)?.executiveSummary?.stockExchange ?? "";
+  const isPrivate =
+    !!selectedSlug &&
+    (!stockExchange || /^\s*(n\/?a|private|unlisted|not\s+listed|not\s+publicly|privately\s+held)\s*$/i.test(stockExchange));
+
   const handleGenerate = async () => {
-    if (!selectedSlug) return;
+    if (!selectedSlug || isPrivate) return;
     setLoading(true);
     setPresentation(null);
     try {
@@ -132,7 +139,7 @@ export function Presentation() {
             ) : (
               <select
                 value={selectedSlug}
-                onChange={(e) => setSelectedSlug(e.target.value)}
+                onChange={(e) => { setSelectedSlug(e.target.value); setPresentation(null); }}
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)]"
               >
                 <option value="">— Select a company report —</option>
@@ -144,7 +151,11 @@ export function Presentation() {
               </select>
             )}
           </div>
-          <button onClick={handleGenerate} disabled={!selectedSlug || loading} className="btn-primary shrink-0">
+          <button
+            onClick={handleGenerate}
+            disabled={!selectedSlug || loading || isPrivate}
+            className="btn-primary shrink-0 disabled:opacity-50"
+          >
             {loading ? (
               <>
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -156,6 +167,27 @@ export function Presentation() {
             ) : <>Generate Deck</>}
           </button>
         </div>
+
+        {/* Private company warning */}
+        {isPrivate && (
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-800 bg-amber-950 px-4 py-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" className="shrink-0 mt-0.5">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-amber-400">Privately held company</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Investor presentations are only available for publicly listed companies.
+                {stockExchange && stockExchange.trim() && (
+                  <span className="ml-1">This company is listed as <span className="font-medium">{stockExchange}</span>.</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
         {reports.length === 0 && !fetching && (
           <p className="mt-3 text-xs text-[var(--text-muted)]">
             No reports yet. <a href="/" className="text-[var(--primary)] hover:underline">Generate a company report first.</a>
