@@ -635,11 +635,28 @@ Return ONLY this JSON:
 {
   "title": "${companyName}: Investment Analysis",
   "date": "dd/mm/yyyy",
+  "analystCitations": [
+    {
+      "bank": "Bank name e.g. JP Morgan, Barclays, Morgan Stanley, Wolfe Research, Jefferies, Goldman Sachs, Deutsche Bank, UBS, Citi, HSBC, RBC Capital Markets, BofA Securities",
+      "analyst": "Analyst full name if known, else null",
+      "rating": "Buy|Overweight|Neutral|Underweight|Sell|Hold|Outperform|Market Perform",
+      "priceTarget": "e.g. £4.20 or $195.00 — use correct currency symbol for the company's home market. Null if private company.",
+      "note": "1 sentence capturing the analyst's key thesis or reasoning — specific, not generic",
+      "date": "Approximate date e.g. Q1 2025 or March 2025"
+    }
+  ],
+  "analystConsensus": {
+    "overallRating": "e.g. Buy / Hold / Sell — the modal rating across banks",
+    "averagePriceTarget": "e.g. £3.95 — average of available price targets, correct currency symbol",
+    "numAnalysts": "e.g. 24 analysts covering",
+    "bullCase": "1 sentence bull case summary",
+    "bearCase": "1 sentence bear case summary"
+  },
   "slides": [
     {
       "slideNumber": 1,
       "title": "Slide title",
-      "type": "cover|executive_summary|financials|market|strategy|swot|growth|risk|conclusion",
+      "type": "cover|executive_summary|financials|market|strategy|swot|growth|risk|analyst_consensus|conclusion",
       "headline": "Key message headline",
       "bullets": ["Point 1", "Point 2", "Point 3"],
       "metric": {"label": "Key metric label", "value": "Value"}
@@ -648,7 +665,15 @@ Return ONLY this JSON:
   "disclaimer": "Standard investment disclaimer"
 }
 
-Include 10-12 slides: cover, investment thesis, company overview, financial highlights, market opportunity, competitive position, strategic initiatives, SWOT, growth catalysts, risk factors, valuation summary, conclusion.`;
+CRITICAL RULES FOR ANALYST CITATIONS:
+- Provide 5-8 real analyst citations from well-known institutions: JP Morgan, Barclays, Morgan Stanley, Wolfe Research, Jefferies, Goldman Sachs, Deutsche Bank, UBS, Citi, HSBC, RBC Capital Markets, BofA Securities, Berenberg, Numis, Peel Hunt, Panmure Gordon (UK-listed), etc.
+- For PUBLIC companies only: include real recent ratings and price targets. Use approximate dates (Q1 2025 etc). The note must reflect the analyst's actual known thesis — not generic filler.
+- For PRIVATE companies: set priceTarget to null, and note should focus on valuation, funding round assessments, or sector views from research notes.
+- Do NOT fabricate specific analyst names if uncertain — set analyst to null rather than guess.
+- Price targets MUST use the correct currency symbol (£ for UK, $ for US, € for Eurozone etc).
+- Include an "Analyst Consensus" slide (after risk factors) summarising the overall picture.
 
-  return callClaude(prompt, 7000);
+Include 11-13 slides: cover, investment thesis, company overview, financial highlights, market opportunity, competitive position, strategic initiatives, SWOT, growth catalysts, risk factors, analyst consensus, valuation summary, conclusion.`;
+
+  return callClaude(prompt, 8000);
 }
