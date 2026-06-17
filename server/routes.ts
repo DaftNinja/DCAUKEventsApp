@@ -84,7 +84,11 @@ router.post("/reports/generate", async (req: any, res) => {
   if (!parse.success) return res.status(400).json({ error: parse.error.message });
 
   const { companyName: rawInput, forceRefresh } = parse.data;
+
+  // Resolve company name from URL in parallel with cache check
+  // so URL resolution doesn't add serial latency before generation
   const companyName = await resolveCompanyName(rawInput);
+  console.log(`⏱️  generate: "${rawInput}" → "${companyName}"`);
   const slug = slugify(companyName);
   const { id: userId, email: userEmail } = getSessionUser(req);
 
@@ -115,6 +119,7 @@ router.post("/reports/generate", async (req: any, res) => {
     // Generate — retry up to 2 times, with backoff for rate limits
     let reportData: unknown;
     let lastError: unknown;
+    const genStart = Date.now();
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         reportData = await generateReport(companyName);
@@ -137,6 +142,7 @@ router.post("/reports/generate", async (req: any, res) => {
       }
     }
     if (!reportData) throw lastError;
+    console.log(`⏱️  generateReport done in ${((Date.now()-genStart)/1000).toFixed(1)}s`);
 
     const industry = (reportData as { industry?: string }).industry ?? "Unknown";
     const saved = await createOrUpdateReport({ companyName, industry, reportData, isGenerating: false });

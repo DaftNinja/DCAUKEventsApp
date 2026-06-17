@@ -293,14 +293,16 @@ async function lookupCEO(companyName: string): Promise<string> {
   return "See company website for current CEO";
 }
 
-// ─── Fast caller (Haiku, no tools) ───────────────────────────────────────────
+// ─── Fast caller (Sonnet, no tools) ─────────────────────────────────────────
 async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
+  const t = Date.now();
   const message = await client.messages.create({
     model: MODEL_FAST,
     max_tokens: maxTokens,
     system: SYSTEM,
     messages: [{ role: "user", content: prompt }],
   });
+  console.log(`  callClaude done in ${((Date.now()-t)/1000).toFixed(1)}s (stop_reason=${message.stop_reason}, output_tokens=${message.usage?.output_tokens})`);
 
   if (message.stop_reason === "max_tokens") {
     console.error(`Response truncated at ${maxTokens} tokens — increase max_tokens`);
@@ -447,7 +449,7 @@ Return ONLY this JSON (use correct currency symbol throughout, NOT ISO codes):
   }
 }`;
 
-  return callClaude(prompt, 5000);
+  return callClaude(prompt, 3500);
 }
 
 // ─── Report Part B: tech + ESG + SWOT + growth + risk + digital ──────────────
@@ -547,7 +549,7 @@ Return ONLY this JSON:
   }
 }`;
 
-  return callClaude(prompt, 5000);
+  return callClaude(prompt, 3500);
 }
 
 // ─── Public: generate full report ─────────────────────────────────────────────
