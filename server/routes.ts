@@ -38,6 +38,41 @@ export function isPubliclyListed(stockExchange: string | undefined | null): bool
   return PUBLIC_PATTERNS.some(p => p.test(s));
 }
 
+// ─── Input normalisation ────────────────────────────────────────────────────
+// If the user types a URL instead of a company name, extract the domain and
+// title-case it as a best-effort company name.
+// e.g. "https://www.pirum.com/about" → "Pirum"
+//      "http://barclays.co.uk"        → "Barclays"
+//      "www.apple.com"                → "Apple"
+function normaliseCompanyInput(input: string): string {
+  const trimmed = input.trim();
+
+  // Detect URL: starts with http(s):// or www. or contains a TLD-like pattern
+  const looksLikeUrl =
+    /^https?:\/\//i.test(trimmed) ||
+    /^www\./i.test(trimmed) ||
+    /^[a-z0-9-]+\.[a-z]{2,}(\/|$)/i.test(trimmed);
+
+  if (!looksLikeUrl) return trimmed;
+
+  try {
+    // Ensure it has a protocol so URL() can parse it
+    const withProtocol = /^https?:\/\//i.test(trimmed)
+      ? trimmed
+      : `https://${trimmed}`;
+    const url = new URL(withProtocol);
+    // hostname e.g. "www.pirum.com" → "pirum.com"
+    const hostname = url.hostname.replace(/^www\./, "");
+    // Take only the first label e.g. "pirum" from "pirum.com"
+    const label = hostname.split(".")[0];
+    // Title-case it
+    return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+  } catch {
+    // URL() threw — not a real URL, return original
+    return trimmed;
+  }
+}
+
 function getSessionUser(req: any): { id?: number; email?: string } {
   // Session stores userId and email directly on req.session (set in authRoutes.ts)
   return {
@@ -83,7 +118,8 @@ router.post("/reports/generate", async (req: any, res) => {
   const parse = schema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: parse.error.message });
 
-  const { companyName, forceRefresh } = parse.data;
+  const { companyName: rawInput, forceRefresh } = parse.data;
+  const companyName = normaliseCompanyInput(rawInput);
   const slug = slugify(companyName);
   const { id: userId, email: userEmail } = getSessionUser(req);
 

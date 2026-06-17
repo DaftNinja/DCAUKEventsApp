@@ -8,6 +8,25 @@ const EXAMPLE_COMPANIES = [
   "Amazon", "Nvidia", "Deutsche Bank", "Shell",
 ];
 
+// Mirrors the server-side normalisation — strips URLs to a clean company name
+// so the UI never shows a raw URL in the heading or slug.
+function normaliseCompanyInput(input: string): string {
+  const trimmed = input.trim();
+  const looksLikeUrl =
+    /^https?:\/\//i.test(trimmed) ||
+    /^www\./i.test(trimmed) ||
+    /^[a-z0-9-]+\.[a-z]{2,}(\/|$)/i.test(trimmed);
+  if (!looksLikeUrl) return trimmed;
+  try {
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const hostname = new URL(withProtocol).hostname.replace(/^www\./, "");
+    const label = hostname.split(".")[0];
+    return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+  } catch {
+    return trimmed;
+  }
+}
+
 export function Home() {
   const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
@@ -16,11 +35,14 @@ export function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerate = async (company: string = query) => {
-    if (!company.trim()) return;
+    const normalised = normaliseCompanyInput(company);
+    if (!normalised) return;
+    // Update the input to show the cleaned name
+    if (normalised !== company) setQuery(normalised);
     setLoading(true);
     setError("");
     try {
-      const { report } = await api.reports.generate(company.trim());
+      const { report } = await api.reports.generate(normalised);
       navigate(`/reports/${report.companySlug}`);
     } catch (err: any) {
       if (err?.status === 403 || err?.data?.code === "NO_CREDITS") {
