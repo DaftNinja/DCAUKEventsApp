@@ -5,8 +5,8 @@ const client = new Anthropic({
 });
 
 // ─── Models ───────────────────────────────────────────────────────────────────
-const MODEL_GROUNDED = "claude-haiku-4-5-20251001";
-const MODEL_FAST = "claude-haiku-4-5-20251001";
+const MODEL_GROUNDED = "claude-sonnet-4-6";
+const MODEL_FAST = "claude-sonnet-4-6";
 
 const SYSTEM = `You are an elite strategic intelligence analyst working for the Stellanor Insight Generator platform.
 Respond with ONLY valid JSON — no prose, no markdown fences, no explanation.
