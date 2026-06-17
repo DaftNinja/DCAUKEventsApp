@@ -70,4 +70,4 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-*Maintained by the Stellanor engineering team. For questions contact andrew.mccreath@stellanordc.com*
+*Maintained by the Stellanor team. For license questions contact andrew.mccreath@1giglabs.com*
