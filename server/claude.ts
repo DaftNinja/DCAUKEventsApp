@@ -33,8 +33,67 @@ CURRENCY RULES — CRITICAL:
 - Do NOT convert to USD. Report in the company's home currency only.
 - Examples: Tesco → £, BMW → €, Apple → $, Toyota → ¥, Nestlé → CHF`;
 
+// ─── Stellanor seller context ─────────────────────────────────────────────────
+// Grounded in: company overview doc, London East/North datasheets, Oct 2025 press release.
+// Injected into sales enablement prompts so the AI understands who Stellanor is,
+// what they sell, and how to position against the target company's specific profile.
+const STELLANOR_SELLER_CONTEXT = `
+ABOUT STELLANOR DATACENTERS (the seller):
+- Fast-growing next-generation UK datacenter platform. CEO: Steve Scott. Backed by DWS Group.
+- Mission: deliver high-quality, reliable and sustainable colocation services through well-invested,
+  secure digital infrastructure to enterprise and wholesale customers — supporting digital
+  outsourcing and the AI revolution.
+- 10 UK datacenters (post-Redcentric acquisition Oct 2025): London East (6 Braham St, E1),
+  London North (Goswell Road, EC1V), Reading, Cambridge, Woking, Gatwick, Byfleet, West Yorkshire,
+  plus two additional legacy sites.
+- Total secured grid capacity: 36MW across the portfolio. ~450 existing clients.
+- 100% renewable energy. Target: fully CO₂ neutral by 2030. Tier 3+ standards across most sites.
+
+CORE SERVICES:
+1. COLOCATION — rack space, redundant power, cooling, physical security, 24/7 monitoring.
+   Fixed monthly fee. Scalable — customers add rack space on demand via myStellanor portal.
+   Predictable costs vs CapEx-heavy own-DC model.
+2. CONNECTIVITY — cloud & carrier-neutral (no vendor lock-in). Services:
+   - IP Transit (local and international Tier 1–3 networks)
+   - Dark fibre (unlit, full customer configuration control)
+   - Lit fibre / DWDM (active, ready for immediate data transmission)
+   - ISP Hosting — 100% flexibility to switch ISP providers
+   - Key carriers: Lumen, Colt, BT, Vodafone, Verizon, Interoute, Cogent, euNetworks, AT&T, Fibernet, Kingston
+   - Internet Exchange access for high-speed, low-latency connectivity
+3. MANAGED MONITORING — myStellanor portal: energy consumption, inlet temperature, humidity,
+   remote services, orders, access management, all in one place.
+4. MIGRATION SUPPORT — guided migration process, partner network, tailored advice at every step.
+
+KEY DIFFERENTIATORS TO LEAD WITH:
+- Tier 3+ reliability: fully redundant UPS / cooling / diesel generators, 99.999% uptime capability
+- 100% renewable energy — strong ESG story, CO₂ neutral by 2030 (critical for sustainability-reporting enterprises)
+- Cloud & carrier-neutral — no vendor lock-in, full provider freedom, fostering innovation
+- Edge/urban locations: proximity to City of London reduces latency vs hyperscale out-of-town campuses
+- AI inference and real-time analytics ready — high-density compute hosting
+- Personalised, local specialist service vs large impersonal global providers
+- Predictable fixed monthly costs — eliminates CapEx, makes DC spend opex
+- Scalable without long lead times — add rack space on demand
+- Enterprise-grade security: biometric palm scanners, 24/7 remote monitoring, full electronic access control, CCTV
+- myStellanor self-service portal for real-time visibility and control
+
+FLAGSHIP FACILITIES:
+London East — 6 Braham St, E1 8EP. Est. 1999. 6 floors. 8,046m² total / 2,940m² colo.
+  4MVA max power. 2×2MVA diesel generators. 1,875kVA UPS N+1. Dual fibre entry.
+London North — Moreland House, 260-265 Goswell Rd, EC1V 7EB. 7 floors. 25,143m² total / 12,212m² colo.
+  20MVA max power. 4×4.3MVA generators. 9,500kVA UPS N+1. Three independent fibre entry points.
+  Full BMS, Location Operations & Control Center, perimeter under-floor leak detection.
+
+IDEAL CUSTOMER PROFILE:
+- Enterprise IT teams and managed cloud/hosting providers needing secure, scalable UK colocation
+- Organisations with ageing or oversized on-premises data centers facing refresh, cost, or ESG pressure
+- Businesses requiring low-latency City of London connectivity (financial services, media, gaming, healthcare, public sector)
+- Companies adopting generative AI or real-time analytics needing high-density compute hosting
+- Organisations with ESG / net-zero reporting requirements where 100% renewable energy matters
+- Wholesale customers needing large-footprint deployments with carrier diversity
+- Businesses wanting to exit capital-intensive data center ownership and move to predictable opex
+`.trim();
+
 // ─── Currency helper ──────────────────────────────────────────────────────────
-// Maps a headquarters country/region to its native currency symbol.
 function currencySymbol(hq: string): string {
   const h = hq.toLowerCase();
   if (/uk|united kingdom|england|scotland|wales|britain/.test(h)) return "£";
@@ -49,7 +108,6 @@ function currencySymbol(hq: string): string {
   if (/china/.test(h)) return "¥";
   if (/india/.test(h)) return "₹";
   if (/brazil/.test(h)) return "R$";
-  // Default: USD
   return "$";
 }
 
@@ -65,7 +123,7 @@ interface FMPFinancials {
   peRatio?: string;
   eps?: string;
   operatingMargin?: string;
-  currency?: string; // e.g. "GBP", "USD", "EUR"
+  currency?: string;
 }
 
 async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
@@ -89,15 +147,10 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
     const r = Array.isArray(ratios) ? ratios[0] : null;
     const incomeList = Array.isArray(income) ? income : [];
 
-    // Determine currency symbol from FMP profile currency field
     const fmpCurrency: string = p?.currency ?? "USD";
     const hqCountry: string = p?.country ?? "";
-    // Prefer HQ-based symbol detection; fall back to FMP currency code mapping
-    const sym = hqCountry
-      ? currencySymbol(hqCountry)
-      : fmpCurrencyToSymbol(fmpCurrency);
+    const sym = hqCountry ? currencySymbol(hqCountry) : fmpCurrencyToSymbol(fmpCurrency);
 
-    // Format large numbers with the correct currency symbol
     const fmt = (n: number | undefined): string | undefined => {
       if (n == null || isNaN(n)) return undefined;
       if (Math.abs(n) >= 1e12) return `${sym}${(n / 1e12).toFixed(2)}T`;
@@ -111,7 +164,6 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
       return `${(n * 100).toFixed(1)}%`;
     };
 
-    // Build revenue history from income statements
     const revenueHistory = incomeList
       .slice(0, 4)
       .reverse()
@@ -146,22 +198,11 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
   }
 }
 
-// Maps FMP ISO currency codes to display symbols (fallback when no HQ country)
 function fmpCurrencyToSymbol(code: string): string {
   const map: Record<string, string> = {
-    GBP: "£",
-    EUR: "€",
-    USD: "$",
-    JPY: "¥",
-    CHF: "CHF ",
-    CAD: "C$",
-    AUD: "A$",
-    SEK: "kr",
-    NOK: "kr",
-    DKK: "kr",
-    INR: "₹",
-    CNY: "¥",
-    BRL: "R$",
+    GBP: "£", EUR: "€", USD: "$", JPY: "¥", CHF: "CHF ",
+    CAD: "C$", AUD: "A$", SEK: "kr", NOK: "kr", DKK: "kr",
+    INR: "₹", CNY: "¥", BRL: "R$",
   };
   return map[code.toUpperCase()] ?? "$";
 }
@@ -244,18 +285,10 @@ function mergeFinancials(claudeFinancials: any, fmp: FMPFinancials): any {
   if (Array.isArray(merged.keyMetrics)) {
     merged.keyMetrics = merged.keyMetrics.map((m: any) => {
       const label = m.label?.toLowerCase() ?? "";
-      if (label.includes("gross margin") && fmp.grossMargin) {
-        return { ...m, value: fmp.grossMargin, verified: true };
-      }
-      if (label.includes("operating margin") && fmp.operatingMargin) {
-        return { ...m, value: fmp.operatingMargin, verified: true };
-      }
-      if ((label.includes("p/e") || label.includes("pe ratio")) && fmp.peRatio) {
-        return { ...m, value: fmp.peRatio, verified: true };
-      }
-      if (label.includes("eps") && fmp.eps) {
-        return { ...m, value: fmp.eps, verified: true };
-      }
+      if (label.includes("gross margin") && fmp.grossMargin) return { ...m, value: fmp.grossMargin, verified: true };
+      if (label.includes("operating margin") && fmp.operatingMargin) return { ...m, value: fmp.operatingMargin, verified: true };
+      if ((label.includes("p/e") || label.includes("pe ratio")) && fmp.peRatio) return { ...m, value: fmp.peRatio, verified: true };
+      if (label.includes("eps") && fmp.eps) return { ...m, value: fmp.eps, verified: true };
       return m;
     });
   }
@@ -270,7 +303,6 @@ async function generatePartA(
   ticker?: string
 ): Promise<unknown> {
   const currentCEO = await lookupCEO(companyName);
-
   const tickerContext = ticker ? ` (Ticker: ${ticker})` : "";
   const industryContext = industry ? ` operating in the ${industry} sector` : "";
 
@@ -495,50 +527,97 @@ export async function generateReport(
 }
 
 // ─── Sales Enablement ─────────────────────────────────────────────────────────
+// When sellerProduct is empty/default, Stellanor's own colocation & connectivity
+// services are used automatically. The STELLANOR_SELLER_CONTEXT block grounds
+// the AI in real product facts — no hallucinated services or pricing.
 export async function generateSalesEnablement(
   companyName: string,
   reportData: unknown,
   sellerProduct: string
 ): Promise<unknown> {
-  const prompt = `Generate a sales enablement brief.
+  // Determine if this is a Stellanor-as-seller brief or a generic one
+  const isStellanoSeller =
+    !sellerProduct ||
+    sellerProduct.trim() === "" ||
+    /stellanor/i.test(sellerProduct) ||
+    /colocation|colo|data.?cent(er|re)|connectivity|rack.?space/i.test(sellerProduct);
+
+  const sellerContext = isStellanoSeller
+    ? `\n\nSELLER CONTEXT:\n${STELLANOR_SELLER_CONTEXT}\n\nThe seller is Stellanor Datacenters. Generate this brief specifically for a Stellanor account executive preparing to approach ${companyName}.`
+    : `\n\nSeller's Product/Service: ${sellerProduct}`;
+
+  const effectiveProduct = isStellanoSeller
+    ? "Stellanor Datacenters — colocation, connectivity, and managed data centre services"
+    : sellerProduct;
+
+  const stellanorSpecificInstructions = isStellanoSeller ? `
+
+STELLANOR-SPECIFIC INSTRUCTIONS:
+- useCases must reference specific Stellanor services (colocation, IP transit, dark fibre, myStellanor portal, etc.)
+- conversationStarters should open doors to data centre discussions (IT refresh cycles, DC costs, ESG commitments, AI workload hosting, latency requirements)
+- painPoints must map target company's real operational/infrastructure challenges to specific Stellanor capabilities
+- potentialSavings should reference the shift from CapEx (own DC) to OpEx (Stellanor colo), carrier neutrality savings, and sustainability cost avoidance
+- competitivePositioning: identify likely incumbent providers (Equinix, CyrusOne, NTT, Virtus, Digital Realty, own-DC) and explain how Stellanor wins — proximity, personalised service, 100% renewables, Tier 3+, no lock-in
+- totalValueOpportunity: estimate in £ based on company size, likely rack count, and connectivity requirements
+- nextSteps should include booking a site visit to London East or London North as an early action
+- Recommend the most relevant Stellanor site(s) based on the company's HQ / geography
+` : "";
+
+  const prompt = `Generate a highly targeted sales enablement brief.
 
 Target Company: ${companyName}
-Seller's Product/Service: ${sellerProduct}
-
-Company Intelligence:
+Seller: ${effectiveProduct}
+${sellerContext}
+${stellanorSpecificInstructions}
+Company Intelligence (use this to personalise every section):
 ${JSON.stringify(reportData, null, 2)}
 
 Return ONLY this JSON:
 {
-  "sellerProduct": "${sellerProduct}",
-  "salesSummary": "2-3 sentence executive summary of the sales opportunity",
-  "conversationStarters": ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"],
+  "sellerProduct": "${effectiveProduct}",
+  "salesSummary": "3-4 sentence executive summary of the sales opportunity — specific to this company's profile, size, industry, and infrastructure signals",
+  "recommendedSites": ["e.g. London East (proximity to HQ), London North (scale)"],
+  "conversationStarters": [
+    "Specific, insight-led question referencing something real from the company intelligence",
+    "Question about their current DC strategy or IT refresh cycle",
+    "Question linking their AI/digital initiatives to infrastructure needs",
+    "Question about their ESG commitments and how their DC estate contributes",
+    "Question about carrier or cloud provider flexibility"
+  ],
   "painPoints": [
-    {"pain": "Specific pain point", "solution": "How your product addresses it"},
-    {"pain": "Specific pain point", "solution": "How your product addresses it"},
-    {"pain": "Specific pain point", "solution": "How your product addresses it"}
+    {"pain": "Specific infrastructure or operational pain derived from the company intelligence", "solution": "Specific Stellanor capability that addresses it directly"},
+    {"pain": "Pain point 2", "solution": "Stellanor solution 2"},
+    {"pain": "Pain point 3", "solution": "Stellanor solution 3"},
+    {"pain": "Pain point 4", "solution": "Stellanor solution 4"}
   ],
   "useCases": [
-    {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "How it applies to this company"},
-    {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "How it applies to this company"},
-    {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "How it applies to this company"}
+    {"title": "Use case title", "roi": "Quantified ROI or saving estimate in £", "description": "How this Stellanor service applies specifically to this company"},
+    {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "Specific application"},
+    {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "Specific application"}
   ],
-  "totalValueOpportunity": "e.g. £2-5M ACV based on company profile",
-  "currentChallenges": ["Challenge 1", "Challenge 2", "Challenge 3", "Challenge 4"],
+  "totalValueOpportunity": "Estimated £ ACV range based on company size and likely rack/connectivity requirements — with brief rationale",
+  "currentChallenges": [
+    "Infrastructure challenge specific to this company or industry",
+    "Cost or ESG pressure inferred from the intelligence",
+    "Connectivity or latency requirement",
+    "AI / digital transformation infrastructure need"
+  ],
   "potentialSavings": [
-    {"area": "Area name", "estimate": "e.g. £500K-1M annually"},
-    {"area": "Area name", "estimate": "e.g. £200K annually"},
-    {"area": "Area name", "estimate": "e.g. 20% efficiency gain"}
+    {"area": "CapEx elimination / DC refresh avoidance", "estimate": "e.g. £X-XM over 3 years vs own-DC refresh"},
+    {"area": "Carrier neutrality & connectivity optimisation", "estimate": "e.g. £X00K annually"},
+    {"area": "ESG / sustainability reporting value", "estimate": "e.g. 100% renewable energy supporting net-zero commitments"},
+    {"area": "Operational efficiency via myStellanor portal", "estimate": "e.g. X% reduction in DC management overhead"}
   ],
-  "competitivePositioning": "How to position against likely alternatives this company uses",
+  "competitivePositioning": "Identify likely incumbent or competing providers (own-DC, Equinix, Digital Realty, CyrusOne, NTT, Virtus, hyperscalers) and articulate specifically why Stellanor wins — city-edge proximity, personalised service, 100% renewables, Tier 3+, carrier neutral, predictable opex",
   "nextSteps": [
-    {"step": "Step 1", "action": "Specific action", "timeline": "Immediate"},
-    {"step": "Step 2", "action": "Specific action", "timeline": "Week 1-2"},
-    {"step": "Step 3", "action": "Specific action", "timeline": "Month 1"}
+    {"step": "1", "action": "Specific first outreach action referencing something from the intelligence", "timeline": "This week"},
+    {"step": "2", "action": "Book a no-obligation site tour of the most relevant Stellanor facility", "timeline": "Week 1-2"},
+    {"step": "3", "action": "Arrange a technical scoping call with Stellanor's solutions team", "timeline": "Week 2-3"},
+    {"step": "4", "action": "Deliver a tailored proposal with rack configuration and connectivity options", "timeline": "Month 1"}
   ]
 }`;
 
-  return callClaude(prompt, 4000);
+  return callClaude(prompt, 5000);
 }
 
 // ─── Investor Presentation ────────────────────────────────────────────────────
