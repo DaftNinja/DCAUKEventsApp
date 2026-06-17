@@ -208,6 +208,58 @@ function fmpCurrencyToSymbol(code: string): string {
   return map[code.toUpperCase()] ?? "$";
 }
 
+// ─── Company name resolution ─────────────────────────────────────────────────
+// When input looks like a URL, use Haiku to resolve the proper company name.
+// Haiku knows hsbc.com → "HSBC", jpmorganchase.com → "JPMorgan Chase",
+// ab-inbev.com → "AB InBev", diageo.com → "Diageo" etc.
+// Falls back to simple domain extraction only if the API call fails.
+export async function resolveCompanyName(input: string): Promise<string> {
+  const trimmed = input.trim();
+
+  const looksLikeUrl =
+    /^https?:\/\//i.test(trimmed) ||
+    /^www\./i.test(trimmed) ||
+    /^[a-z0-9-]+\.[a-z]{2,}(\/|$)/i.test(trimmed);
+
+  if (!looksLikeUrl) return trimmed; // plain company name — return as-is
+
+  // Extract bare domain for the prompt
+  let domain = trimmed;
+  try {
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    domain = new URL(withProtocol).hostname.replace(/^www\./, "");
+  } catch { /* leave domain as trimmed */ }
+
+  try {
+    const message = await client.messages.create({
+      model: MODEL_GROUNDED, // Haiku — fast, cheap, knows company→domain mappings well
+      max_tokens: 50,
+      system: "You are a company name lookup assistant. Respond with ONLY the official company name — correct capitalisation, no punctuation, no explanation.",
+      messages: [{
+        role: "user",
+        content: `What is the official company name for the website domain: ${domain}? Return only the name.`,
+      }],
+    });
+
+    const name = message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map(b => b.text)
+      .join("")
+      .trim()
+      .replace(/["'.]/g, ""); // strip any stray quotes
+
+    if (name && name.length > 0 && name.length < 100 && !name.includes("\n")) {
+      return name;
+    }
+  } catch (err) {
+    console.warn(`Company name resolution failed for ${domain}:`, err);
+  }
+
+  // Fallback: title-case the first domain label
+  const label = domain.split(".")[0];
+  return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+}
+
 // ─── CEO lookup via web search ────────────────────────────────────────────────
 async function lookupCEO(companyName: string): Promise<string> {
   try {
