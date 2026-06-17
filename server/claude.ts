@@ -8,7 +8,7 @@ const client = new Anthropic({
 const MODEL_GROUNDED = "claude-haiku-4-5-20251001";
 const MODEL_FAST = "claude-haiku-4-5-20251001";
 
-const SYSTEM = `You are an elite strategic intelligence analyst.
+const SYSTEM = `You are an elite strategic intelligence analyst working for the Stellanor Insight Generator platform.
 Respond with ONLY valid JSON — no prose, no markdown fences, no explanation.
 Do NOT write any introductory sentences or narrate your search process. Output JSON immediately.
 Use real accurate data for well-known companies. Estimates for smaller ones.
@@ -487,7 +487,7 @@ export async function generateReport(
   }
 
   console.log(
-    `✅ Report generated in ${((Date.now() - start) / 1000).toFixed(1)}s` +
+    `✅ Stellanor report generated in ${((Date.now() - start) / 1000).toFixed(1)}s` +
     `${Object.keys(fmpData).length > 0 ? " (FMP verified)" : " (AI estimates)"}`
   );
 

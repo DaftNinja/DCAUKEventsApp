@@ -33,12 +33,10 @@ export function Navbar() {
       <nav className="sticky top-0 z-50 border-b border-[var(--border)] bg-[#0a0a14]/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           {/* Logo */}
-          <Link href="/">
-            <a className="flex items-center gap-2.5 group">
-              <StellanorMark size={32} />
-              <span className="text-sm font-semibold text-[var(--text-primary)]">Stellanor</span>
-              <span className="hidden text-xs text-[var(--text-muted)] sm:block">Insight Generator</span>
-            </a>
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <StellanorMark height={32} />
+            <span className="text-sm font-semibold text-[var(--text-primary)]">Stellanor</span>
+            <span className="hidden text-xs text-[var(--text-muted)] sm:block">Insight Generator</span>
           </Link>
 
           {/* Desktop nav */}
@@ -46,31 +44,42 @@ export function Navbar() {
             {NAV_ITEMS.map(({ href, label, highlight }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
               return (
-                <Link key={href} href={href}>
-                  <a className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                    active ? "bg-[var(--primary-light)] text-[var(--primary)]"
-                    : highlight ? "bg-[var(--primary)] text-[#0a0a14] hover:bg-[var(--primary-hover)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
-                  }`}>
-                    {highlight && <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="2,1 9,5 2,9" /></svg>}
-                    {label}
-                  </a>
+                <Link
+                  key={href}
+                  href={href}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                    active
+                      ? "bg-[var(--primary-light)] text-[var(--primary)]"
+                      : highlight
+                      ? "bg-[var(--primary)] text-[#0a0a14] hover:bg-[var(--primary-hover)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
+                  }`}
+                >
+                  {highlight && (
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                      <polygon points="2,1 9,5 2,9" />
+                    </svg>
+                  )}
+                  {label}
                 </Link>
               );
             })}
             {user?.isAdmin && (
-              <Link href="/audit-log">
-                <a className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              <Link
+                href="/audit-log"
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
                   location.startsWith("/audit-log")
                     ? "bg-[var(--primary-light)] text-[var(--primary)]"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
-                }`}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
-                  </svg>
-                  Audit Log
-                </a>
+                }`}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                Audit Log
               </Link>
             )}
           </div>
@@ -82,7 +91,6 @@ export function Navbar() {
               <span className="text-xs font-medium text-[var(--primary)]">AI Live</span>
             </div>
 
-            {/* Auth state */}
             {!loading && (
               <div className="hidden sm:flex items-center gap-2">
                 {user ? (
@@ -101,10 +109,11 @@ export function Navbar() {
                     </button>
                   </>
                 ) : (
-                  <Link href="/login">
-                    <a className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[#0a0a14] hover:bg-[var(--primary-hover)] transition-colors">
-                      Sign in
-                    </a>
+                  <Link
+                    href="/login"
+                    className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[#0a0a14] hover:bg-[var(--primary-hover)] transition-colors"
+                  >
+                    Sign in
                   </Link>
                 )}
               </div>
@@ -133,23 +142,32 @@ export function Navbar() {
           {NAV_ITEMS.map(({ href, label, highlight }) => {
             const active = href === "/" ? location === "/" : location.startsWith(href);
             return (
-              <Link key={href} href={href}>
-                <a className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  active ? "bg-[var(--primary-light)] text-[var(--primary)]"
-                  : highlight ? "bg-[var(--primary)] text-[#0a0a14]"
-                  : "text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
-                }`}>
-                  {highlight && <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="2,1 9,5 2,9" /></svg>}
-                  {label}
-                </a>
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-[var(--primary-light)] text-[var(--primary)]"
+                    : highlight
+                    ? "bg-[var(--primary)] text-[#0a0a14]"
+                    : "text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
+                }`}
+              >
+                {highlight && (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                    <polygon points="2,1 9,5 2,9" />
+                  </svg>
+                )}
+                {label}
               </Link>
             );
           })}
           {user?.isAdmin && (
-            <Link href="/audit-log">
-              <a className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]">
-                Audit Log
-              </a>
+            <Link
+              href="/audit-log"
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+            >
+              Audit Log
             </Link>
           )}
 
@@ -170,10 +188,11 @@ export function Navbar() {
                 </button>
               </>
             ) : (
-              <Link href="/login">
-                <a className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary-light)]">
-                  Sign in
-                </a>
+              <Link
+                href="/login"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary-light)]"
+              >
+                Sign in
               </Link>
             ))}
           </div>
