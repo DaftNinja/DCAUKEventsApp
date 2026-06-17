@@ -78,11 +78,12 @@ export function Dashboard() {
     }
   };
 
-  const handleGenerateSales = async () => {
-    if (!sellerProduct.trim()) return;
+  const handleGenerateSales = async (productOverride?: string) => {
+    const product = productOverride ?? sellerProduct;
+    if (!product.trim()) return;
     setSalesLoading(true);
     try {
-      const { report: updated } = await api.reports.salesEnablement(slug, sellerProduct);
+      const { report: updated } = await api.reports.salesEnablement(slug, product);
       setReport(updated);
     } catch (err: any) {
       alert(err.message);
@@ -211,6 +212,7 @@ export function Dashboard() {
               sellerProduct={sellerProduct}
               setSellerProduct={setSellerProduct}
               onGenerate={handleGenerateSales}
+              onGenerateWithProduct={handleGenerateSales}
               loading={salesLoading}
             />
           )}
@@ -790,13 +792,14 @@ function DigitalTab({ data }: { data: ReportData }) {
 }
 
 function SalesTab({
-  data, sales, sellerProduct, setSellerProduct, onGenerate, loading,
+  data, sales, sellerProduct, setSellerProduct, onGenerate, onGenerateWithProduct, loading,
 }: {
   data: ReportData;
   sales: SalesEnablement | null;
   sellerProduct: string;
   setSellerProduct: (v: string) => void;
   onGenerate: () => void;
+  onGenerateWithProduct: (product: string) => void;
   loading: boolean;
 }) {
   return (
@@ -836,7 +839,7 @@ function SalesTab({
         </div>
         {/* Stellanor default alignment shortcut */}
         <button
-          onClick={() => { setSellerProduct(""); onGenerate(); }}
+          onClick={() => onGenerateWithProduct("stellanor")}
           disabled={loading}
           className="mt-3 flex items-center gap-1.5 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors disabled:opacity-40"
         >
