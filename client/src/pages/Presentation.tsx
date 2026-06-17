@@ -80,12 +80,27 @@ export function Presentation() {
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxIndex, presentation]);
 
-  // Derive whether the selected report is for a private company
+  // Allowlist approach — mirrors server-side isPubliclyListed()
+  // A company is public ONLY if its stockExchange contains a recognised exchange name or ticker prefix.
   const selectedReport = reports.find(r => r.companySlug === selectedSlug);
   const stockExchange: string = (selectedReport?.reportData as any)?.executiveSummary?.stockExchange ?? "";
-  const isPrivate =
-    !!selectedSlug &&
-    (!stockExchange || /^\s*(n\/?a|private|unlisted|not\s+listed|not\s+publicly|privately\s+held)\s*$/i.test(stockExchange));
+
+  function isPubliclyListed(s: string): boolean {
+    if (!s || !s.trim()) return false;
+    const u = s.trim().toUpperCase();
+    return [
+      /\bNYSE\b/, /\bNASDAQ\b/, /\bAMEX\b/, /\bOTCBB\b/, /\bOTC\b/,
+      /\bLSE\b/, /\bLONDON\s*STOCK\s*EXCHANGE\b/, /\bAIM\b/,
+      /\bEURONEXT\b/, /\bXETRA\b/, /\bFSE\b/, /\bFRANKFURT\b/,
+      /\bSIX\b/, /\bSWX\b/, /\bOMX\b/, /\bBME\b/, /\bBORSA\s*ITALIANA\b/, /\bENXT\b/,
+      /\bTSE\b/, /\bTOKYO\b/, /\bTYO\b/, /\bHKEX\b/, /\bHKG\b/,
+      /\bASX\b/, /\bSGX\b/, /\bBSE\b/, /\bNSE\b/,
+      /\bTSX\b/, /\bTSX-V\b/, /\bJSE\b/, /\bB3\b/,
+      /[A-Z]{2,6}:\s*[A-Z]{1,6}/,
+    ].some(p => p.test(u));
+  }
+
+  const isPrivate = !!selectedSlug && !isPubliclyListed(stockExchange);
 
   const handleGenerate = async () => {
     if (!selectedSlug || isPrivate) return;

@@ -9,7 +9,34 @@ import { writeAuditLog, getUserById, decrementCredits, isAdmin } from "./auth.js
 
 export const router = Router();
 
-// ─── Request helpers ──────────────────────────────────────────────────────────
+// ─── Public listing detection ────────────────────────────────────────────────
+// Allowlist approach: a company is considered publicly listed ONLY if its
+// stockExchange field contains a recognisable exchange name or ticker prefix.
+// Anything else — empty, N/A, Private, "Privately held by the Schwarz family",
+// "Not publicly traded", etc. — is treated as private.
+export function isPubliclyListed(stockExchange: string | undefined | null): boolean {
+  if (!stockExchange || !stockExchange.trim()) return false;
+  const s = stockExchange.trim().toUpperCase();
+  // Known exchange names and ticker prefixes
+  const PUBLIC_PATTERNS = [
+    // US
+    /\bNYSE\b/, /\bNASDAQ\b/, /\bNYSE\s*ARCA\b/, /\bAMEX\b/, /\bOTCBB\b/, /\bOTC\b/,
+    // UK
+    /\bLSE\b/, /\bLONDON\s*STOCK\s*EXCHANGE\b/, /\bAIM\b/,
+    // Europe
+    /\bEURONEXT\b/, /\bXETRA\b/, /\bFSE\b/, /\bFRANKFURT\b/,
+    /\bSIX\b/, /\bSWX\b/, /\bOMX\b/, /\bHELSINKI\b/,
+    /\bBME\b/, /\bBORSA\s*ITALIANA\b/, /\bENXT\b/,
+    // Asia-Pacific
+    /\bTSE\b/, /\bTOKYO\b/, /\bTYO\b/, /\bHKEX\b/, /\bHKG\b/,
+    /\bASX\b/, /\bSGX\b/, /\bBSE\b/, /\bNSE\b/,
+    // Canada / Other
+    /\bTSX\b/, /\bTSX-V\b/, /\bJSE\b/, /\bB3\b/,
+    // Ticker colon patterns e.g. "LSE: TSCO", "NASDAQ: AAPL", "NYSE: IBM"
+    /[A-Z]{2,6}:\s*[A-Z]{1,6}/,
+  ];
+  return PUBLIC_PATTERNS.some(p => p.test(s));
+}
 
 function getSessionUser(req: any): { id?: number; email?: string } {
   // Session stores userId and email directly on req.session (set in authRoutes.ts)
@@ -162,15 +189,11 @@ router.post("/reports/:slug/investor-presentation", async (req, res) => {
   if (!report) return res.status(404).json({ error: "Report not found" });
 
   // Block investor presentations for private companies.
-  // Private companies have no public market price, no analyst consensus,
-  // and no verifiable financials — a deck would be misleading.
+  // Uses allowlist detection — must match a real exchange name or ticker pattern.
   const reportData = report.reportData as any;
   const stockExchange: string = reportData?.executiveSummary?.stockExchange ?? "";
-  const isPrivate =
-    !stockExchange ||
-    /^\s*(n\/?a|private|unlisted|not\s+listed|not\s+publicly|privately\s+held)\s*$/i.test(stockExchange);
 
-  if (isPrivate) {
+  if (!isPubliclyListed(stockExchange)) {
     const { id: invUserId, email: invEmail } = getSessionUser(req);
     await writeAuditLog(
       "INVESTOR_PRESENTATION_BLOCKED_PRIVATE",
