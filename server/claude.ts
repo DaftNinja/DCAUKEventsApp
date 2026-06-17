@@ -35,9 +35,6 @@ CURRENCY RULES — CRITICAL:
 - Examples: Tesco → £, BMW → €, Apple → $, Toyota → ¥, Nestlé → CHF`;
 
 // ─── Stellanor seller context ─────────────────────────────────────────────────
-// Grounded in: company overview doc, London East/North datasheets, Oct 2025 press release.
-// Injected into sales enablement prompts so the AI understands who Stellanor is,
-// what they sell, and how to position against the target company's specific profile.
 const STELLANOR_SELLER_CONTEXT = `
 ABOUT STELLANOR DATACENTERS (the seller):
 - Fast-growing next-generation UK datacenter platform. CEO: Steve Scott. Backed by DWS Group.
@@ -103,9 +100,7 @@ function currencySymbol(hq: string): string {
   if (/switzerland/.test(h)) return "CHF ";
   if (/canada/.test(h)) return "C$";
   if (/australia/.test(h)) return "A$";
-  if (/sweden/.test(h)) return "kr";
-  if (/norway/.test(h)) return "kr";
-  if (/denmark/.test(h)) return "kr";
+  if (/sweden|norway|denmark/.test(h)) return "kr";
   if (/china/.test(h)) return "¥";
   if (/india/.test(h)) return "₹";
   if (/brazil/.test(h)) return "R$";
@@ -130,63 +125,37 @@ interface FMPFinancials {
 async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
   const key = process.env.FMP_API_KEY;
   if (!key || !ticker) return {};
-
   try {
     const [profileRes, incomeRes, ratiosRes] = await Promise.all([
       fetch(`${FMP_BASE}/profile/${ticker}?apikey=${key}`),
       fetch(`${FMP_BASE}/income-statement/${ticker}?limit=4&apikey=${key}`),
       fetch(`${FMP_BASE}/ratios-ttm/${ticker}?apikey=${key}`),
     ]);
-
     const [profile, income, ratios] = await Promise.all([
-      profileRes.json(),
-      incomeRes.json(),
-      ratiosRes.json(),
+      profileRes.json(), incomeRes.json(), ratiosRes.json(),
     ]);
-
     const p = Array.isArray(profile) ? profile[0] : null;
     const r = Array.isArray(ratios) ? ratios[0] : null;
     const incomeList = Array.isArray(income) ? income : [];
-
     const fmpCurrency: string = p?.currency ?? "USD";
-    const hqCountry: string = p?.country ?? "";
-    const sym = hqCountry ? currencySymbol(hqCountry) : fmpCurrencyToSymbol(fmpCurrency);
-
+    const sym = p?.country ? currencySymbol(p.country) : fmpCurrencyToSymbol(fmpCurrency);
     const fmt = (n: number | undefined): string | undefined => {
       if (n == null || isNaN(n)) return undefined;
       if (Math.abs(n) >= 1e12) return `${sym}${(n / 1e12).toFixed(2)}T`;
-      if (Math.abs(n) >= 1e9) return `${sym}${(n / 1e9).toFixed(2)}B`;
-      if (Math.abs(n) >= 1e6) return `${sym}${(n / 1e6).toFixed(2)}M`;
+      if (Math.abs(n) >= 1e9)  return `${sym}${(n / 1e9).toFixed(2)}B`;
+      if (Math.abs(n) >= 1e6)  return `${sym}${(n / 1e6).toFixed(2)}M`;
       return `${sym}${n.toFixed(2)}`;
     };
-
-    const fmtPct = (n: number | undefined): string | undefined => {
-      if (n == null || isNaN(n)) return undefined;
-      return `${(n * 100).toFixed(1)}%`;
-    };
-
-    const revenueHistory = incomeList
-      .slice(0, 4)
-      .reverse()
-      .map((y: any, idx: number, arr: any[]) => {
-        const rev = y.revenue as number;
-        const prevRev = idx > 0 ? (arr[idx - 1].revenue as number) : null;
-        const growth =
-          prevRev && prevRev > 0
-            ? `${(((rev - prevRev) / prevRev) * 100).toFixed(1)}%`
-            : "N/A";
-        return {
-          year: String(y.calendarYear || y.date?.slice(0, 4) || ""),
-          revenue: fmt(rev) ?? "N/A",
-          growth,
-        };
-      });
-
+    const fmtPct = (n: number | undefined) => n == null || isNaN(n) ? undefined : `${(n * 100).toFixed(1)}%`;
+    const revenueHistory = incomeList.slice(0, 4).reverse().map((y: any, idx: number, arr: any[]) => {
+      const rev = y.revenue as number;
+      const prevRev = idx > 0 ? (arr[idx - 1].revenue as number) : null;
+      const growth = prevRev && prevRev > 0 ? `${(((rev - prevRev) / prevRev) * 100).toFixed(1)}%` : "N/A";
+      return { year: String(y.calendarYear || y.date?.slice(0, 4) || ""), revenue: fmt(rev) ?? "N/A", growth };
+    });
     return {
-      marketCap: fmt(p?.mktCap),
-      ebitda: fmt(incomeList[0]?.ebitda),
-      grossMargin: fmtPct(r?.grossProfitMarginTTM),
-      operatingMargin: fmtPct(r?.operatingProfitMarginTTM),
+      marketCap: fmt(p?.mktCap), ebitda: fmt(incomeList[0]?.ebitda),
+      grossMargin: fmtPct(r?.grossProfitMarginTTM), operatingMargin: fmtPct(r?.operatingProfitMarginTTM),
       stockPrice: p?.price != null ? `${sym}${p.price.toFixed(2)}` : undefined,
       peRatio: r?.peRatioTTM != null ? `${r.peRatioTTM.toFixed(1)}x` : undefined,
       eps: r?.epsTTM != null ? `${sym}${r.epsTTM.toFixed(2)}` : undefined,
@@ -202,60 +171,33 @@ async function fetchFMPFinancials(ticker: string): Promise<FMPFinancials> {
 function fmpCurrencyToSymbol(code: string): string {
   const map: Record<string, string> = {
     GBP: "£", EUR: "€", USD: "$", JPY: "¥", CHF: "CHF ",
-    CAD: "C$", AUD: "A$", SEK: "kr", NOK: "kr", DKK: "kr",
-    INR: "₹", CNY: "¥", BRL: "R$",
+    CAD: "C$", AUD: "A$", SEK: "kr", NOK: "kr", DKK: "kr", INR: "₹", CNY: "¥", BRL: "R$",
   };
   return map[code.toUpperCase()] ?? "$";
 }
 
-// ─── Company name resolution ─────────────────────────────────────────────────
-// When input looks like a URL, use Haiku to resolve the proper company name.
-// Haiku knows hsbc.com → "HSBC", jpmorganchase.com → "JPMorgan Chase",
-// ab-inbev.com → "AB InBev", diageo.com → "Diageo" etc.
-// Falls back to simple domain extraction only if the API call fails.
+// ─── Company name resolution ──────────────────────────────────────────────────
 export async function resolveCompanyName(input: string): Promise<string> {
   const trimmed = input.trim();
-
-  const looksLikeUrl =
-    /^https?:\/\//i.test(trimmed) ||
-    /^www\./i.test(trimmed) ||
-    /^[a-z0-9-]+\.[a-z]{2,}(\/|$)/i.test(trimmed);
-
-  if (!looksLikeUrl) return trimmed; // plain company name — return as-is
-
-  // Extract bare domain for the prompt
+  const looksLikeUrl = /^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed) || /^[a-z0-9-]+\.[a-z]{2,}(\/|$)/i.test(trimmed);
+  if (!looksLikeUrl) return trimmed;
   let domain = trimmed;
   try {
     const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     domain = new URL(withProtocol).hostname.replace(/^www\./, "");
   } catch { /* leave domain as trimmed */ }
-
   try {
     const message = await client.messages.create({
-      model: MODEL_GROUNDED, // Haiku — fast, cheap, knows company→domain mappings well
+      model: MODEL_GROUNDED,
       max_tokens: 50,
       system: "You are a company name lookup assistant. Respond with ONLY the official company name — correct capitalisation, no punctuation, no explanation.",
-      messages: [{
-        role: "user",
-        content: `What is the official company name for the website domain: ${domain}? Return only the name.`,
-      }],
+      messages: [{ role: "user", content: `What is the official company name for the website domain: ${domain}? Return only the name.` }],
     });
-
-    const name = message.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map(b => b.text)
-      .join("")
-      .trim()
-      .replace(/["'.]/g, ""); // strip any stray quotes
-
-    if (name && name.length > 0 && name.length < 100 && !name.includes("\n")) {
-      return name;
-    }
+    const name = message.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map(b => b.text).join("").trim().replace(/["'.]/g, "");
+    if (name && name.length > 0 && name.length < 100 && !name.includes("\n")) return name;
   } catch (err) {
     console.warn(`Company name resolution failed for ${domain}:`, err);
   }
-
-  // Fallback: title-case the first domain label
   const label = domain.split(".")[0];
   return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
 }
@@ -266,34 +208,19 @@ async function lookupCEO(companyName: string): Promise<string> {
     const message = await client.messages.create({
       model: MODEL_GROUNDED,
       max_tokens: 200,
-      system:
-        "You are a factual lookup assistant. Respond with ONLY the current CEO's full name — no punctuation, no explanation, nothing else.",
+      system: "You are a factual lookup assistant. Respond with ONLY the current CEO's full name — no punctuation, no explanation, nothing else.",
       tools: [{ type: "web_search_20250305", name: "web_search" }],
-      messages: [
-        {
-          role: "user",
-          content: `Who is the current CEO of ${companyName}? Search the web and return only their full name.`,
-        },
-      ],
+      messages: [{ role: "user", content: `Who is the current CEO of ${companyName}? Search the web and return only their full name.` }],
     });
-
-    const text = message.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "")
-      .trim();
-
-    if (text && text.length < 80 && !text.includes("{") && !text.includes("\n")) {
-      return text;
-    }
+    const text = message.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map(b => b.text).join("").replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "").trim();
+    if (text && text.length < 80 && !text.includes("{") && !text.includes("\n")) return text;
   } catch (err) {
     console.warn(`CEO lookup failed for ${companyName}:`, err);
   }
   return "See company website for current CEO";
 }
 
-// ─── Fast caller (Sonnet, no tools) ─────────────────────────────────────────
+// ─── callClaude ──────────────────────────────────────────────────────────────
 async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
   const t = Date.now();
   const message = await client.messages.create({
@@ -303,21 +230,13 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
     messages: [{ role: "user", content: prompt }],
   });
   console.log(`  callClaude done in ${((Date.now()-t)/1000).toFixed(1)}s (stop_reason=${message.stop_reason}, output_tokens=${message.usage?.output_tokens})`);
-
   if (message.stop_reason === "max_tokens") {
     console.error(`Response truncated at ${maxTokens} tokens — increase max_tokens`);
     throw new Error("Response was too long and got cut off. Please try again.");
   }
-
-  const text =
-    message.content[0].type === "text" ? message.content[0].text : "";
+  const text = message.content[0].type === "text" ? message.content[0].text : "";
   if (!text) throw new Error("Empty response from Claude API");
-
-  const cleaned = text
-    .replace(/^```json\n?/, "")
-    .replace(/\n?```/, "")
-    .trim();
-
+  const cleaned = text.replace(/^```json\n?/, "").replace(/\n?```/, "").trim();
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -326,17 +245,13 @@ async function callClaude(prompt: string, maxTokens: number): Promise<unknown> {
   }
 }
 
-// ─── Merge FMP data into Claude financials ────────────────────────────────────
+// ─── Merge FMP data ───────────────────────────────────────────────────────────
 function mergeFinancials(claudeFinancials: any, fmp: FMPFinancials): any {
   const merged = { ...claudeFinancials };
-
   if (fmp.marketCap) merged.marketCap = fmp.marketCap;
   if (fmp.ebitda) merged.ebitda = fmp.ebitda;
   if (fmp.stockPrice) merged.stockPrice = fmp.stockPrice;
-  if (fmp.revenueHistory && fmp.revenueHistory.length >= 2) {
-    merged.revenueHistory = fmp.revenueHistory;
-  }
-
+  if (fmp.revenueHistory && fmp.revenueHistory.length >= 2) merged.revenueHistory = fmp.revenueHistory;
   if (Array.isArray(merged.keyMetrics)) {
     merged.keyMetrics = merged.keyMetrics.map((m: any) => {
       const label = m.label?.toLowerCase() ?? "";
@@ -347,18 +262,11 @@ function mergeFinancials(claudeFinancials: any, fmp: FMPFinancials): any {
       return m;
     });
   }
-
   return merged;
 }
 
-// ─── Report Part A: overview + financials + strategy + market ─────────────────
-async function generatePartA(
-  companyName: string,
-  industry?: string,
-  ticker?: string,
-  currentCEO?: string  // pre-resolved by caller to avoid serial await
-): Promise<unknown> {
-  // Only do the lookup here if not provided (shouldn't happen in normal flow)
+// ─── Part A: overview + financials + strategy + market ────────────────────────
+async function generatePartA(companyName: string, industry?: string, ticker?: string, currentCEO?: string): Promise<unknown> {
   const ceo = currentCEO ?? await lookupCEO(companyName);
   const tickerContext = ticker ? ` (Ticker: ${ticker})` : "";
   const industryContext = industry ? ` operating in the ${industry} sector` : "";
@@ -366,29 +274,17 @@ async function generatePartA(
   const prompt = `Generate strategic intelligence PART A for: ${companyName}${tickerContext}${industryContext}
 
 The current CEO is: ${ceo} — use this exact name in the executiveSummary.ceo field. Do NOT include the CEO again in keyExecutives.
-For keyExecutives: include between 3 and 8 other senior leaders you are certain exist (CFO, COO, CTO, division presidents, etc). STRICT RULES: real verified names only — if uncertain about a person, omit them entirely. Never invent, guess, or recombine names. Quality over quantity.
+For keyExecutives: include between 3 and 8 other senior leaders you are certain exist. STRICT RULES: real verified names only — never invent or guess.
 
-CURRENCY RULE — MANDATORY:
-Identify the company's headquarters country and use the correct native currency symbol throughout ALL financial fields.
-- UK company → use £ for ALL values (e.g. £68.5B, £2.4B, £225.00)
-- Eurozone company → use € for ALL values (e.g. €142.0B, €8.5B)
-- US company → use $ for ALL values (e.g. $391.0B, $93.7B)
-- Japanese company → use ¥ for ALL values (e.g. ¥10.0T, ¥500B)
-- Swiss company → use CHF for ALL values (e.g. CHF 94.0B)
-NEVER write "GBP", "USD", "EUR", "JPY" — always the symbol.
+CURRENCY RULE — MANDATORY: Use correct native currency symbol (£ UK, € Eurozone, $ US, ¥ Japan, CHF Switzerland). NEVER ISO codes.
 
-FINANCIAL FIELDS — MANDATORY RULES:
-- Every field MUST have a real value. NEVER use "—", null, or "N/A".
-- revenue, netIncome, ebitda, marketCap are ALL required — provide estimates if needed, suffix with " (est.)"
-- revenueHistory MUST contain EXACTLY 4 consecutive years ending with the most recent fiscal year.
-- keyMetrics MUST include Gross Margin, Operating Margin, P/E Ratio, and EPS — all 4 required.
-- stockPrice and stockTicker are required for public companies.
+FINANCIAL FIELDS — MANDATORY: Every field must have a value. Estimate if needed, suffix with " (est.)". revenueHistory MUST have EXACTLY 4 years. keyMetrics MUST include Gross Margin, Operating Margin, P/E Ratio, EPS.
 
-Return ONLY this JSON (use correct currency symbol throughout, NOT ISO codes):
+Return ONLY this JSON:
 {
   "companyName": "Official company name",
   "industry": "Primary industry sector",
-  "website": "e.g. apple.com or materialnexus.com — just the bare domain, no https://",
+  "website": "bare domain e.g. apple.com",
   "executiveSummary": {
     "companyOverview": "2-3 sentence overview",
     "headquarters": "City, Country",
@@ -397,12 +293,12 @@ Return ONLY this JSON (use correct currency symbol throughout, NOT ISO codes):
     "ceo": "${ceo}",
     "keyExecutives": [{"name": "Name", "title": "Title"}],
     "stockExchange": "e.g. LSE: TSCO or N/A if private",
-    "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3", "Key highlight 4"],
+    "highlights": ["Highlight 1", "Highlight 2", "Highlight 3", "Highlight 4"],
     "analystRating": "e.g. Buy / Overweight / Hold",
-    "lastUpdated": "Today dd/mm/yyyy"
+    "lastUpdated": "dd/mm/yyyy"
   },
   "financials": {
-    "revenue": "e.g. £68.5B for UK, €142.0B for Germany, $391.0B for US",
+    "revenue": "e.g. £68.5B",
     "revenueGrowth": "e.g. +8.1% YoY",
     "netIncome": "e.g. £2.4B",
     "ebitda": "e.g. £4.8B",
@@ -425,152 +321,124 @@ Return ONLY this JSON (use correct currency symbol throughout, NOT ISO codes):
     "outlook": "2-sentence financial outlook"
   },
   "strategy": {
-    "vision": "Company vision statement",
-    "mission": "Company mission statement",
-    "coreInitiatives": [{"title": "Initiative name", "description": "Brief description", "timeline": "e.g. 2024-2026"}],
+    "vision": "Vision statement",
+    "mission": "Mission statement",
+    "coreInitiatives": [{"title": "Initiative", "description": "Brief description", "timeline": "e.g. 2024-2026"}],
     "geographicFocus": ["Region 1", "Region 2", "Region 3"],
-    "mAndA": "M&A strategy description",
+    "mAndA": "M&A strategy",
     "capitalAllocation": "Capital allocation priorities",
-    "summary": "2-3 sentence strategy summary"
+    "summary": "2-3 sentence summary"
   },
   "marketAnalysis": {
     "totalAddressableMarket": "e.g. £1.1T",
     "marketShare": "e.g. 27%",
-    "marketPosition": "e.g. Market leader / Strong #2",
-    "competitors": [{"name": "Competitor name", "strength": "Brief strength", "threat": "high|medium|low"}],
+    "marketPosition": "e.g. Market leader",
+    "competitors": [{"name": "Name", "strength": "Brief strength", "threat": "high|medium|low"}],
     "customerSegments": ["Segment 1", "Segment 2", "Segment 3"],
-    "geographicPresence": [
-      {"region": "UK & Ireland", "percentage": "XX%"},
-      {"region": "Europe", "percentage": "XX%"},
-      {"region": "APAC", "percentage": "XX%"}
-    ],
+    "geographicPresence": [{"region": "Region", "percentage": "XX%"}],
     "marketTrends": ["Trend 1", "Trend 2", "Trend 3"],
-    "summary": "2-3 sentence market position summary"
+    "summary": "2-3 sentence summary"
   }
 }`;
 
   return callClaude(prompt, 3500);
 }
 
-// ─── Report Part B: tech + ESG + SWOT + growth + risk + digital ──────────────
-async function generatePartB(
-  companyName: string,
-  industry?: string,
-  ticker?: string
-): Promise<unknown> {
-  const tickerContext = ticker ? ` (Ticker: ${ticker})` : "";
-  const industryContext = industry ? ` operating in the ${industry} sector` : "";
+// ─── Part B1: tech spend + ESG + SWOT (~1400 tokens output) ──────────────────
+async function generatePartB1(companyName: string, industry?: string, ticker?: string): Promise<unknown> {
+  const ctx = [ticker ? ` (Ticker: ${ticker})` : "", industry ? ` in the ${industry} sector` : ""].join("");
+  const prompt = `Generate strategic intelligence for: ${companyName}${ctx}
 
-  const prompt = `Generate strategic intelligence PART B for: ${companyName}${tickerContext}${industryContext}
-
-CURRENCY RULE: Use the native currency symbol of the company's headquarters country throughout (£ for UK, € for Eurozone, $ for US, ¥ for Japan, CHF for Switzerland). NEVER use ISO codes like GBP, USD, EUR.
+CURRENCY RULE: Use native currency symbol (£ UK, € Eurozone, $ US, ¥ Japan, CHF Switzerland). NEVER ISO codes.
 
 Return ONLY this JSON:
 {
   "techSpend": {
-    "annualITBudget": "e.g. £1.8B for UK company",
+    "annualITBudget": "e.g. £1.8B",
     "itBudgetAsPercentRevenue": "e.g. 4.8%",
     "cloudPlatforms": ["AWS", "Azure", "GCP"],
-    "keyVendors": [{"vendor": "Vendor name", "category": "Category", "relationship": "Strategic partner / key vendor / etc"}],
-    "dataInfrastructure": "Description of data infrastructure",
-    "securityPosture": "Description of security approach",
-    "emergingTech": ["AI/ML", "Blockchain", "IoT"],
-    "summary": "2-3 sentence tech summary"
+    "keyVendors": [{"vendor": "Name", "category": "Category", "relationship": "Description"}],
+    "dataInfrastructure": "Description",
+    "securityPosture": "Description",
+    "emergingTech": ["AI/ML", "IoT"],
+    "summary": "2-3 sentence summary"
   },
   "esg": {
-    "overallRating": "e.g. AA (MSCI) / Strong",
-    "netZeroTarget": "e.g. 2030 / 2050 / Not committed",
+    "overallRating": "e.g. AA (MSCI)",
+    "netZeroTarget": "e.g. 2030",
     "environmentalInitiatives": ["Initiative 1", "Initiative 2"],
     "socialInitiatives": ["Initiative 1", "Initiative 2"],
-    "governanceRating": "e.g. Strong / Average",
-    "boardDiversity": "e.g. 45% diverse board members",
+    "governanceRating": "e.g. Strong",
+    "boardDiversity": "e.g. 45%",
     "esgRisks": ["Risk 1", "Risk 2"],
-    "summary": "2-3 sentence ESG summary"
+    "summary": "2-3 sentence summary"
   },
   "swot": {
-    "strengths": [
-      {"title": "Strength title", "detail": "Explanation"},
-      {"title": "Strength title", "detail": "Explanation"},
-      {"title": "Strength title", "detail": "Explanation"},
-      {"title": "Strength title", "detail": "Explanation"}
-    ],
-    "weaknesses": [
-      {"title": "Weakness title", "detail": "Explanation"},
-      {"title": "Weakness title", "detail": "Explanation"},
-      {"title": "Weakness title", "detail": "Explanation"}
-    ],
-    "opportunities": [
-      {"title": "Opportunity title", "detail": "Explanation"},
-      {"title": "Opportunity title", "detail": "Explanation"},
-      {"title": "Opportunity title", "detail": "Explanation"},
-      {"title": "Opportunity title", "detail": "Explanation"}
-    ],
-    "threats": [
-      {"title": "Threat title", "detail": "Explanation"},
-      {"title": "Threat title", "detail": "Explanation"},
-      {"title": "Threat title", "detail": "Explanation"}
-    ]
-  },
+    "strengths": [{"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}],
+    "weaknesses": [{"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}],
+    "opportunities": [{"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}],
+    "threats": [{"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}, {"title": "Title", "detail": "Explanation"}]
+  }
+}`;
+  return callClaude(prompt, 2000);
+}
+
+// ─── Part B2: growth + risk + digital (~1400 tokens output) ──────────────────
+async function generatePartB2(companyName: string, industry?: string, ticker?: string): Promise<unknown> {
+  const ctx = [ticker ? ` (Ticker: ${ticker})` : "", industry ? ` in the ${industry} sector` : ""].join("");
+  const prompt = `Generate strategic intelligence for: ${companyName}${ctx}
+
+CURRENCY RULE: Use native currency symbol (£ UK, € Eurozone, $ US, ¥ Japan, CHF Switzerland). NEVER ISO codes.
+
+Return ONLY this JSON:
+{
   "growthOpportunities": {
     "opportunities": [
-      {
-        "title": "Opportunity title",
-        "description": "Detailed description",
-        "potentialValue": "e.g. £5-10B",
-        "timeframe": "e.g. 2025-2027",
-        "confidence": "high|medium|low"
-      }
+      {"title": "Title", "description": "Description", "potentialValue": "e.g. £5-10B", "timeframe": "e.g. 2025-2027", "confidence": "high|medium|low"}
     ],
-    "totalOpportunityValue": "e.g. £20-40B across identified opportunities",
-    "summary": "2-3 sentence growth summary"
+    "totalOpportunityValue": "e.g. £20-40B",
+    "summary": "2-3 sentence summary"
   },
   "riskAssessment": {
     "overallRiskLevel": "high|medium|low",
     "risks": [
-      {
-        "category": "e.g. Regulatory / Market / Financial / Operational / Geopolitical",
-        "title": "Risk title",
-        "description": "Risk description",
-        "likelihood": "high|medium|low",
-        "impact": "high|medium|low",
-        "mitigation": "Mitigation strategy"
-      }
+      {"category": "e.g. Regulatory", "title": "Title", "description": "Description", "likelihood": "high|medium|low", "impact": "high|medium|low", "mitigation": "Strategy"}
     ],
-    "summary": "2-3 sentence risk summary"
+    "summary": "2-3 sentence summary"
   },
   "digitalTransformation": {
     "maturityLevel": "leading|advanced|developing|early",
     "maturityScore": 8,
     "keyInitiatives": [{"title": "Initiative", "description": "Description", "status": "live|in_progress|planned"}],
-    "aiAdoption": "Description of AI adoption",
-    "dataStrategy": "Description of data strategy",
+    "aiAdoption": "Description",
+    "dataStrategy": "Description",
     "challenges": ["Challenge 1", "Challenge 2"],
-    "summary": "2-3 sentence DX summary"
+    "summary": "2-3 sentence summary"
   }
 }`;
-
-  return callClaude(prompt, 4000);
+  return callClaude(prompt, 2000);
 }
 
-// ─── Public: generate full report ─────────────────────────────────────────────
-export async function generateReport(
-  companyName: string,
-  industry?: string,
-  ticker?: string
-): Promise<any> {
+// ─── Public: generate full report ────────────────────────────────────────────
+// Execution plan:
+//   Stage 1 (parallel): CEO lookup + FMP fetch                    ~2-5s
+//   Stage 2 (parallel): Part A + Part B1 + Part B2                ~25-35s each
+//   Total target: ~35s
+export async function generateReport(companyName: string, industry?: string, ticker?: string): Promise<any> {
   const start = Date.now();
 
-  // Stage 1: CEO lookup + FMP fetch in parallel (both fast, neither blocks report gen)
+  // Stage 1: fast lookups in parallel
   const [ceo, fmpData] = await Promise.all([
     lookupCEO(companyName),
     ticker ? fetchFMPFinancials(ticker) : Promise.resolve({} as FMPFinancials),
   ]);
   console.log(`  ✅ CEO="${ceo}" resolved in ${((Date.now()-start)/1000).toFixed(1)}s`);
 
-  // Stage 2: Part A and Part B fully parallel — CEO is now known, FMP is done
-  const [partA, partB] = await Promise.all([
+  // Stage 2: all three generation calls fully in parallel
+  const [partA, partB1, partB2] = await Promise.all([
     generatePartA(companyName, industry, ticker, ceo),
-    generatePartB(companyName, industry, ticker),
+    generatePartB1(companyName, industry, ticker),
+    generatePartB2(companyName, industry, ticker),
   ]);
 
   const mergedPartA = partA as any;
@@ -584,22 +452,13 @@ export async function generateReport(
     `${Object.keys(fmpData).length > 0 ? " (FMP verified)" : " (AI estimates)"}`
   );
 
-  return { ...mergedPartA, ...(partB as object) };
+  return { ...mergedPartA, ...(partB1 as object), ...(partB2 as object) };
 }
 
 // ─── Sales Enablement ─────────────────────────────────────────────────────────
-// When sellerProduct is empty/default, Stellanor's own colocation & connectivity
-// services are used automatically. The STELLANOR_SELLER_CONTEXT block grounds
-// the AI in real product facts — no hallucinated services or pricing.
-export async function generateSalesEnablement(
-  companyName: string,
-  reportData: unknown,
-  sellerProduct: string
-): Promise<unknown> {
-  // Determine if this is a Stellanor-as-seller brief or a generic one
+export async function generateSalesEnablement(companyName: string, reportData: unknown, sellerProduct: string): Promise<unknown> {
   const isStellanoSeller =
-    !sellerProduct ||
-    sellerProduct.trim() === "" ||
+    !sellerProduct || sellerProduct.trim() === "" ||
     /stellanor/i.test(sellerProduct) ||
     /colocation|colo|data.?cent(er|re)|connectivity|rack.?space/i.test(sellerProduct);
 
@@ -618,7 +477,7 @@ STELLANOR-SPECIFIC INSTRUCTIONS:
 - conversationStarters should open doors to data centre discussions (IT refresh cycles, DC costs, ESG commitments, AI workload hosting, latency requirements)
 - painPoints must map target company's real operational/infrastructure challenges to specific Stellanor capabilities
 - potentialSavings should reference the shift from CapEx (own DC) to OpEx (Stellanor colo), carrier neutrality savings, and sustainability cost avoidance
-- competitivePositioning: identify likely incumbent providers (Equinix, CyrusOne, NTT, Virtus, Digital Realty, own-DC) and explain how Stellanor wins — proximity, personalised service, 100% renewables, Tier 3+, no lock-in
+- competitivePositioning: identify likely incumbent providers (Equinix, CyrusOne, NTT, Virtus, Digital Realty, own-DC) and explain how Stellanor wins
 - totalValueOpportunity: estimate in £ based on company size, likely rack count, and connectivity requirements
 - nextSteps should include booking a site visit to London East or London North as an early action
 - Recommend the most relevant Stellanor site(s) based on the company's HQ / geography
@@ -630,51 +489,40 @@ Target Company: ${companyName}
 Seller: ${effectiveProduct}
 ${sellerContext}
 ${stellanorSpecificInstructions}
-Company Intelligence (use this to personalise every section):
+Company Intelligence:
 ${JSON.stringify(reportData, null, 2)}
 
 Return ONLY this JSON:
 {
   "sellerProduct": "${effectiveProduct}",
-  "salesSummary": "3-4 sentence executive summary of the sales opportunity — specific to this company's profile, size, industry, and infrastructure signals",
-  "recommendedSites": ["e.g. London East (proximity to HQ), London North (scale)"],
-  "conversationStarters": [
-    "Specific, insight-led question referencing something real from the company intelligence",
-    "Question about their current DC strategy or IT refresh cycle",
-    "Question linking their AI/digital initiatives to infrastructure needs",
-    "Question about their ESG commitments and how their DC estate contributes",
-    "Question about carrier or cloud provider flexibility"
-  ],
+  "salesSummary": "3-4 sentence executive summary specific to this company's profile",
+  "recommendedSites": ["e.g. London East (proximity to HQ)"],
+  "conversationStarters": ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"],
   "painPoints": [
-    {"pain": "Specific infrastructure or operational pain derived from the company intelligence", "solution": "Specific Stellanor capability that addresses it directly"},
-    {"pain": "Pain point 2", "solution": "Stellanor solution 2"},
-    {"pain": "Pain point 3", "solution": "Stellanor solution 3"},
-    {"pain": "Pain point 4", "solution": "Stellanor solution 4"}
+    {"pain": "Specific pain point", "solution": "Specific Stellanor capability"},
+    {"pain": "Pain point 2", "solution": "Solution 2"},
+    {"pain": "Pain point 3", "solution": "Solution 3"},
+    {"pain": "Pain point 4", "solution": "Solution 4"}
   ],
   "useCases": [
-    {"title": "Use case title", "roi": "Quantified ROI or saving estimate in £", "description": "How this Stellanor service applies specifically to this company"},
-    {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "Specific application"},
-    {"title": "Use case title", "roi": "Quantified ROI estimate", "description": "Specific application"}
+    {"title": "Use case", "roi": "Quantified ROI in £", "description": "Specific application"},
+    {"title": "Use case", "roi": "ROI estimate", "description": "Application"},
+    {"title": "Use case", "roi": "ROI estimate", "description": "Application"}
   ],
-  "totalValueOpportunity": "Estimated £ ACV range based on company size and likely rack/connectivity requirements — with brief rationale",
-  "currentChallenges": [
-    "Infrastructure challenge specific to this company or industry",
-    "Cost or ESG pressure inferred from the intelligence",
-    "Connectivity or latency requirement",
-    "AI / digital transformation infrastructure need"
-  ],
+  "totalValueOpportunity": "Estimated £ ACV range with rationale",
+  "currentChallenges": ["Challenge 1", "Challenge 2", "Challenge 3", "Challenge 4"],
   "potentialSavings": [
-    {"area": "CapEx elimination / DC refresh avoidance", "estimate": "e.g. £X-XM over 3 years vs own-DC refresh"},
-    {"area": "Carrier neutrality & connectivity optimisation", "estimate": "e.g. £X00K annually"},
-    {"area": "ESG / sustainability reporting value", "estimate": "e.g. 100% renewable energy supporting net-zero commitments"},
-    {"area": "Operational efficiency via myStellanor portal", "estimate": "e.g. X% reduction in DC management overhead"}
+    {"area": "CapEx elimination / DC refresh avoidance", "estimate": "e.g. £X-XM over 3 years"},
+    {"area": "Carrier neutrality & connectivity", "estimate": "e.g. £X00K annually"},
+    {"area": "ESG / sustainability reporting value", "estimate": "100% renewable energy"},
+    {"area": "Operational efficiency via myStellanor", "estimate": "e.g. X% overhead reduction"}
   ],
-  "competitivePositioning": "Identify likely incumbent or competing providers (own-DC, Equinix, Digital Realty, CyrusOne, NTT, Virtus, hyperscalers) and articulate specifically why Stellanor wins — city-edge proximity, personalised service, 100% renewables, Tier 3+, carrier neutral, predictable opex",
+  "competitivePositioning": "Why Stellanor wins vs likely incumbents",
   "nextSteps": [
-    {"step": "1", "action": "Specific first outreach action referencing something from the intelligence", "timeline": "This week"},
-    {"step": "2", "action": "Book a no-obligation site tour of the most relevant Stellanor facility", "timeline": "Week 1-2"},
-    {"step": "3", "action": "Arrange a technical scoping call with Stellanor's solutions team", "timeline": "Week 2-3"},
-    {"step": "4", "action": "Deliver a tailored proposal with rack configuration and connectivity options", "timeline": "Month 1"}
+    {"step": "1", "action": "Specific outreach action", "timeline": "This week"},
+    {"step": "2", "action": "Book site tour of most relevant Stellanor facility", "timeline": "Week 1-2"},
+    {"step": "3", "action": "Technical scoping call with Stellanor solutions team", "timeline": "Week 2-3"},
+    {"step": "4", "action": "Tailored proposal with rack and connectivity options", "timeline": "Month 1"}
   ]
 }`;
 
@@ -682,10 +530,13 @@ Return ONLY this JSON:
 }
 
 // ─── Investor Presentation ────────────────────────────────────────────────────
-export async function generateInvestorPresentation(
-  companyName: string,
-  reportData: unknown
-): Promise<unknown> {
+export async function generateInvestorPresentation(companyName: string, reportData: unknown): Promise<unknown> {
+  const today = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const currentQ = Math.ceil((new Date().getMonth() + 1) / 3);
+  const lastQ = currentQ === 1 ? 4 : currentQ - 1;
+  const lastQYear = currentQ === 1 ? new Date().getFullYear() - 1 : new Date().getFullYear();
+
   const prompt = `Generate a structured investor presentation for ${companyName}.
 
 Based on this data:
@@ -697,63 +548,48 @@ Return ONLY this JSON:
   "date": "dd/mm/yyyy",
   "analystCitations": [
     {
-      "bank": "Bank name e.g. JP Morgan, Barclays, Morgan Stanley, Wolfe Research, Jefferies, Goldman Sachs, Deutsche Bank, UBS, Citi, HSBC, RBC Capital Markets, BofA Securities",
-      "analyst": "Analyst full name if known, else null",
+      "bank": "Bank name",
+      "analyst": "Analyst name or null",
       "rating": "Buy|Overweight|Neutral|Underweight|Sell|Hold|Outperform|Market Perform",
-      "priceTarget": "e.g. £4.20 or $195.00 — use correct currency symbol for the company's home market. Null if private company.",
-      "note": "1 sentence capturing the analyst's key thesis or reasoning — specific, not generic",
-      "date": "Most recent quarter e.g. Q1 2026 or Q4 2025 — always the latest known, never older than necessary",
+      "priceTarget": "e.g. £4.20 or null for private",
+      "note": "1 sentence specific thesis",
+      "date": "Most recent quarter e.g. Q${lastQ} ${lastQYear}",
       "stale": false
     }
   ],
   "analystConsensus": {
-    "overallRating": "e.g. Buy / Hold / Sell — the modal rating across banks",
-    "averagePriceTarget": "e.g. £3.95 — average of available price targets, correct currency symbol",
+    "overallRating": "e.g. Buy",
+    "averagePriceTarget": "e.g. £3.95",
     "numAnalysts": "e.g. 24 analysts covering",
-    "bullCase": "1 sentence bull case summary",
-    "bearCase": "1 sentence bear case summary"
+    "bullCase": "1 sentence bull case",
+    "bearCase": "1 sentence bear case"
   },
   "slides": [
     {
       "slideNumber": 1,
       "title": "Slide title",
       "type": "cover|executive_summary|financials|market|strategy|swot|growth|risk|analyst_consensus|conclusion",
-      "headline": "Key message headline",
+      "headline": "Key message",
       "bullets": ["Point 1", "Point 2", "Point 3"],
-      "metric": {"label": "Key metric label", "value": "Value"}
+      "metric": {"label": "Key metric", "value": "Value"}
     }
   ],
   "disclaimer": "Standard investment disclaimer"
 }
 
-ANALYST CITATION RULES — READ CAREFULLY:
+ANALYST CITATION RULES:
+TODAY: ${today}. SIX MONTHS AGO: ${sixMonthsAgo}. LAST QUARTER: Q${lastQ} ${lastQYear}.
 
-TODAY'S DATE: ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}.
-SIX MONTHS AGO: ${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}.
+STEP 1 — QUANTITY: Provide 8-12 citations for public companies, 4-6 for private. Banks to consider:
+Bulge bracket: JP Morgan, Goldman Sachs, Morgan Stanley, Barclays, Deutsche Bank, UBS, Citi, HSBC, BofA Securities
+Mid-tier: Jefferies, Wolfe Research, RBC Capital Markets, Raymond James, Piper Sandler, Evercore ISI, TD Cowen
+UK/EU specialists: Berenberg, Numis, Peel Hunt, Panmure Gordon, Investec, Shore Capital, Liberum, Stifel
 
-STEP 1 — QUANTITY FIRST. Provide 8-12 analyst citations for public companies, 4-6 for private.
-The goal is COMPREHENSIVE coverage. Cast the net wide across:
-- Bulge bracket: JP Morgan, Goldman Sachs, Morgan Stanley, Barclays, Deutsche Bank, UBS, Citi, HSBC, BofA Securities
-- Mid-tier US: Jefferies, Wolfe Research, RBC Capital Markets, Raymond James, Piper Sandler, Evercore ISI, TD Cowen
-- UK/European specialists (for UK/EU companies): Berenberg, Numis, Peel Hunt, Panmure Gordon, Investec, Shore Capital, Liberum, Stifel
-- Sector specialists relevant to the company's industry
+STEP 2 — INCLUDE if you have ANY knowledge of coverage. Estimated date beats omission.
+STEP 3 — DATE: Use most recent known rating. If uncertain, estimate Q${lastQ} ${lastQYear}. Mark stale: true if >6 months old.
+STEP 4 — QUALITY: Specific thesis per company, not generic. Correct currency symbol.
 
-STEP 2 — INCLUSION RULE. Include a bank if you have ANY knowledge of them covering this company,
-even if you are uncertain of the exact recent quarter. An estimated date is far better than omitting a bank entirely.
-Do NOT self-censor due to date uncertainty — include and mark stale if needed.
-
-STEP 3 — DATE RULE. For each citation:
-- Use the most recent rating/note you know about
-- If uncertain of exact date, estimate using the most recent fiscal quarter (today is ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}, so last quarter is Q${Math.ceil((new Date().getMonth() + 1) / 3) === 1 ? 4 : Math.ceil((new Date().getMonth() + 1) / 3) - 1} ${Math.ceil((new Date().getMonth() + 1) / 3) === 1 ? new Date().getFullYear() - 1 : new Date().getFullYear()})
-- Set stale: true if the rating is likely more than 6 months old; stale: false otherwise
-- NEVER leave out a bank just because you are unsure of the exact quarter
-
-STEP 4 — QUALITY. Each note must be specific to this company's situation — not generic filler.
-Analyst names: include if confident, null if not. Price targets: correct native currency symbol (£ UK, $ US, € Eurozone), null for private.
-
-Include an "Analyst Consensus" slide (after risk factors) summarising the overall picture.
-
-Include 11-13 slides: cover, investment thesis, company overview, financial highlights, market opportunity, competitive position, strategic initiatives, SWOT, growth catalysts, risk factors, analyst consensus, valuation summary, conclusion.`;
+Include an Analyst Consensus slide. Include 11-13 slides total.`;
 
   return callClaude(prompt, 10000);
 }
