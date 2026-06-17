@@ -5,8 +5,9 @@ const client = new Anthropic({
 });
 
 // ─── Models ───────────────────────────────────────────────────────────────────
-const MODEL_GROUNDED = "claude-sonnet-4-6";
-const MODEL_FAST = "claude-sonnet-4-6";
+const MODEL_GROUNDED = "claude-haiku-4-5-20251001"; // CEO web search — fast, single-fact lookup
+const MODEL_FAST = "claude-sonnet-4-6";             // Report generation — quality matters
+const MODEL_PRESENTATION = "claude-sonnet-4-6";     // Investor deck — reserved for Opus upgrade later
 
 const SYSTEM = `You are an elite strategic intelligence analyst working for the Stellanor Insight Generator platform.
 Respond with ONLY valid JSON — no prose, no markdown fences, no explanation.
@@ -300,15 +301,17 @@ function mergeFinancials(claudeFinancials: any, fmp: FMPFinancials): any {
 async function generatePartA(
   companyName: string,
   industry?: string,
-  ticker?: string
+  ticker?: string,
+  currentCEO?: string  // pre-resolved by caller to avoid serial await
 ): Promise<unknown> {
-  const currentCEO = await lookupCEO(companyName);
+  // Only do the lookup here if not provided (shouldn't happen in normal flow)
+  const ceo = currentCEO ?? await lookupCEO(companyName);
   const tickerContext = ticker ? ` (Ticker: ${ticker})` : "";
   const industryContext = industry ? ` operating in the ${industry} sector` : "";
 
   const prompt = `Generate strategic intelligence PART A for: ${companyName}${tickerContext}${industryContext}
 
-The current CEO is: ${currentCEO} — use this exact name in the executiveSummary.ceo field. Do NOT include the CEO again in keyExecutives.
+The current CEO is: ${ceo} — use this exact name in the executiveSummary.ceo field. Do NOT include the CEO again in keyExecutives.
 For keyExecutives: include between 3 and 8 other senior leaders you are certain exist (CFO, COO, CTO, division presidents, etc). STRICT RULES: real verified names only — if uncertain about a person, omit them entirely. Never invent, guess, or recombine names. Quality over quantity.
 
 CURRENCY RULE — MANDATORY:
@@ -337,7 +340,7 @@ Return ONLY this JSON (use correct currency symbol throughout, NOT ISO codes):
     "headquarters": "City, Country",
     "founded": "Year",
     "employees": "e.g. 250,000",
-    "ceo": "${currentCEO}",
+    "ceo": "${ceo}",
     "keyExecutives": [{"name": "Name", "title": "Title"}],
     "stockExchange": "e.g. LSE: TSCO or N/A if private",
     "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3", "Key highlight 4"],
@@ -503,15 +506,19 @@ export async function generateReport(
 ): Promise<any> {
   const start = Date.now();
 
-  const [partA, partBAndFMP] = await Promise.all([
-    generatePartA(companyName, industry, ticker),
-    Promise.all([
-      generatePartB(companyName, industry, ticker),
-      ticker ? fetchFMPFinancials(ticker) : Promise.resolve({} as FMPFinancials),
-    ]),
+  // Run all three in parallel:
+  // ─ CEO lookup (Haiku + web search, fast)
+  // ─ Part B (Sonnet, no CEO dependency)
+  // ─ FMP financial data fetch
+  // Part A waits only for the CEO result, not for B or FMP.
+  const [ceo, partB, fmpData] = await Promise.all([
+    lookupCEO(companyName),
+    generatePartB(companyName, industry, ticker),
+    ticker ? fetchFMPFinancials(ticker) : Promise.resolve({} as FMPFinancials),
   ]);
 
-  const [partB, fmpData] = partBAndFMP;
+  // Now generate Part A with the CEO already resolved
+  const partA = await generatePartA(companyName, industry, ticker, ceo);
 
   const mergedPartA = partA as any;
   if (mergedPartA.financials && Object.keys(fmpData).length > 0) {
