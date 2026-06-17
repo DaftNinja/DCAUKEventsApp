@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 import { StellanorMark } from "@/components/StellanorLogo";
 
 const NAV_ITEMS = [
@@ -12,10 +13,46 @@ const NAV_ITEMS = [
   { href: "/batch", label: "Batch Upload" },
 ];
 
+// Sun / Moon toggle button — used in both desktop and mobile
+function ThemeToggle({ className = "" }: { className?: string }) {
+  const { theme, toggle } = useTheme();
+  const isDay = theme === "day";
+  return (
+    <button
+      onClick={toggle}
+      aria-label={isDay ? "Switch to dark mode" : "Switch to day mode"}
+      title={isDay ? "Switch to dark mode" : "Switch to day mode"}
+      className={`flex items-center justify-center h-8 w-8 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary-dim)] transition-colors ${className}`}
+    >
+      {isDay ? (
+        // Moon — switch to dark
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      ) : (
+        // Sun — switch to day
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+          <line x1="1" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export function Navbar() {
   const [location, setLocation] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, loading, logout } = useAuth();
+  const { theme, toggle } = useTheme();
+  const isDay = theme === "day";
 
   useEffect(() => { setMenuOpen(false); }, [location]);
   useEffect(() => {
@@ -30,7 +67,7 @@ export function Navbar() {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 border-b border-[var(--border)] bg-[#0a0a14]/95 backdrop-blur-md">
+      <nav className="sticky top-0 z-50 border-b border-[var(--border)] backdrop-blur-md" style={{ backgroundColor: "var(--bg-nav)" }}>
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
@@ -51,9 +88,10 @@ export function Navbar() {
                     active
                       ? "bg-[var(--primary-light)] text-[var(--primary)]"
                       : highlight
-                      ? "bg-[var(--primary)] text-[#0a0a14] hover:bg-[var(--primary-hover)]"
+                      ? "bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
                   }`}
+                  style={highlight && !active ? { color: "var(--primary-btn-text)" } : undefined}
                 >
                   {highlight && (
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -85,11 +123,14 @@ export function Navbar() {
           </div>
 
           {/* Right */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-[var(--primary-dim)] bg-[var(--primary-light)] px-2.5 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
               <span className="text-xs font-medium text-[var(--primary)]">AI Live</span>
             </div>
+
+            {/* Desktop theme toggle */}
+            <ThemeToggle className="hidden md:flex" />
 
             {!loading && (
               <div className="hidden sm:flex items-center gap-2">
@@ -111,7 +152,8 @@ export function Navbar() {
                 ) : (
                   <Link
                     href="/login"
-                    className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[#0a0a14] hover:bg-[var(--primary-hover)] transition-colors"
+                    className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
+                    style={{ color: "var(--primary-btn-text)" }}
                   >
                     Sign in
                   </Link>
@@ -137,7 +179,10 @@ export function Navbar() {
       {menuOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMenuOpen(false)} />}
 
       {/* Mobile menu */}
-      <div className={`fixed top-14 left-0 right-0 z-40 md:hidden bg-[#0a0a14] border-b border-[var(--border)] shadow-lg transition-all duration-200 ${menuOpen ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}>
+      <div
+        className={`fixed top-14 left-0 right-0 z-40 md:hidden border-b border-[var(--border)] shadow-lg transition-all duration-200 ${menuOpen ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}
+        style={{ backgroundColor: "var(--bg-mobile-menu)" }}
+      >
         <div className="px-4 py-3 space-y-1">
           {NAV_ITEMS.map(({ href, label, highlight }) => {
             const active = href === "/" ? location === "/" : location.startsWith(href);
@@ -149,9 +194,10 @@ export function Navbar() {
                   active
                     ? "bg-[var(--primary-light)] text-[var(--primary)]"
                     : highlight
-                    ? "bg-[var(--primary)] text-[#0a0a14]"
+                    ? "bg-[var(--primary)]"
                     : "text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
                 }`}
+                style={highlight && !active ? { color: "var(--primary-btn-text)" } : undefined}
               >
                 {highlight && (
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -197,9 +243,36 @@ export function Navbar() {
             ))}
           </div>
 
-          <div className="px-4 pt-2 pb-1 flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
-            <span className="text-xs font-medium text-[var(--primary)]">AI Live</span>
+          {/* Mobile theme toggle row */}
+          <div className="border-t border-[var(--border)] pt-3 pb-1 px-4 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
+              <span className="text-xs font-medium text-[var(--primary)]">AI Live</span>
+            </div>
+            <button
+              onClick={toggle}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] transition-colors border border-[var(--border)]"
+            >
+              {isDay ? (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                  Dark mode
+                </>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                  Day mode
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
