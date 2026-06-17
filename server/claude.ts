@@ -331,6 +331,7 @@ Return ONLY this JSON (use correct currency symbol throughout, NOT ISO codes):
 {
   "companyName": "Official company name",
   "industry": "Primary industry sector",
+  "website": "e.g. apple.com or materialnexus.com — just the bare domain, no https://",
   "executiveSummary": {
     "companyOverview": "2-3 sentence overview",
     "headquarters": "City, Country",

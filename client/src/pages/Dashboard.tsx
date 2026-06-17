@@ -26,6 +26,36 @@ const TABS = [
   { id: "sales",      label: "Sales Enablement",  shortLabel: "Sales" },
 ];
 
+// ─── Company logo (Clearbit) ─────────────────────────────────────────────────
+// Uses Clearbit's free logo API keyed on domain. Falls back silently to a
+// neutral monogram avatar if the domain isn't found or image fails to load.
+function CompanyLogo({ companyName, website }: { companyName: string; website?: string | null }) {
+  const [failed, setFailed] = useState(false);
+
+  const domain = website
+    ? website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]
+    : null;
+
+  const initial = companyName.trim()[0]?.toUpperCase() ?? "?";
+
+  if (!domain || failed) {
+    return (
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-sm font-bold text-[var(--primary)]">
+        {initial}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`https://logo.clearbit.com/${domain}`}
+      alt={companyName}
+      onError={() => setFailed(true)}
+      className="h-10 w-10 shrink-0 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] object-contain p-0.5"
+    />
+  );
+}
+
 export function Dashboard() {
   const { slug } = useParams<{ slug: string }>();
   const [, navigate] = useLocation();
@@ -125,11 +155,33 @@ export function Dashboard() {
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-[var(--text-primary)] sm:text-3xl md:text-4xl">
-                {report.companyName}
-              </h1>
+              <div className="flex items-center gap-3">
+                {/* Company logo via Clearbit — silent fallback if not found */}
+                <CompanyLogo companyName={report.companyName} website={data.website ?? (data.executiveSummary as any).website} />
+                <h1 className="text-2xl font-semibold text-[var(--text-primary)] sm:text-3xl md:text-4xl">
+                  {report.companyName}
+                </h1>
+              </div>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                {data.executiveSummary.headquarters} · CEO: {data.executiveSummary.ceo}
+                {data.executiveSummary.headquarters}
+                {(data.website ?? (data.executiveSummary as any).website) && (
+                  <>
+                    {" · "}
+                    <a
+                      href={(() => {
+                        const w = data.website ?? (data.executiveSummary as any).website;
+                        return w.startsWith("http") ? w : `https://${w}`;
+                      })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--primary)] hover:underline"
+                    >
+                      {(data.website ?? (data.executiveSummary as any).website)
+                        .replace(/^https?:\/\/(www\.)?/, "")
+                        .replace(/\/$/, "")}
+                    </a>
+                  </>
+                )}
               </p>
             </div>
 
