@@ -25,10 +25,16 @@ export function requireAuth(req: any, res: any, next: any) {
 }
 
 export function requireAdmin(req: any, res: any, next: any) {
-  if (!req.session?.userId || !req.session?.isAdmin) {
-    return res.status(403).json({ error: "Not authorised" });
+  if (!req.session?.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
   }
-  next();
+  // Check the cached session flag first, but also accept if the
+  // session email is the admin email — covers sessions created before
+  // isAdmin was stored in the session.
+  if (req.session?.isAdmin || isAdmin(req.session?.email ?? "")) {
+    return next();
+  }
+  return res.status(403).json({ error: "Not authorised" });
 }
 
 // Helper to get client IP honoring proxy headers.
