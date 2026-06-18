@@ -203,20 +203,39 @@ export async function resolveCompanyName(input: string): Promise<string> {
 }
 
 // ─── CEO lookup via web search ────────────────────────────────────────────────
+// Uses Sonnet (not Haiku) with web search — better recall for private/smaller
+// companies where Haiku's training data is sparse.
 async function lookupCEO(companyName: string): Promise<string> {
   try {
     const message = await client.messages.create({
-      model: MODEL_GROUNDED,
+      model: MODEL_FAST, // Sonnet — better web recall for private/smaller companies
       max_tokens: 200,
-      system: "You are a factual lookup assistant. Respond with ONLY the current CEO's full name — no punctuation, no explanation, nothing else.",
+      system: "You are a factual lookup assistant. Search the web for the current CEO. Respond with ONLY their full name — no punctuation, no explanation, nothing else. If you cannot confirm with high confidence, respond with exactly: unknown",
       tools: [{ type: "web_search_20250305", name: "web_search" }],
-      messages: [{ role: "user", content: `Who is the current CEO of ${companyName}? Search the web and return only their full name.` }],
+      messages: [{ role: "user", content: `Search the web for the current CEO of ${companyName}. Return only their full name, or 'unknown' if not found.` }],
     });
-    const text = message.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map(b => b.text).join("").replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "").trim();
-    if (text && text.length < 80 && !text.includes("{") && !text.includes("\n")) return text;
+    const text = message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .replace(/<cite[^>]*>([\s\S]*?)<\/cite>/g, "")
+      .trim();
+    if (
+      text &&
+      text.length > 2 &&
+      text.length < 80 &&
+      !text.includes("{") &&
+      !text.includes("\n") &&
+      !/^unknown$/i.test(text) &&
+      !/cannot|unable|not found|no ceo|n\/a/i.test(text)
+    ) {
+      console.log(`  👤 CEO: "${text}"`);
+      return text;
+    }
   } catch (err) {
     console.warn(`CEO lookup failed for ${companyName}:`, err);
   }
+  console.warn(`  ⚠️ CEO not confirmed for "${companyName}"`);
   return "See company website for current CEO";
 }
 

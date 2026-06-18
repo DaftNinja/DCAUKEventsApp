@@ -9,6 +9,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.0] — 2026-06-18
+
+### Added
+- **CHANGELOG.md** entries for this session (meta, but accurate).
+
+### Changed
+- **CEO lookup upgraded to Sonnet 4.6 + web search** — previously used Haiku which lacked training coverage for smaller and private companies (e.g. Pirum returned “See company website”). Sonnet with web search resolves CEO names reliably for public, private, and niche companies alike. Validation tightened: responses matching `unknown`, `cannot`, `unable`, `not found` are treated as failures and fall back to the placeholder cleanly.
+- **`req.session.*` key audit completed** — confirmed all server files use `userId`, `email`, and `isAdmin` consistently. Set in `authRoutes.ts` callback; read identically in `routes.ts` (`getSessionUser`), `authRoutes.ts` (`requireAuth`, `requireAdmin`, `/me`, `/logout`), and `index.ts`. No inconsistencies found.
+
+### Fixed
+- **CEO fallback logging** — added `⚠️ CEO not confirmed` warning log and `👤 CEO: "name"` success log so Railway logs make it immediately clear whether lookup succeeded or fell back.
+
+---
+
 ## [1.1.0] — 2026-06-17
 
 ### Added
