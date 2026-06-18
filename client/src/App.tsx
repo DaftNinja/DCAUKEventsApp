@@ -7,6 +7,7 @@ import { Presentation } from "@/pages/Presentation";
 import { Batch } from "@/pages/Batch";
 import { Demo } from "@/pages/Demo";
 import { AuditLog } from "@/pages/AuditLog";
+import { Admin } from "@/pages/Admin";
 import { Login } from "@/pages/Login";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -44,6 +45,7 @@ export default function App() {
       <Route path="/presentation" component={gated(Presentation)} />
       <Route path="/batch" component={gated(Batch)} />
       <Route path="/audit-log" component={gated(AuditLog, { admin: true })} />
+      <Route path="/admin" component={gated(Admin, { admin: true })} />
 
       <Route component={NotFound} />
     </Switch>

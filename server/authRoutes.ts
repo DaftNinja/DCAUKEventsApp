@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { z } from "zod";
+import { eq } from "drizzle-orm";
 import {
   createUser, getUserByEmail, getUserById, updateLastLogin,
   createSigninToken, consumeSigninToken,
@@ -6,7 +8,7 @@ import {
 } from "./auth.js";
 import { sendMagicLinkEmail } from "./email.js";
 import { db } from "./db.js";
-import { auditLogs, RequestLinkSchema } from "../shared/schema.js";
+import { auditLogs, users, RequestLinkSchema } from "../shared/schema.js";
 import { desc } from "drizzle-orm";
 
 export const authRouter = Router();
@@ -180,6 +182,64 @@ authRouter.get("/me", async (req, res) => {
       isAdmin: isAdmin(user.email),
     },
   });
+});
+
+// ─── Admin: user management ──────────────────────────────────────────────────
+
+authRouter.get("/admin/users", requireAdmin, async (_req, res) => {
+  const allUsers = await db.select().from(users).orderBy(users.createdAt);
+  res.json({ users: allUsers });
+});
+
+authRouter.post("/admin/users", requireAdmin, async (req, res) => {
+  const schema = z.object({
+    email: z.string().email(),
+    firstName: z.string().min(1).max(80),
+    lastName: z.string().min(1).max(80),
+    company: z.string().optional(),
+    reportCredits: z.number().int().min(0).max(999999).default(5),
+  });
+  const parse = schema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: parse.error.errors[0].message });
+  const { email, firstName, lastName, company, reportCredits } = parse.data;
+  const existing = await getUserByEmail(email);
+  if (existing) return res.status(409).json({ error: "A user with that email already exists." });
+  const adminUser = isAdmin(email);
+  const [user] = await db.insert(users).values({
+    email: email.toLowerCase(), firstName, lastName, company,
+    isActive: true,
+    reportCredits: adminUser ? 999999 : reportCredits,
+  }).returning();
+  await writeAuditLog("ADMIN_USER_CREATED", `Created: ${email}`, req.session?.userId, req.session?.email, getIp(req));
+  res.status(201).json({ user });
+});
+
+authRouter.patch("/admin/users/:id", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid user ID" });
+  const schema = z.object({
+    reportCredits: z.number().int().min(0).max(999999).optional(),
+    isActive: z.boolean().optional(),
+  });
+  const parse = schema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: parse.error.errors[0].message });
+  const updates: Record<string, unknown> = {};
+  if (parse.data.reportCredits !== undefined) updates.reportCredits = parse.data.reportCredits;
+  if (parse.data.isActive !== undefined) updates.isActive = parse.data.isActive;
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: "Nothing to update" });
+  const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+  if (!updated) return res.status(404).json({ error: "User not found" });
+  await writeAuditLog("ADMIN_USER_UPDATED", `Updated user ${id}: ${JSON.stringify(updates)}`, req.session?.userId, req.session?.email, getIp(req));
+  res.json({ user: updated });
+});
+
+authRouter.delete("/admin/users/:id", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid user ID" });
+  const [deleted] = await db.delete(users).where(eq(users.id, id)).returning();
+  if (!deleted) return res.status(404).json({ error: "User not found" });
+  await writeAuditLog("ADMIN_USER_DELETED", `Deleted user ${id} (${deleted.email})`, req.session?.userId, req.session?.email, getIp(req));
+  res.json({ success: true });
 });
 
 // ─── Audit log (admin only) ───────────────────────────────────────────────────

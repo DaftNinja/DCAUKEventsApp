@@ -47,6 +47,15 @@ export const api = {
     logout: () =>
       request<{ message: string }>("/auth/logout", { method: "POST" }),
     auditLog: (page = 1) => request<any>(`/auth/audit-log?page=${page}`),
+    admin: {
+      listUsers: () => request<{ users: any[] }>("/auth/admin/users"),
+      createUser: (payload: { email: string; firstName: string; lastName: string; company?: string; reportCredits: number }) =>
+        request<{ user: any }>("/auth/admin/users", { method: "POST", body: JSON.stringify(payload) }),
+      updateUser: (id: number, payload: { reportCredits?: number; isActive?: boolean }) =>
+        request<{ user: any }>(`/auth/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+      deleteUser: (id: number) =>
+        request<{ success: boolean }>(`/auth/admin/users/${id}`, { method: "DELETE" }),
+    },
   },
   reports: {
     list: () => request<any[]>("/reports"),

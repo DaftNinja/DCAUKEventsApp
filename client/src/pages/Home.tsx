@@ -117,7 +117,7 @@ export function Home() {
               </div>
             </div>
             <p className="text-sm font-medium text-[var(--text-primary)]">Generating report…</p>
-            <p className="text-xs text-[var(--text-muted)] mt-1">Usually ready in 30 seconds</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">Usually ready in 40 seconds</p>
           </div>
         )}
 
