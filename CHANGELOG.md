@@ -12,7 +12,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.2.0] — 2026-06-18
 
 ### Added
-- **CHANGELOG.md** entries for this session (meta, but accurate).
+- **Admin user management UI** (`/admin`) — admin-only page to create users, edit report credits, toggle active/disabled status, and delete users. All actions audit logged (`ADMIN_USER_CREATED`, `ADMIN_USER_UPDATED`, `ADMIN_USER_DELETED`). Search filters by name, email, or company client-side. Credit badge is clickable inline; Active/Disabled badge toggles on click.
+- **Admin API endpoints** — `GET/POST /api/auth/admin/users`, `PATCH /api/auth/admin/users/:id`, `DELETE /api/auth/admin/users/:id` — all behind `requireAdmin` middleware.
+- **Users nav link** — admin navbar now shows both "Users" (people icon) and "Audit Log" links.
+- **CHANGELOG.md** entries for this session.
 
 ### Changed
 - **CEO lookup upgraded to Sonnet 4.6 + web search** — previously used Haiku which lacked training coverage for smaller and private companies (e.g. Pirum returned “See company website”). Sonnet with web search resolves CEO names reliably for public, private, and niche companies alike. Validation tightened: responses matching `unknown`, `cannot`, `unable`, `not found` are treated as failures and fall back to the placeholder cleanly.
