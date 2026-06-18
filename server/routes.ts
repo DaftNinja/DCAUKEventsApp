@@ -6,6 +6,7 @@ import {
 } from "./storage.js";
 import { generateReport, generateSalesEnablement, generateInvestorPresentation, resolveCompanyName } from "./claude.js";
 import { writeAuditLog, getUserById, decrementCredits, isAdmin } from "./auth.js";
+import { sendReportReadyEmail } from "./email.js";
 
 export const router = Router();
 
@@ -74,6 +75,11 @@ router.get("/reports/:slug", async (req, res) => {
   }
 });
 
+// ─── SSE helper ───────────────────────────────────────────────────────────────────
+function sseEmit(res: any, event: string, data: unknown) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
 router.post("/reports/generate", async (req: any, res) => {
   const schema = z.object({
     companyName: z.string().min(1).max(200),
@@ -84,86 +90,113 @@ router.post("/reports/generate", async (req: any, res) => {
   if (!parse.success) return res.status(400).json({ error: parse.error.message });
 
   const { companyName: rawInput, forceRefresh } = parse.data;
-
-  // Resolve company name from URL in parallel with cache check
-  // so URL resolution doesn't add serial latency before generation
   const companyName = await resolveCompanyName(rawInput);
   console.log(`⏱️  generate: "${rawInput}" → "${companyName}"`);
   const slug = slugify(companyName);
   const { id: userId, email: userEmail } = getSessionUser(req);
 
+  // ── Set up SSE ──────────────────────────────────────────────────
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering on Railway
+  res.flushHeaders();
+
+  const emit = (event: string, data: unknown) => sseEmit(res, event, data);
+
   try {
-    // Check cache first — cache hits never cost a credit
+    // Cache hit — instant
     if (!forceRefresh) {
       const existing = await getReportBySlug(slug);
       if (existing && (await isCacheValid(existing))) {
         await writeAuditLog("REPORT_CACHE_HIT", companyName, userId, userEmail, getClientIp(req));
-        return res.json({ report: existing, cached: true });
+        emit("done", { report: existing, cached: true });
+        return res.end();
       }
     }
 
-    // ── Credit check ──────────────────────────────────────────────────────
-    // Admins bypass the credit system entirely.
-    // All other authenticated users must have at least 1 credit remaining.
+    // Credit check
     if (userId) {
       const user = await getUserById(userId);
       if (user && !isAdmin(user.email) && user.reportCredits <= 0) {
         await writeAuditLog("REPORT_BLOCKED_NO_CREDITS", companyName, userId, userEmail, getClientIp(req));
-        return res.status(403).json({
-          error: "You've used all your report credits. Contact us to get more.",
-          code: "NO_CREDITS",
-        });
+        emit("error", { error: "You've used all your report credits. Contact us to get more.", code: "NO_CREDITS" });
+        return res.end();
       }
     }
 
-    // Generate — retry up to 2 times, with backoff for rate limits
+    // ── Streaming generation ──────────────────────────────────────────
+    emit("progress", { stage: "starting", message: "Resolving company information…" });
+
+    const genStart = Date.now();
     let reportData: unknown;
     let lastError: unknown;
-    const genStart = Date.now();
+
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        reportData = await generateReport(companyName);
+        // generateReport now accepts an onProgress callback to emit SSE events
+        reportData = await generateReport(companyName, undefined, undefined, (stage: string, message: string) => {
+          emit("progress", { stage, message });
+        });
         break;
       } catch (err: any) {
         lastError = err;
         const status = err?.status ?? 0;
         if (status === 429) {
-          const retryAfter = parseInt(err?.headers?.['retry-after'] ?? '10', 10);
-          const waitMs = Math.min((retryAfter + 2) * 1000, 30000);
-          console.warn(`Rate limited (429), waiting ${waitMs}ms before retry ${attempt + 1}...`);
+          const waitMs = Math.min((parseInt(err?.headers?.['retry-after'] ?? '10', 10) + 2) * 1000, 30000);
+          emit("progress", { stage: "waiting", message: "Service busy — retrying shortly…" });
           await new Promise(r => setTimeout(r, waitMs));
           continue;
         }
         if (status >= 400 && status < 500) throw err;
         if (attempt === 0) {
-          console.warn(`Report generation attempt 1 failed (${status}), retrying…`);
+          emit("progress", { stage: "retrying", message: "Retrying…" });
           await new Promise(r => setTimeout(r, 2000));
         }
       }
     }
     if (!reportData) throw lastError;
-    console.log(`⏱️  generateReport done in ${((Date.now()-genStart)/1000).toFixed(1)}s`);
+
+    const elapsed = Math.round((Date.now() - genStart) / 1000);
+    console.log(`⏱️  generateReport done in ${elapsed}s`);
 
     const industry = (reportData as { industry?: string }).industry ?? "Unknown";
     const saved = await createOrUpdateReport({ companyName, industry, reportData, isGenerating: false });
 
-    // ── Decrement credit after successful generation only ──────────────────
+    // Decrement credit
+    let userForEmail: Awaited<ReturnType<typeof getUserById>> = null;
     if (userId) {
-      const user = await getUserById(userId);
-      if (user && !isAdmin(user.email)) {
+      userForEmail = await getUserById(userId);
+      if (userForEmail && !isAdmin(userForEmail.email)) {
         await decrementCredits(userId);
       }
     }
 
     await writeAuditLog("REPORT_GENERATED", companyName, userId, userEmail, getClientIp(req));
-    res.json({ report: saved, cached: false });
+
+    // Emit done — frontend navigates immediately
+    emit("done", { report: saved, cached: false });
+    res.end();
+
+    // Send email after response is closed (non-blocking)
+    if (userForEmail && userEmail) {
+      sendReportReadyEmail(
+        userEmail,
+        userForEmail.firstName,
+        companyName,
+        saved.companySlug,
+        elapsed
+      ).catch(err => console.warn("Report ready email failed:", err));
+    }
+
   } catch (err: any) {
     console.error("POST /reports/generate error:", err);
     const status = err?.status ?? 0;
     const message = status === 429
       ? "Service is temporarily busy — please wait a moment and try again."
       : "Report generation failed. Please try again.";
-    res.status(500).json({ error: message });
+    emit("error", { error: message });
+    res.end();
   }
 });
 

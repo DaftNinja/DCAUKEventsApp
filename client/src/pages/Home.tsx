@@ -13,12 +13,20 @@ export function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [progressMsg, setProgressMsg] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerate = async (company: string = query) => {
     if (!company.trim()) return;
     setLoading(true);
     setError("");
+    setProgressMsg("Starting...");
+
+    // Register SSE progress handler
+    api.reports.onProgress((data) => {
+      setProgressMsg(data.message);
+    });
+
     try {
       const { report } = await api.reports.generate(company.trim());
       navigate(`/reports/${report.companySlug}`);
@@ -29,6 +37,9 @@ export function Home() {
         setError(err.message ?? "Something went wrong. Please try again.");
       }
       setLoading(false);
+      setProgressMsg("");
+    } finally {
+      api.reports.onProgress(null);
     }
   };
 
@@ -109,7 +120,7 @@ export function Home() {
         </div>
 
         {loading && (
-          <div className="animate-fade-up mt-6 card max-w-xs w-full text-center shadow-md mx-4">
+          <div className="animate-fade-up mt-6 card max-w-sm w-full text-center shadow-md mx-4">
             <div className="flex justify-center mb-3">
               <div className="relative h-9 w-9">
                 <div className="absolute inset-0 rounded-full border-2 border-[var(--primary-dim)]" />
@@ -117,7 +128,30 @@ export function Home() {
               </div>
             </div>
             <p className="text-sm font-medium text-[var(--text-primary)]">Generating report…</p>
-            <p className="text-xs text-[var(--text-muted)] mt-1">Usually ready in 40 seconds</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1 min-h-[1.25rem] transition-all">
+              {progressMsg || "Usually ready in 40 seconds"}
+            </p>
+            <div className="mt-3 flex items-center gap-1.5 justify-center">
+              {["ceo","generating","partA","partB1","partB2","saving"].map((stage, i) => {
+                const stageOrder = ["ceo","generating","partA","partB1","partB2","saving"];
+                const currentStage = progressMsg.includes("CEO") || progressMsg.includes("Looking") ? "ceo"
+                  : progressMsg.includes("Generating") ? "generating"
+                  : progressMsg.includes("Executive") ? "partA"
+                  : progressMsg.includes("Tech") ? "partB1"
+                  : progressMsg.includes("Growth") ? "partB2"
+                  : progressMsg.includes("Saving") ? "saving" : "";
+                const currentIdx = stageOrder.indexOf(currentStage);
+                const isDone = currentIdx > i;
+                const isActive = currentIdx === i;
+                return (
+                  <div key={stage} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                    isDone ? "bg-[var(--primary)]" :
+                    isActive ? "bg-[var(--primary)] opacity-60 animate-pulse" :
+                    "bg-[var(--border)]"
+                  }`} />
+                );
+              })}
+            </div>
           </div>
         )}
 

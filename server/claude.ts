@@ -443,21 +443,31 @@ Return ONLY this JSON:
 //   Stage 1 (parallel): CEO lookup + FMP fetch                    ~2-5s
 //   Stage 2 (parallel): Part A + Part B1 + Part B2                ~25-35s each
 //   Total target: ~35s
-export async function generateReport(companyName: string, industry?: string, ticker?: string): Promise<any> {
+export async function generateReport(
+  companyName: string,
+  industry?: string,
+  ticker?: string,
+  onProgress?: (stage: string, message: string) => void
+): Promise<any> {
   const start = Date.now();
+  const progress = onProgress ?? (() => {});
 
-  // Stage 1: fast lookups in parallel
+  // Stage 1: CEO lookup + FMP in parallel
+  progress("ceo", `Looking up CEO and company data...`);
   const [ceo, fmpData] = await Promise.all([
     lookupCEO(companyName),
     ticker ? fetchFMPFinancials(ticker) : Promise.resolve({} as FMPFinancials),
   ]);
-  console.log(`  ✅ CEO="${ceo}" resolved in ${((Date.now()-start)/1000).toFixed(1)}s`);
+  progress("generating", `Generating intelligence report for ${companyName}...`);
 
   // Stage 2: all three generation calls fully in parallel
   const [partA, partB1, partB2] = await Promise.all([
-    generatePartA(companyName, industry, ticker, ceo),
-    generatePartB1(companyName, industry, ticker),
-    generatePartB2(companyName, industry, ticker),
+    generatePartA(companyName, industry, ticker, ceo)
+      .then(r => { progress("partA", "Executive summary, financials & market complete"); return r; }),
+    generatePartB1(companyName, industry, ticker)
+      .then(r => { progress("partB1", "Tech spend, ESG & SWOT complete"); return r; }),
+    generatePartB2(companyName, industry, ticker)
+      .then(r => { progress("partB2", "Growth, risks & digital transformation complete"); return r; }),
   ]);
 
   const mergedPartA = partA as any;
@@ -466,8 +476,9 @@ export async function generateReport(companyName: string, industry?: string, tic
     mergedPartA.financials._fmpVerified = true;
   }
 
+  progress("saving", "Saving report...");
   console.log(
-    `✅ Stellanor report generated in ${((Date.now() - start) / 1000).toFixed(1)}s` +
+    `Stellanor report generated in ${((Date.now() - start) / 1000).toFixed(1)}s` +
     `${Object.keys(fmpData).length > 0 ? " (FMP verified)" : " (AI estimates)"}`
   );
 

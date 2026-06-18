@@ -100,3 +100,47 @@ export async function sendCreditLimitEmail(email: string, firstName: string): Pr
     `,
   });
 }
+
+// ─── Report ready notification ──────────────────────────────────────────────────
+
+export async function sendReportReadyEmail(
+  email: string,
+  firstName: string,
+  companyName: string,
+  reportSlug: string,
+  generationSeconds: number
+): Promise<void> {
+  const reportUrl = `${APP_URL}/reports/${reportSlug}`;
+  await send({
+    to: email,
+    subject: `Your ${companyName} report is ready`,
+    html: `
+      <div style="font-family: Inter, -apple-system, Segoe UI, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #0a0a14;">
+        <div style="background: #13132a; border-radius: 10px; padding: 32px; border: 1px solid rgba(170,101,255,0.2);">
+          <div style="margin-bottom: 24px;">
+            <div style="display: inline-flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+              <div style="width: 32px; height: 32px; background: #aa65ff; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                <span style="color: #0a0a14; font-weight: 700; font-size: 11px;">SN</span>
+              </div>
+              <span style="color: #aa65ff; font-weight: 600; font-size: 13px;">Stellanor Insight Generator</span>
+            </div>
+            <h1 style="margin: 0 0 8px; font-size: 22px; font-weight: 600; color: #f0eeff;">Your report is ready</h1>
+            <p style="margin: 0; color: #9b96c4; font-size: 13px;">Generated in ${generationSeconds}s</p>
+          </div>
+          <p style="color: #9b96c4; font-size: 15px; line-height: 1.6; margin: 0 0 4px;">Hi ${firstName}, your strategic intelligence report for</p>
+          <p style="color: #f0eeff; font-size: 20px; font-weight: 600; margin: 0 0 20px;">${companyName}</p>
+          <p style="color: #9b96c4; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">
+            is ready to view. It covers financials, market position, SWOT analysis, ESG, digital transformation, growth opportunities, risk assessment, and a tailored Stellanor sales brief.
+          </p>
+          <a href="${reportUrl}" style="display: inline-block; background: #aa65ff; color: #0a0a14; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 28px; border-radius: 6px; margin-bottom: 24px;">
+            View Report →
+          </a>
+          <p style="color: #5e5a80; font-size: 11px; margin: 0; word-break: break-all;">
+            Or paste into your browser: ${reportUrl}
+          </p>
+        </div>
+        <p style="text-align: center; color: #5e5a80; font-size: 11px; margin-top: 16px;">Stellanor · contact@stellanordc.com</p>
+      </div>
+    `,
+  });
+}
