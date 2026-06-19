@@ -9,6 +9,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.0] — 2026-06-19
+
+### Added
+- **Credit badge with popover** — the credit count in the navbar is now an interactive badge. Clicking it opens a popover showing: credit count in purple/amber/red depending on level, a progress bar out of 5 starting credits, an explanation that new reports cost 1 credit and cached reports are free, a low-credit amber warning at 1 remaining, a zero-credit red banner, and a "Request more credits" mailto CTA to `contact@stellanordc.com`. Admins see "Admin" text instead.
+- **Batch credit check** — the `/reports/batch` endpoint now performs an upfront credit check before starting generation. Counts non-cached companies, compares against available credits, and rejects the batch with a clear message including `creditsNeeded` and `creditsAvailable` if insufficient. Credits are deducted per report as each completes.
+
+### Changed
+- **Batch concurrency raised to chunk size 4** — previously sequential (1 at a time), then chunk size 2. Now runs 4 reports in parallel per chunk, chunks sequentially. Verified safe against Tier 1 limits (1K RPM, 80K output TPM). 6 reports: ~228s → 84s (2.7× faster). Railway logs show `📦 Batch`, `📦 Chunk N`, `📦 Batch complete` with timing.
+- **Report-ready email skipped on forceRefresh** — the Refresh button on a report sends `forceRefresh: true`; the email notification now has a `!forceRefresh` guard so users aren’t emailed when they manually refresh a report they’re already viewing.
+
+### Fixed
+- **Batch route missing credit deduction** — the `/reports/batch` endpoint was generating reports without checking or decrementing user credits. Now enforces the same credit rules as single report generation.
+- **`tools/` build exclusion verified** — confirmed `tools/last30days/` is entirely outside Vite’s `root: "./client"` scope and is never bundled into the frontend build. No changes needed.
+
+---
+
 ## [1.3.0] — 2026-06-19
 
 ### Added
