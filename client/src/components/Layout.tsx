@@ -328,11 +328,60 @@ export function Navbar() {
           <div className="border-t border-[var(--border)] mt-2 pt-3">
             {!loading && (user ? (
               <>
-                <div className="px-4 pb-2">
-                  <div className="text-sm font-medium text-[var(--text-primary)]">{user.firstName} {user.lastName}</div>
-                  <div className="text-xs text-[var(--text-muted)]">
-                    {user.isAdmin ? "Admin" : `${user.reportCredits} credit${user.reportCredits === 1 ? "" : "s"}`}
-                  </div>
+                <div className="px-4 pb-3">
+                  <div className="text-sm font-medium text-[var(--text-primary)] mb-1">{user.firstName} {user.lastName}</div>
+                  {user.isAdmin ? (
+                    <span className="text-xs text-[var(--text-muted)]">Admin</span>
+                  ) : (
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 mt-2">
+                      {/* Header row */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-[var(--text-primary)] uppercase tracking-wide">Report Credits</span>
+                        <span className={`text-base font-extrabold font-mono ${
+                          user.reportCredits === 0 ? "text-red-400" : user.reportCredits <= 1 ? "text-amber-400" : "text-[var(--primary)]"
+                        }`}>
+                          {user.reportCredits === 999999 ? "∞" : user.reportCredits}
+                        </span>
+                      </div>
+                      {/* Progress bar */}
+                      {user.reportCredits !== 999999 && (
+                        <div className="mb-2">
+                          <div className="h-1.5 rounded-full bg-[var(--bg-card)]">
+                            <div
+                              className={`h-1.5 rounded-full transition-all ${
+                                user.reportCredits === 0 ? "bg-red-500" : user.reportCredits <= 1 ? "bg-amber-400" : "bg-[var(--primary)]"
+                              }`}
+                              style={{ width: `${Math.min(100, (user.reportCredits / 5) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {/* Explanation */}
+                      <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
+                        Each new report uses 1 credit. Cached reports are free.
+                      </p>
+                      {/* Status */}
+                      {user.reportCredits === 0 ? (
+                        <div className="rounded-md bg-red-950 border border-red-800 px-2.5 py-1.5 text-xs text-red-400 mb-2">
+                          No credits remaining.
+                        </div>
+                      ) : user.reportCredits <= 1 ? (
+                        <div className="rounded-md bg-amber-950 border border-amber-800 px-2.5 py-1.5 text-xs text-amber-400 mb-2">
+                          Running low — 1 credit remaining.
+                        </div>
+                      ) : null}
+                      {/* CTA */}
+                      <a
+                        href="mailto:contact@stellanordc.com?subject=Report Credits Request"
+                        className="flex items-center justify-center gap-1.5 w-full rounded-lg border border-[var(--primary-dim)] bg-[var(--primary-light)] px-3 py-2 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-colors"
+                      >
+                        Request more credits
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                      </a>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={handleLogout}
