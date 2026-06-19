@@ -9,6 +9,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.0] — 2026-06-19
+
+### Added
+- **SSE streaming progress** — the `/reports/generate` endpoint now uses Server-Sent Events instead of a blocking JSON response. Progress events (`ceo`, `generating`, `partA`, `partB1`, `partB2`, `saving`) are pushed to the client as each parallel stage completes. The frontend shows a live progress message and a 6-segment progress bar that fills in real time. `generateReport` accepts an `onProgress` callback wired through from the route handler.
+- **Report-ready email notification** — `sendReportReadyEmail` in `email.ts` sends a dark Stellanor-branded email (purple `#aa65ff` CTA button, navy background) with a direct "View Report →" link after every new generation. Sent non-blocking after `res.end()` so it never adds latency. Skipped on cache hits and on `forceRefresh` (user is already viewing the report).
+- **Admin user management UI** (`/admin`) — admin-only page with full CRUD: create users, edit report credits, toggle active/disabled, delete with confirmation modal. Search by name, email, or company. Credit badge and Active/Disabled badge are both clickable inline. All actions audit logged (`ADMIN_USER_CREATED`, `ADMIN_USER_UPDATED`, `ADMIN_USER_DELETED`).
+- **Admin API endpoints** — `GET/POST /api/auth/admin/users`, `PATCH /api/auth/admin/users/:id`, `DELETE /api/auth/admin/users/:id`, all behind `requireAdmin`.
+- **Users nav link** — admin navbar now shows "Users" and "Audit Log" links side by side.
+
+### Changed
+- **`requireAdmin` hardened** — now falls back to `isAdmin(req.session.email)` when `req.session.isAdmin` is absent (sessions created before the flag was stored). Prevents "Not authorised" on the admin UI for existing sessions without requiring a re-login.
+- **Report generation spinner** — message updated from "Usually ready in 30 seconds" to "40 seconds" to match observed timing. Live SSE message replaces the static text during generation.
+- **`APP_URL` env var** — updated in Railway to `https://stellanordc.com`; report-ready emails now link to the correct domain instead of the old Railway subdomain.
+- **Magic link email** — rebranded to match Stellanor dark theme (navy background, purple CTA button, starburst mark) replacing the previous light blue design.
+- **`tools/` build exclusion verified** — confirmed `tools/last30days/` is outside Vite's `root: "./client"` scope and is never bundled. Installed at Railway build time by `scripts/install-last30days.sh`; gitignored and not committed.
+
+### Fixed
+- **Sales tab Generate button did nothing with bespoke text** — `sellerProduct` state lived in `Dashboard` and was passed as a prop; `handleGenerateSales` closed over a stale value at render time. Fixed by moving input state into `SalesTab` as `localProduct` and passing the value explicitly on submit.
+- **Report-ready email sent on Refresh** — the refresh button sends `forceRefresh: true` but the email was firing regardless. Fixed with a `!forceRefresh` guard so the email only sends on genuine first-time generations.
+- **"Not authorised" on admin UI** — `requireAdmin` was checking only `req.session.isAdmin` which was absent on sessions predating that field. Fixed by adding `isAdmin(email)` email fallback.
+
+---
+
 ## [1.2.0] — 2026-06-18
 
 ### Added
