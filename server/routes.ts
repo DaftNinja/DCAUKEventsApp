@@ -304,8 +304,8 @@ router.post("/reports/batch", async (req, res) => {
     }
   }
 
-  // ── Process in chunks of 2 — parallel within each chunk, sequential across chunks
-  const CHUNK_SIZE = 2;
+  // ── Process in chunks of 4 — parallel within each chunk, sequential across chunks
+  const CHUNK_SIZE = 4;
 
   const processCompany = async (company: string): Promise<void> => {
     try {
