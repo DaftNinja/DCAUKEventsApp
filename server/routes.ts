@@ -179,7 +179,8 @@ router.post("/reports/generate", async (req: any, res) => {
     res.end();
 
     // Send email after response is closed (non-blocking)
-    if (userForEmail && userEmail) {
+    // Skip on forceRefresh — user is already looking at the report
+    if (!forceRefresh && userForEmail && userEmail) {
       sendReportReadyEmail(
         userEmail,
         userForEmail.firstName,
