@@ -281,30 +281,65 @@ router.post("/reports/batch", async (req, res) => {
   if (!parse.success) return res.status(400).json({ error: parse.error.message });
 
   const { companies } = parse.data;
-  const results: { company: string; status: string; slug?: string }[] = [];
+  const { id: userId, email: userEmail } = getSessionUser(req);
+  const results: { company: string; status: string; slug?: string; error?: string }[] = [];
 
-  // Process sequentially to avoid rate limits
-  for (const company of companies) {
+  // ── Credit check upfront — count non-cached companies and verify sufficient credits
+  if (userId) {
+    const user = await getUserById(userId);
+    if (user && !isAdmin(user.email)) {
+      let creditsNeeded = 0;
+      for (const company of companies) {
+        const existing = await getReportBySlug(slugify(company));
+        if (!existing || !(await isCacheValid(existing))) creditsNeeded++;
+      }
+      if (creditsNeeded > user.reportCredits) {
+        return res.status(403).json({
+          error: `This batch requires ${creditsNeeded} credits but you only have ${user.reportCredits}. Reduce the batch size or contact us for more credits.`,
+          code: "NO_CREDITS",
+          creditsNeeded,
+          creditsAvailable: user.reportCredits,
+        });
+      }
+    }
+  }
+
+  // ── Process in chunks of 2 — parallel within each chunk, sequential across chunks
+  const CHUNK_SIZE = 2;
+
+  const processCompany = async (company: string): Promise<void> => {
     try {
       const slug = slugify(company);
       const existing = await getReportBySlug(slug);
       if (existing && (await isCacheValid(existing))) {
-        const { id: bUserId, email: bEmail } = getSessionUser(req);
-        await writeAuditLog("REPORT_CACHE_HIT", company, bUserId, bEmail, getClientIp(req));
+        await writeAuditLog("REPORT_CACHE_HIT", company, userId, userEmail, getClientIp(req));
         results.push({ company, status: "cached", slug });
-        continue;
+        return;
       }
       const reportData = await generateReport(company);
       const industry = (reportData as { industry?: string }).industry ?? "Unknown";
       await createOrUpdateReport({ companyName: company, industry, reportData });
-      const { id: bgUserId, email: bgEmail } = getSessionUser(req);
-      await writeAuditLog("REPORT_GENERATED", company, bgUserId, bgEmail, getClientIp(req));
+      if (userId) {
+        const user = await getUserById(userId);
+        if (user && !isAdmin(user.email)) await decrementCredits(userId);
+      }
+      await writeAuditLog("REPORT_GENERATED", company, userId, userEmail, getClientIp(req));
       results.push({ company, status: "generated", slug });
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Batch generation failed for ${company}:`, err);
-      results.push({ company, status: "failed" });
+      results.push({ company, status: "failed", error: err?.message ?? "Unknown error" });
     }
+  };
+
+  const batchStart = Date.now();
+  console.log(`📦 Batch: ${companies.length} companies, chunk size ${CHUNK_SIZE}`);
+
+  for (let i = 0; i < companies.length; i += CHUNK_SIZE) {
+    const chunk = companies.slice(i, i + CHUNK_SIZE);
+    console.log(`📦 Chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${chunk.join(", ")}`);
+    await Promise.allSettled(chunk.map(processCompany));
   }
 
+  console.log(`📦 Batch complete in ${((Date.now() - batchStart) / 1000).toFixed(1)}s`);
   res.json({ results });
 });
