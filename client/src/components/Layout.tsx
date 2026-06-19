@@ -47,6 +47,95 @@ function ThemeToggle({ className = "" }: { className?: string }) {
   );
 }
 
+// ─── Credit badge with popover ───────────────────────────────────────────────
+function CreditBadge({ credits }: { credits: number }) {
+  const [open, setOpen] = useState(false);
+  const low = credits <= 1;
+  const out = credits === 0;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false); }}
+        className={`text-[10px] font-medium flex items-center gap-1 transition-colors ${
+          out ? "text-red-400" : low ? "text-amber-400" : "text-[var(--text-muted)] hover:text-[var(--primary)]"
+        }`}
+      >
+        {out ? "No credits" : `${credits} credit${credits === 1 ? "" : "s"}`}
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-5 z-50 w-64 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-xl p-4"
+          onMouseDown={e => e.preventDefault()} // prevent blur on click inside
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold text-[var(--text-primary)] uppercase tracking-wide">Report Credits</span>
+            <span className={`text-lg font-extrabold font-mono ${
+              out ? "text-red-400" : low ? "text-amber-400" : "text-[var(--primary)]"
+            }`}>
+              {credits === 999999 ? "∞" : credits}
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          {credits !== 999999 && (
+            <div className="mb-3">
+              <div className="h-1.5 rounded-full bg-[var(--bg-secondary)]">
+                <div
+                  className={`h-1.5 rounded-full transition-all ${
+                    out ? "bg-red-500" : low ? "bg-amber-400" : "bg-[var(--primary)]"
+                  }`}
+                  style={{ width: `${Math.min(100, (credits / 5) * 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px] text-[var(--text-muted)]">0</span>
+                <span className="text-[10px] text-[var(--text-muted)]">5 starting credits</span>
+              </div>
+            </div>
+          )}
+
+          {/* Explanation */}
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-3">
+            Each new report generation uses 1 credit.
+            Cached reports and refreshes are always free.
+          </p>
+
+          {/* Status message */}
+          {out ? (
+            <div className="rounded-lg bg-red-950 border border-red-800 px-3 py-2 text-xs text-red-400">
+              You've used all your credits. Contact us to get more.
+            </div>
+          ) : low ? (
+            <div className="rounded-lg bg-amber-950 border border-amber-800 px-3 py-2 text-xs text-amber-400">
+              Running low — 1 credit remaining.
+            </div>
+          ) : null}
+
+          {/* CTA */}
+          <a
+            href="mailto:contact@stellanordc.com?subject=Report Credits Request"
+            className="mt-3 flex items-center justify-center gap-1.5 w-full rounded-lg border border-[var(--primary-dim)] bg-[var(--primary-light)] px-3 py-2 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-colors"
+          >
+            Request more credits
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Navbar() {
   const [location, setLocation] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -155,9 +244,11 @@ export function Navbar() {
                   <>
                     <div className="flex flex-col items-end leading-tight">
                       <span className="text-xs font-medium text-[var(--text-primary)]">{user.firstName} {user.lastName}</span>
-                      <span className="text-[10px] text-[var(--text-muted)]">
-                        {user.isAdmin ? "Admin" : `${user.reportCredits} credit${user.reportCredits === 1 ? "" : "s"}`}
-                      </span>
+                      {user.isAdmin ? (
+                        <span className="text-[10px] text-[var(--text-muted)]">Admin</span>
+                      ) : (
+                        <CreditBadge credits={user.reportCredits} />
+                      )}
                     </div>
                     <button
                       onClick={handleLogout}
