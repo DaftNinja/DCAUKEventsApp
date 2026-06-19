@@ -65,7 +65,6 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState("summary");
   const [exporting, setExporting] = useState<"pdf" | "pptx" | "html" | null>(null);
   const [salesLoading, setSalesLoading] = useState(false);
-  const [sellerProduct, setSellerProduct] = useState("");
 
   useEffect(() => {
     const fetch = async () => {
@@ -261,10 +260,7 @@ export function Dashboard() {
             <SalesTab
               data={data}
               sales={sales}
-              sellerProduct={sellerProduct}
-              setSellerProduct={setSellerProduct}
               onGenerate={handleGenerateSales}
-              onGenerateWithProduct={handleGenerateSales}
               loading={salesLoading}
             />
           )}
@@ -844,16 +840,20 @@ function DigitalTab({ data }: { data: ReportData }) {
 }
 
 function SalesTab({
-  data, sales, sellerProduct, setSellerProduct, onGenerate, onGenerateWithProduct, loading,
+  data, sales, onGenerate, loading,
 }: {
   data: ReportData;
   sales: SalesEnablement | null;
-  sellerProduct: string;
-  setSellerProduct: (v: string) => void;
-  onGenerate: () => void;
-  onGenerateWithProduct: (product: string) => void;
+  onGenerate: (product: string) => void;
   loading: boolean;
 }) {
+  const [localProduct, setLocalProduct] = useState("");
+
+  const handleSubmit = () => {
+    const product = localProduct.trim();
+    if (!product) return;
+    onGenerate(product);
+  };
   return (
     <div className="space-y-5">
       {/* Generator input */}
@@ -870,15 +870,15 @@ function SalesTab({
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
-            value={sellerProduct}
-            onChange={(e) => setSellerProduct(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onGenerate()}
+            value={localProduct}
+            onChange={(e) => setLocalProduct(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             placeholder="e.g. Data governance platform for enterprise compliance…"
             className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-dim)]"
           />
           <button
-            onClick={onGenerate}
-            disabled={loading || !sellerProduct.trim()}
+            onClick={handleSubmit}
+            disabled={loading || !localProduct.trim()}
             className="btn-primary justify-center px-5 py-2.5 shrink-0"
           >
             {loading ? (
@@ -891,7 +891,7 @@ function SalesTab({
         </div>
         {/* Stellanor default alignment shortcut */}
         <button
-          onClick={() => onGenerateWithProduct("stellanor")}
+          onClick={() => onGenerate("stellanor")}
           disabled={loading}
           className="mt-3 flex items-center gap-1.5 text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors disabled:opacity-40"
         >
