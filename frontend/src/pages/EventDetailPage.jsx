@@ -58,11 +58,11 @@ export default function EventDetailPage() {
   const [calOpen, setCalOpen] = useState(false);
   const calRef = useRef(null);
 
+  const isLoggedIn = !!localStorage.getItem('token');
+
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) { navigate('/'); return; }
     init();
-  }, [id, navigate]);
+  }, [id]);
 
   useEffect(() => {
     function handleClick(e) {
@@ -75,14 +75,18 @@ export default function EventDetailPage() {
   const init = async () => {
     try {
       setLoading(true);
-      const [eventData, userData] = await Promise.all([
-        api.get(`/api/events/${id}`),
-        api.get('/api/users/me'),
-      ]);
+      const eventData = await api.get(`/api/events/${id}`);
       setEvent(eventData);
-      const myRsvp = eventData.attendees?.find(r => r.userId === userData.id);
-      setRsvpStatus(myRsvp?.status || null);
-      setOpenToMeeting(myRsvp?.openToMeeting || false);
+      if (isLoggedIn) {
+        try {
+          const userData = await api.get('/api/users/me');
+          const myRsvp = eventData.attendees?.find(r => r.userId === userData.id);
+          setRsvpStatus(myRsvp?.status || null);
+          setOpenToMeeting(myRsvp?.openToMeeting || false);
+        } catch {
+          // user fetch failed, continue as logged-out
+        }
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -194,33 +198,45 @@ export default function EventDetailPage() {
               onToggle={handleMeetMeToggle}
             />
 
-            <EventForum
-              eventId={id}
-              rsvpStatus={rsvpStatus}
-            />
+            {isLoggedIn && (
+              <EventForum
+                eventId={id}
+                rsvpStatus={rsvpStatus}
+              />
+            )}
           </div>
 
           <div className="sidebar">
-            <div className="rsvp-section">
-              <h3>Will you attend?</h3>
-              <div className="rsvp-buttons">
-                <button
-                  className={`rsvp-btn going ${rsvpStatus === 'going' ? 'active' : ''}`}
-                  onClick={() => handleRsvp('going')}
-                  disabled={submitting}
-                >✓ Going</button>
-                <button
-                  className={`rsvp-btn interested ${rsvpStatus === 'interested' ? 'active' : ''}`}
-                  onClick={() => handleRsvp('interested')}
-                  disabled={submitting}
-                >★ Interested</button>
+            {isLoggedIn ? (
+              <div className="rsvp-section">
+                <h3>Will you attend?</h3>
+                <div className="rsvp-buttons">
+                  <button
+                    className={`rsvp-btn going ${rsvpStatus === 'going' ? 'active' : ''}`}
+                    onClick={() => handleRsvp('going')}
+                    disabled={submitting}
+                  >✓ Going</button>
+                  <button
+                    className={`rsvp-btn interested ${rsvpStatus === 'interested' ? 'active' : ''}`}
+                    onClick={() => handleRsvp('interested')}
+                    disabled={submitting}
+                  >★ Interested</button>
+                </div>
+                {rsvpStatus && (
+                  <button className="rsvp-btn remove" onClick={handleRemoveRsvp} disabled={submitting}>
+                    Remove RSVP
+                  </button>
+                )}
               </div>
-              {rsvpStatus && (
-                <button className="rsvp-btn remove" onClick={handleRemoveRsvp} disabled={submitting}>
-                  Remove RSVP
-                </button>
-              )}
-            </div>
+            ) : (
+              <div className="rsvp-section rsvp-login-prompt">
+                <h3>Will you attend?</h3>
+                <p>Sign in to RSVP, connect with attendees and join the discussion.</p>
+                <a href="/api/auth/linkedin" className="rsvp-btn going" style={{display:'block',textAlign:'center',textDecoration:'none'}}>
+                  Sign in with LinkedIn
+                </a>
+              </div>
+            )}
 
             <div className="cal-wrap" ref={calRef}>
               <button className="cal-btn" onClick={() => setCalOpen(o => !o)}>

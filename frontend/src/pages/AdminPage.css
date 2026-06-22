@@ -617,3 +617,95 @@ a.admin-news-title:hover { color: #06b6d4; }
   font-size: 0.75rem;
   color: #94a3b8;
 }
+
+/* ─── Events Tab ───────────────────────────────────────────────────── */
+.admin-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  padding: 0 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.admin-events-panel { display: flex; flex-direction: column; gap: 1rem; }
+
+.admin-events-header h2 { font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0 0 0.25rem; }
+.admin-events-header p  { font-size: 0.875rem; color: #64748b; margin: 0 0 1rem; }
+
+.admin-events-loading { color: #94a3b8; font-size: 0.875rem; }
+.admin-events-error   { color: #ef4444; font-size: 0.875rem; }
+.admin-events-empty p { color: #94a3b8; font-size: 0.875rem; }
+
+.admin-event-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.admin-event-info { flex: 1; min-width: 0; }
+.admin-event-title { font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0 0 0.5rem; }
+
+.admin-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 0.625rem;
+}
+
+.admin-event-desc {
+  font-size: 0.825rem;
+  color: #475569;
+  line-height: 1.55;
+  margin: 0 0 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.admin-event-url {
+  font-size: 0.8rem;
+  color: #06b6d4;
+  text-decoration: none;
+}
+.admin-event-url:hover { text-decoration: underline; }
+
+.admin-event-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.admin-event-approve,
+.admin-event-reject {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.admin-event-approve { background: #d1fae5; color: #065f46; }
+.admin-event-approve:hover { background: #a7f3d0; }
+.admin-event-reject  { background: #fee2e2; color: #991b1b; }
+.admin-event-reject:hover  { background: #fecaca; }
+

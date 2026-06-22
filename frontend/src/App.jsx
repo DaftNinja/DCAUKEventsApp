@@ -39,7 +39,7 @@ export default function App() {
         <Route path="/events"          element={auth(<EventsPage />)} />
         <Route path="/events/past"     element={auth(<PastEventsPage />)} />
         <Route path="/events/submit"   element={auth(<SubmitEventPage />)} />
-        <Route path="/events/:id"      element={auth(<EventDetailPage />)} />
+        <Route path="/events/:id"      element={<EventDetailPage />} />
         <Route path="/news"            element={auth(<NewsPage />)} />
         <Route path="/my-events"       element={auth(<MyEventsPage />)} />
         <Route path="/admin/events"    element={auth(<AdminEventsPage />)} />

@@ -12,7 +12,7 @@ const RSS_FEEDS = [
   },
   {
     source: "Data Centre Magazine",
-    url: "https://www.datacentremagazine.com/rss.xml",
+    url: "https://datacentremagazine.com/rss/",
   },
   {
     source: "BizClik Media — Data Centre",
@@ -24,11 +24,11 @@ const RSS_FEEDS = [
   },
   {
     source: "ComputerWeekly — Data Centre",
-    url: "https://www.computerweekly.com/rss/IT-infrastructure.xml",
+    url: "https://www.computerweekly.com/rss/Datacentres.xml",
   },
   {
     source: "The Register — Data Centre",
-    url: "https://www.theregister.com/data_centre/rss",
+    url: "https://www.theregister.com/off_prem/headlines.atom",
   },
   {
     source: "DatacenterKnowledge",

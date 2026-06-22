@@ -22,6 +22,10 @@ export default function AdminPage() {
 
   const [adminTab, setAdminTab] = useState('users');
 
+  const [pendingEvents, setPendingEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError]     = useState(null);
+
   const [users, setUsers]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
@@ -49,6 +53,39 @@ export default function AdminPage() {
 
   useEffect(() => { loadUsers(); }, []);
   useEffect(() => { if (adminTab === 'news') loadNews(); }, [adminTab]);
+  useEffect(() => { if (adminTab === 'events') loadPendingEvents(); }, [adminTab]);
+
+  async function loadPendingEvents() {
+    setEventsLoading(true);
+    setEventsError(null);
+    try {
+      const all = await api.get('/api/events');
+      setPendingEvents(all.filter(e => e.status === 'pending'));
+    } catch (e) {
+      setEventsError('Failed to load pending events');
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
+  async function handleApprove(eventId) {
+    try {
+      await api.post(`/api/events/${eventId}/approve`);
+      setPendingEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch (e) {
+      console.error('Failed to approve event:', e);
+    }
+  }
+
+  async function handleReject(eventId) {
+    if (!confirm('Reject this event submission?')) return;
+    try {
+      await api.post(`/api/events/${eventId}/reject`);
+      setPendingEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch (e) {
+      console.error('Failed to reject event:', e);
+    }
+  }
 
   async function loadUsers() {
     try {
@@ -227,6 +264,9 @@ export default function AdminPage() {
 
         <div className="admin-top-tabs">
           <button className={`admin-top-tab ${adminTab === 'users' ? 'active' : ''}`} onClick={() => setAdminTab('users')}>Users</button>
+          <button className={`admin-top-tab ${adminTab === 'events' ? 'active' : ''}`} onClick={() => setAdminTab('events')}>
+            Events {pendingEvents.length > 0 && adminTab !== 'events' ? <span className="admin-tab-badge">{pendingEvents.length}</span> : null}
+          </button>
           <button className={`admin-top-tab ${adminTab === 'news' ? 'active' : ''}`} onClick={() => setAdminTab('news')}>News</button>
         </div>
 
@@ -279,6 +319,45 @@ export default function AdminPage() {
               </table>
             </div>
           </>
+        )}
+
+        {adminTab === 'events' && (
+          <div className="admin-events-panel">
+            <div className="admin-events-header">
+              <h2>Pending Event Submissions</h2>
+              <p>Review and approve or reject events submitted by members and organisers.</p>
+            </div>
+            {eventsLoading && <p className="admin-events-loading">Loading...</p>}
+            {eventsError  && <p className="admin-events-error">{eventsError}</p>}
+            {!eventsLoading && !eventsError && pendingEvents.length === 0 && (
+              <div className="admin-events-empty">
+                <p>No pending submissions — you're all caught up!</p>
+              </div>
+            )}
+            {pendingEvents.map(event => (
+              <div key={event.id} className="admin-event-card">
+                <div className="admin-event-info">
+                  <h3 className="admin-event-title">{event.title}</h3>
+                  <div className="admin-event-meta">
+                    <span>📅 {new Date(event.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    {event.location && <span>📍 {event.location}</span>}
+                    {event.organiser && <span>🏢 {event.organiser}</span>}
+                    {event.organizerEmail && <span>✉️ {event.organizerEmail}</span>}
+                  </div>
+                  {event.description && <p className="admin-event-desc">{event.description}</p>}
+                  {event.eventUrl && (
+                    <a href={event.eventUrl} target="_blank" rel="noopener noreferrer" className="admin-event-url">
+                      View on event website →
+                    </a>
+                  )}
+                </div>
+                <div className="admin-event-actions">
+                  <button className="admin-event-approve" onClick={() => handleApprove(event.id)}>✓ Approve</button>
+                  <button className="admin-event-reject" onClick={() => handleReject(event.id)}>✗ Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {adminTab === 'news' && (
