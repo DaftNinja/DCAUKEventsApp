@@ -21,6 +21,7 @@ async function request(path, options = {}) {
     if (res.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("userId");
+      localStorage.removeItem("user");
       localStorage.removeItem("role");
       window.location.href = "/";
       return;
