@@ -14,6 +14,20 @@ async function request(path, options = {}) {
     },
   });
 
+  // Global auth failure handling — clear session and redirect to home
+  if (res.status === 401 || res.status === 403) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    // Only clear and redirect for token expiry, not permission errors on specific resources
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("role");
+      window.location.href = "/";
+      return;
+    }
+    throw new Error(err.error || `Request failed: ${res.status}`);
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || `Request failed: ${res.status}`);
