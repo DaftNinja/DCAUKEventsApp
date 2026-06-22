@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import pino from "pino";
+import { logger } from "./utils/logger.js";
 import pinoHttp from "pino-http";
 import adminRoutes  from "./routes/admin.js";
 import authRoutes   from "./routes/auth.js";
@@ -14,14 +14,6 @@ import eventPostRoutes from "./routes/eventPosts.js";
 import { runMigrations }    from "./db/migrate.js";
 import { sendEventReminders } from "./services/reminders.js";
 import { fetchAndStoreNews }  from "./services/newsFetcher.js";
-
-// ─── Logger ───────────────────────────────────────────────────────────────────
-export const logger = pino({
-  level: process.env.LOG_LEVEL || "info",
-  ...(process.env.NODE_ENV !== "production" && {
-    transport: { target: "pino-pretty", options: { colorize: true } },
-  }),
-});
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 const app  = express();

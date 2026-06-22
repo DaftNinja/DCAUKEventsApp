@@ -22,17 +22,3 @@ export async function checkDatabaseConnection() {
   }
 }
 
-function startScheduler() {
-  // Event reminders — run immediately then every hour
-  sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
-  setInterval(() => {
-    sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
-  }, 60 * 60 * 1000);
-
-  // News feed — run immediately then every hour
-  fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
-  setInterval(() => {
-    fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
-  }, 60 * 60 * 1000);
-
-}
