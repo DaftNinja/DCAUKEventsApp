@@ -36,7 +36,18 @@
 .group-card-body { flex: 1; }
 .group-name { font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0 0 0.5rem; }
 .group-description { font-size: 0.875rem; color: #475569; line-height: 1.55; margin: 0 0 0.75rem; }
-.group-meta { font-size: 0.775rem; color: #94a3b8; margin: 0; }
+.group-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0284c7;
+  background: #e0f2fe;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin: 0;
+}
 
 .group-card-footer {
   display: flex;

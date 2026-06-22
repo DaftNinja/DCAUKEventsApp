@@ -228,6 +228,14 @@ export default function EventsPage() {
                       </p>
                     )}
                     {event.description && <p className="ep-card-desc">{event.description}</p>}
+                    <div className="ep-card-counts">
+                      {event.goingCount > 0 && (
+                        <span className="ep-count-pill going">{event.goingCount} Going</span>
+                      )}
+                      {event.interestedCount > 0 && (
+                        <span className="ep-count-pill interested">{event.interestedCount} Interested</span>
+                      )}
+                    </div>
                     <div className="ep-card-actions" onClick={(e) => e.stopPropagation()}>
                       <button
                         className={`ep-btn${isRegistered ? " ep-btn-going" : " ep-btn-primary"}`}

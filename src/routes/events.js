@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
 import { events, rsvps, users } from "../db/schema.js";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
 import {
   requireAdmin,
@@ -41,6 +41,24 @@ router.get("/", async (req, res) => {
 
     const allEvents = await db.select().from(events).orderBy(desc(events.featured), events.startDate);
 
+    // Fetch all RSVP counts in a single query — no N+1
+    const rsvpCounts = await db
+      .select({
+        eventId:       rsvps.eventId,
+        status:        rsvps.status,
+        count:         sql`count(*)`.mapWith(Number),
+      })
+      .from(rsvps)
+      .groupBy(rsvps.eventId, rsvps.status);
+
+    // Build map: eventId → { going, interested }
+    const countMap = {};
+    for (const row of rsvpCounts) {
+      if (!countMap[row.eventId]) countMap[row.eventId] = { going: 0, interested: 0 };
+      if (row.status === 'going')      countMap[row.eventId].going      = row.count;
+      if (row.status === 'interested') countMap[row.eventId].interested = row.count;
+    }
+
     if (userId) {
       // Single query for all RSVPs for this user — no N+1
       const userRsvps = await db
@@ -56,11 +74,18 @@ router.get("/", async (req, res) => {
         allEvents.map((e) => ({
           ...e,
           currentUserRsvp: rsvpMap[e.id] ?? null,
+          goingCount:      countMap[e.id]?.going      ?? 0,
+          interestedCount: countMap[e.id]?.interested ?? 0,
         }))
       );
     }
 
-    res.json(allEvents.map((e) => ({ ...e, currentUserRsvp: null })));
+    res.json(allEvents.map((e) => ({
+      ...e,
+      currentUserRsvp: null,
+      goingCount:      countMap[e.id]?.going      ?? 0,
+      interestedCount: countMap[e.id]?.interested ?? 0,
+    })));
   } catch (error) {
     console.error("Failed to fetch events:", error);
     res.status(500).json({ error: "Failed to fetch events" });

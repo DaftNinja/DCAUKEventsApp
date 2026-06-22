@@ -536,3 +536,21 @@
   flex-shrink: 0;
 }
 .ep-search-clear:hover { background: #f1f5f9; border-color: #cbd5e1; }
+
+/* ─── RSVP count pills ───────────────────────────────────────────────────── */
+.ep-card-counts {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  margin: 0.375rem 0 0.25rem;
+}
+
+.ep-count-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ep-count-pill.going      { background: #d1fae5; color: #065f46; }
+.ep-count-pill.interested { background: #fef3c7; color: #92400e; }

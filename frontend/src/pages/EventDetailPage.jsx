@@ -55,8 +55,11 @@ export default function EventDetailPage() {
   const [rsvpStatus, setRsvpStatus] = useState(null);
   const [openToMeeting, setOpenToMeeting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [calOpen, setCalOpen] = useState(false);
-  const calRef = useRef(null);
+  const [calOpen, setCalOpen]     = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied]       = useState(false);
+  const calRef   = useRef(null);
+  const shareRef = useRef(null);
 
   const isLoggedIn = !!localStorage.getItem('token');
   const userRole   = localStorage.getItem('role');
@@ -67,11 +70,34 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     function handleClick(e) {
-      if (calRef.current && !calRef.current.contains(e.target)) setCalOpen(false);
+      if (calRef.current   && !calRef.current.contains(e.target))   setCalOpen(false);
+      if (shareRef.current && !shareRef.current.contains(e.target)) setShareOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  function copyLink() {
+    const url = `${window.location.origin}/events/${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function shareLinkedIn() {
+    const url = encodeURIComponent(`${window.location.origin}/events/${id}`);
+    const title = encodeURIComponent(event?.title || '');
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+    setShareOpen(false);
+  }
+
+  function shareX() {
+    const url = encodeURIComponent(`${window.location.origin}/events/${id}`);
+    const text = encodeURIComponent(`Check out this event: ${event?.title || ''}`);
+    window.open(`https://x.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+    setShareOpen(false);
+  }
 
   const init = async () => {
     try {
@@ -265,6 +291,30 @@ export default function EventDetailPage() {
                   <button className="cal-option" onClick={() => { downloadIcs(event); setCalOpen(false); }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Apple / Outlook (.ics)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Share button */}
+            <div className="cal-wrap" ref={shareRef}>
+              <button className="cal-btn" onClick={() => setShareOpen(o => !o)}>
+                🔗 Share event
+                <span className="cal-chevron">{shareOpen ? '▲' : '▼'}</span>
+              </button>
+              {shareOpen && (
+                <div className="cal-dropdown">
+                  <button className="cal-option" onClick={() => { copyLink(); setShareOpen(false); }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    {copied ? '✓ Copied!' : 'Copy link'}
+                  </button>
+                  <button className="cal-option" onClick={shareLinkedIn}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                    Share on LinkedIn
+                  </button>
+                  <button className="cal-option" onClick={shareX}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    Share on X
                   </button>
                 </div>
               )}
