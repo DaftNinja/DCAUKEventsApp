@@ -7,11 +7,7 @@
   background: white;
   border-bottom: 1px solid #e2e8f0;
   padding: 0 1.5rem;
-<<<<<<< HEAD
   height: 90px;
-=======
-  height: 68px;
->>>>>>> 3406cd3 (Fix: increase logo sizes — navbar 52px, homepage 72px, navbar height 68px)
   display: flex;
   align-items: center;
 }
@@ -42,11 +38,7 @@
 }
 
 .navbar-logo-img {
-<<<<<<< HEAD
   height: 80px;
-=======
-  height: 52px;
->>>>>>> 3406cd3 (Fix: increase logo sizes — navbar 52px, homepage 72px, navbar height 68px)
   width: auto;
   display: block;
 }
