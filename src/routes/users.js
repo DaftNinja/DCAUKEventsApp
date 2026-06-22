@@ -12,7 +12,20 @@ const router = Router();
 router.get("/me", authenticateToken, async (req, res) => {
   try {
     const [user] = await db
-      .select()
+      .select({
+        id:                  users.id,
+        name:                users.name,
+        email:               users.email,
+        headline:            users.headline,
+        company:             users.company,
+        avatarUrl:           users.avatarUrl,
+        bio:                 users.bio,
+        role:                users.role,
+        status:              users.status,
+        defaultOpenToMeeting: users.defaultOpenToMeeting,
+        createdAt:           users.createdAt,
+        updatedAt:           users.updatedAt,
+      })
       .from(users)
       .where(eq(users.id, req.userId))
       .limit(1);
