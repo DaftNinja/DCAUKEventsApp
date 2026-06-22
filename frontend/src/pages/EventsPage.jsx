@@ -5,25 +5,41 @@ import Navbar from "../components/Navbar";
 import "./EventsPage.css";
 
 export default function EventsPage() {
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [events, setEvents]     = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDay, setSelectedDay]   = useState(null);
+  const [search, setSearch]     = useState('');
+  const [locFilter, setLocFilter] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     api
       .get("/api/events")
       .then(all => {
-        // Only show upcoming events (start date today or in the future)
         const now = new Date();
         now.setHours(0, 0, 0, 0);
-        setEvents(all.filter(e => new Date(e.startDate) >= now));
+        const upcoming = all.filter(e => new Date(e.startDate) >= now);
+        setAllEvents(upcoming);
+        setEvents(upcoming);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  // Filter events on search/location change
+  useEffect(() => {
+    const q   = search.trim().toLowerCase();
+    const loc = locFilter.trim().toLowerCase();
+    setEvents(allEvents.filter(e => {
+      const matchSearch = !q   || e.title?.toLowerCase().includes(q) || e.description?.toLowerCase().includes(q) || e.organiser?.toLowerCase().includes(q);
+      const matchLoc    = !loc || e.location?.toLowerCase().includes(loc);
+      return matchSearch && matchLoc;
+    }));
+    setSelectedDay(null);
+  }, [search, locFilter, allEvents]);
 
   async function handleRsvp(eventId, currentRsvp) {
     try {
@@ -144,11 +160,32 @@ export default function EventsPage() {
             <h2 className="ep-events-title">
               {selectedDay
                 ? `Events on ${selectedDay} ${calendarDate.toLocaleDateString("en-GB", { month: "long" })}`
-                : "Upcoming Events"}
+                : search || locFilter ? "Search results" : "Upcoming Events"}
             </h2>
             <span className="ep-events-count">
               {displayedEvents.length} event{displayedEvents.length !== 1 ? "s" : ""}
             </span>
+          </div>
+
+          {/* Search and filter bar */}
+          <div className="ep-search-bar">
+            <input
+              className="ep-search-input"
+              type="text"
+              placeholder="Search events..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <input
+              className="ep-search-input"
+              type="text"
+              placeholder="Filter by location..."
+              value={locFilter}
+              onChange={e => setLocFilter(e.target.value)}
+            />
+            {(search || locFilter) && (
+              <button className="ep-search-clear" onClick={() => { setSearch(''); setLocFilter(''); }}>Clear</button>
+            )}
           </div>
 
           {displayedEvents.length === 0 ? (

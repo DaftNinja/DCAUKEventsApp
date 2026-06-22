@@ -2,8 +2,9 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_ADDRESS = process.env.EMAIL_FROM || "theventguide.com <hello@theventguide.com>";
-const SITE_URL = process.env.FRONTEND_URL || "https://dcaevents-production.up.railway.app";
+const FROM_ADDRESS  = process.env.EMAIL_FROM  || "theventguide.com <hello@theventguide.com>";
+const ADMIN_EMAIL   = process.env.ADMIN_EMAIL || "andrew@mccreath.vip";
+const SITE_URL      = process.env.FRONTEND_URL || "https://teg.1giglabs.com";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -262,6 +263,33 @@ export async function sendEventRejected({ event }) {
     from: FROM_ADDRESS,
     to: event.organizerEmail,
     subject: `Re: your event submission — ${event.title}`,
+    html: baseTemplate(content),
+  });
+}
+
+/**
+ * Sent to admin when a member requests organiser role.
+ */
+export async function sendOrganiserRequest({ requester }) {
+  if (!process.env.RESEND_API_KEY) return;
+
+  const content = `
+    <h1>Organiser role request</h1>
+    <p>A community member has requested organiser access on theventguide.com:</p>
+    <div class="event-card">
+      <div class="event-title">${requester.name}</div>
+      ${requester.headline ? `<div class="event-meta">${requester.headline}</div>` : ''}
+      ${requester.company  ? `<div class="event-meta">🏢 ${requester.company}</div>`  : ''}
+      <div class="event-meta">✉️ ${requester.email}</div>
+    </div>
+    <p>To grant organiser access, go to the Admin panel and update their role in the Users tab.</p>
+    <a href="${SITE_URL}/admin" class="btn">Open Admin Panel →</a>
+  `;
+
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: ADMIN_EMAIL,
+    subject: `Organiser request from ${requester.name}`,
     html: baseTemplate(content),
   });
 }

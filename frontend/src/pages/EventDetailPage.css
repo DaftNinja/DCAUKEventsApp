@@ -312,3 +312,11 @@
   margin: 0 0 1rem;
   line-height: 1.5;
 }
+
+.export-btn {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #e2e8f0;
+  font-size: 0.825rem;
+}
+.export-btn:hover { background: #e2e8f0 !important; }

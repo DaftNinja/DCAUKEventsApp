@@ -148,6 +148,59 @@ router.put("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, validate(
   }
 });
 
+// ─── GET /api/events/:id/attendees/export ─────────────────────────────────────
+// Admin/organiser only: download Going + Interested attendees as CSV
+router.get("/:id/attendees/export", authenticateToken, async (req, res) => {
+  try {
+    const [event] = await db.select().from(events).where(eq(events.id, req.params.id)).limit(1);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // Only admin or the event organiser can export
+    const [requestingUser] = await db.select({ role: users.role, id: users.id })
+      .from(users).where(eq(users.id, req.userId)).limit(1);
+    const isAdmin     = requestingUser?.role === "admin";
+    const isOrganiser = event.organizerId === req.userId;
+    if (!isAdmin && !isOrganiser) {
+      return res.status(403).json({ error: "Not authorised" });
+    }
+
+    const attendees = await db
+      .select({
+        name:      users.name,
+        email:     users.email,
+        headline:  users.headline,
+        company:   users.company,
+        status:    rsvps.status,
+        rsvpdAt:   rsvps.createdAt,
+      })
+      .from(rsvps)
+      .innerJoin(users, eq(rsvps.userId, users.id))
+      .where(eq(rsvps.eventId, req.params.id))
+      .orderBy(rsvps.status, users.name);
+
+    // Build CSV
+    const header = "Name,Email,Headline,Company,Status,RSVP Date";
+    const rows = attendees.map(a => [
+      `"${(a.name     || '').replace(/"/g, '""')}"`,
+      `"${(a.email    || '').replace(/"/g, '""')}"`,
+      `"${(a.headline || '').replace(/"/g, '""')}"`,
+      `"${(a.company  || '').replace(/"/g, '""')}"`,
+      `"${a.status}"`,
+      `"${a.rsvpdAt ? new Date(a.rsvpdAt).toLocaleDateString('en-GB') : ''}"`,
+    ].join(','));
+
+    const csv = [header, ...rows].join('\n');
+    const filename = `${event.title.replace(/[^a-z0-9]/gi, '_')}_attendees.csv`;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    console.error("Failed to export attendees:", error);
+    res.status(500).json({ error: "Export failed" });
+  }
+});
+
 // ─── POST /api/events/:id/feature ───────────────────────────────────────────
 router.post("/:id/feature", authenticateToken, requireAdmin, async (req, res) => {
   try {

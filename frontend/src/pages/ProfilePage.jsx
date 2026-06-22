@@ -14,6 +14,8 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
+  const [organiserRequested, setOrganiserRequested] = useState(false);
+  const [organiserLoading, setOrganiserLoading] = useState(false);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -51,6 +53,18 @@ export default function ProfilePage() {
       navigate('/');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRequestOrganiser = async () => {
+    setOrganiserLoading(true);
+    try {
+      await api.post('/api/users/request-organiser');
+      setOrganiserRequested(true);
+    } catch (err) {
+      console.error('Failed to send organiser request:', err);
+    } finally {
+      setOrganiserLoading(false);
     }
   };
 
@@ -174,6 +188,15 @@ export default function ProfilePage() {
             </div>
             <div className="pp-actions">
               <button className="pp-btn-primary" onClick={() => setEditing(true)}>Edit Profile</button>
+              {user.role === 'member' && (
+                <button
+                  className="pp-btn-ghost pp-organiser-btn"
+                  onClick={handleRequestOrganiser}
+                  disabled={organiserRequested || organiserLoading}
+                >
+                  {organiserRequested ? '\u2713 Request sent' : organiserLoading ? 'Sending...' : 'Request organiser access'}
+                </button>
+              )}
             </div>
           </div>
         )}

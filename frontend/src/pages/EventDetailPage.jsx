@@ -59,6 +59,7 @@ export default function EventDetailPage() {
   const calRef = useRef(null);
 
   const isLoggedIn = !!localStorage.getItem('token');
+  const userRole   = localStorage.getItem('role');
 
   useEffect(() => {
     init();
@@ -236,6 +237,18 @@ export default function EventDetailPage() {
                   Sign in with LinkedIn
                 </a>
               </div>
+            )}
+
+            {/* Export attendees — admin only */}
+            {isLoggedIn && userRole === 'admin' && (
+              <a
+                href={`/api/events/${id}/attendees/export`}
+                className="rsvp-btn export-btn"
+                style={{display:'block',textAlign:'center',textDecoration:'none',marginTop:'0.75rem'}}
+                download
+              >
+                Export Attendees (CSV)
+              </a>
             )}
 
             <div className="cal-wrap" ref={calRef}>

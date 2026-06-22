@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
 import './MembersPage.css';
@@ -60,7 +60,7 @@ export default function MembersPage() {
         ) : (
           <div className="members-grid">
             {filtered.map(member => (
-              <div key={member.id} className="member-card">
+              <div key={member.id} className="member-card" onClick={() => navigate(`/members/${member.id}`)} style={{cursor:'pointer'}}>
                 <div className="member-avatar">
                   {member.avatarUrl
                     ? <img src={member.avatarUrl} alt={member.name} />
@@ -75,9 +75,7 @@ export default function MembersPage() {
                 </div>
                 {member.eventsAttending > 0 && (
                   <div className="member-events">
-                    <Link to="/events">
-                      ✓ Going to {member.eventsAttending} event{member.eventsAttending !== 1 ? 's' : ''}
-                    </Link>
+                    <span>✓ Going to {member.eventsAttending} event{member.eventsAttending !== 1 ? 's' : ''}</span>
                   </div>
                 )}
               </div>
