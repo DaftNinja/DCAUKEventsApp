@@ -100,3 +100,13 @@ export const groupPosts = pgTable("group_posts", {
   createdAt:      timestamp("created_at").defaultNow(),
   updatedAt:      timestamp("updated_at").defaultNow(),
 });
+
+export const eventPosts = pgTable("event_posts", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  eventId:   uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  userId:    uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content:   text("content").notNull(),
+  linkUrl:   text("link_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
