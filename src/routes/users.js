@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
 import { users, rsvps, events } from "../db/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ilike, and } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
 import { validate, updateProfileSchema } from "../middleware/validate.js";
 
@@ -98,6 +98,34 @@ router.get("/", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Failed to fetch members:", error);
     res.status(500).json({ error: "Failed to fetch members" });
+  }
+});
+
+// ─── GET /api/users/search?q= ─────────────────────────────────────────────────────
+// Returns up to 8 members whose name starts with the query — for @mention autocomplete
+router.get("/search", authenticateToken, async (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (q.length < 1) return res.json([]);
+  try {
+    const results = await db
+      .select({
+        id:        users.id,
+        name:      users.name,
+        headline:  users.headline,
+        avatarUrl: users.avatarUrl,
+      })
+      .from(users)
+      .where(
+        and(
+          ilike(users.name, `${q}%`),
+          eq(users.status, "active")
+        )
+      )
+      .limit(8);
+    res.json(results);
+  } catch (error) {
+    console.error("Failed to search users:", error);
+    res.status(500).json({ error: "Search failed" });
   }
 });
 
