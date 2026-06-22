@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import './EventForum.css';
 
@@ -22,7 +22,6 @@ function Avatar({ user }) {
 }
 
 function renderContent(text) {
-  // Match @FirstName or @First Last — same pattern as backend
   const parts = text.split(/(@[A-Za-z][A-Za-z0-9]*(?:\s[A-Za-z][A-Za-z0-9]*)?)/);
   return parts.map((part, i) =>
     part.startsWith('@')
@@ -40,6 +39,16 @@ export default function EventForum({ eventId, rsvpStatus }) {
   const [posting, setPosting]     = useState(false);
   const [postError, setPostError] = useState(null);
 
+  // @mention autocomplete state
+  const [mentionQuery, setMentionQuery]       = useState('');
+  const [mentionResults, setMentionResults]   = useState([]);
+  const [mentionActive, setMentionActive]     = useState(false);
+  const [mentionIndex, setMentionIndex]       = useState(0);
+  const [mentionStart, setMentionStart]       = useState(null); // cursor pos of the @
+  const textareaRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const debounceRef = useRef(null);
+
   const currentUserId   = localStorage.getItem('userId');
   const currentUserRole = localStorage.getItem('role');
   const canPost = rsvpStatus === 'going' || rsvpStatus === 'interested';
@@ -50,6 +59,92 @@ export default function EventForum({ eventId, rsvpStatus }) {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [eventId]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setMentionActive(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  function handleContentChange(e) {
+    const val = e.target.value;
+    const pos = e.target.selectionStart;
+    setContent(val);
+
+    // Find if cursor is inside an @mention — look backwards from cursor
+    const textBefore = val.slice(0, pos);
+    const atMatch = textBefore.match(/@([A-Za-z][A-Za-z0-9 ]*)$/);
+
+    if (atMatch) {
+      const query = atMatch[1];
+      const atPos = textBefore.lastIndexOf('@');
+      setMentionStart(atPos);
+      setMentionQuery(query);
+      setMentionIndex(0);
+
+      // Debounce search
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(async () => {
+        if (query.length === 0) {
+          setMentionResults([]);
+          setMentionActive(false);
+          return;
+        }
+        try {
+          const results = await api.get(`/api/users/search?q=${encodeURIComponent(query)}`);
+          setMentionResults(results);
+          setMentionActive(results.length > 0);
+        } catch {
+          setMentionActive(false);
+        }
+      }, 150);
+    } else {
+      setMentionActive(false);
+      setMentionResults([]);
+    }
+  }
+
+  function insertMention(user) {
+    const ta = textareaRef.current;
+    const pos = ta.selectionStart;
+    const before = content.slice(0, mentionStart);
+    const after  = content.slice(pos);
+    const inserted = `@${user.name} `;
+    const newContent = before + inserted + after;
+    setContent(newContent);
+    setMentionActive(false);
+    setMentionResults([]);
+
+    // Restore focus and move cursor to after the inserted mention
+    setTimeout(() => {
+      ta.focus();
+      const newPos = before.length + inserted.length;
+      ta.setSelectionRange(newPos, newPos);
+    }, 0);
+  }
+
+  function handleKeyDown(e) {
+    if (!mentionActive) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setMentionIndex(i => Math.min(i + 1, mentionResults.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setMentionIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      if (mentionResults[mentionIndex]) {
+        e.preventDefault();
+        insertMention(mentionResults[mentionIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setMentionActive(false);
+    }
+  }
 
   async function handlePost(e) {
     e.preventDefault();
@@ -91,13 +186,39 @@ export default function EventForum({ eventId, rsvpStatus }) {
       {/* Composer */}
       {canPost ? (
         <form className="ef-composer" onSubmit={handlePost}>
-          <textarea
-            className="ef-composer-input"
-            placeholder="Share a question, tip, or update… Use @Name to mention someone"
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            rows={3}
-          />
+          <div className="ef-composer-wrap" ref={dropdownRef}>
+            <textarea
+              ref={textareaRef}
+              className="ef-composer-input"
+              placeholder="Share a question, tip, or update… Use @Name to mention someone"
+              value={content}
+              onChange={handleContentChange}
+              onKeyDown={handleKeyDown}
+              rows={3}
+            />
+            {/* @mention dropdown */}
+            {mentionActive && mentionResults.length > 0 && (
+              <div className="ef-mention-dropdown">
+                {mentionResults.map((user, i) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className={`ef-mention-option ${i === mentionIndex ? 'active' : ''}`}
+                    onMouseDown={e => { e.preventDefault(); insertMention(user); }}
+                  >
+                    {user.avatarUrl
+                      ? <img src={user.avatarUrl} alt={user.name} className="ef-mention-avatar" />
+                      : <div className="ef-mention-avatar ef-mention-initials">{user.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
+                    }
+                    <div className="ef-mention-info">
+                      <span className="ef-mention-name">{user.name}</span>
+                      {user.headline && <span className="ef-mention-headline">{user.headline}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {showLink && (
             <input
               type="url"
@@ -136,9 +257,7 @@ export default function EventForum({ eventId, rsvpStatus }) {
         <p className="ef-loading">Loading discussion...</p>
       ) : posts.length === 0 ? (
         <p className="ef-empty">
-          {canPost
-            ? 'No posts yet — start the conversation!'
-            : 'No posts yet.'}
+          {canPost ? 'No posts yet — start the conversation!' : 'No posts yet.'}
         </p>
       ) : (
         <div className="ef-posts">
