@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
+import MeetMe from '../components/MeetMe';
+import EventForum from '../components/EventForum';
 import './EventDetailPage.css';
 
 function formatIcsDate(dateStr) {
@@ -50,7 +52,8 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [rsvpStatus, setRsvpStatus] = useState(null);
+  const [rsvpStatus, setRsvpStatus]       = useState(null);
+  const [openToMeeting, setOpenToMeeting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
   const calRef = useRef(null);
@@ -79,6 +82,7 @@ export default function EventDetailPage() {
       setEvent(eventData);
       const myRsvp = eventData.attendees?.find(r => r.userId === userData.id);
       setRsvpStatus(myRsvp?.status || null);
+      setOpenToMeeting(myRsvp?.openToMeeting || false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -105,6 +109,7 @@ export default function EventDetailPage() {
       setSubmitting(true);
       await api.delete(`/api/events/${id}/rsvp`);
       setRsvpStatus(null);
+      setOpenToMeeting(false);
       const updated = await api.get(`/api/events/${id}`);
       setEvent(updated);
     } catch (err) {
@@ -112,6 +117,11 @@ export default function EventDetailPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleMeetMeToggle = async (newValue) => {
+    const updated = await api.put(`/api/events/${id}/rsvp/meeting`, { openToMeeting: newValue });
+    setOpenToMeeting(updated.openToMeeting);
   };
 
   if (loading) return <div className="event-detail"><p>Loading event...</p></div>;
@@ -163,6 +173,18 @@ export default function EventDetailPage() {
                 </a>
               </div>
             )}
+
+            <MeetMe
+              eventId={id}
+              rsvpStatus={rsvpStatus}
+              openToMeeting={openToMeeting}
+              onToggle={handleMeetMeToggle}
+            />
+
+            <EventForum
+              eventId={id}
+              rsvpStatus={rsvpStatus}
+            />
           </div>
 
           <div className="sidebar">
