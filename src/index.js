@@ -10,7 +10,6 @@ import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
 import newsRoutes   from "./routes/news.js";
 import { runMigrations }    from "./db/migrate.js";
-import { ingestEvents }     from "./scripts/ingest-events.js";
 import { sendEventReminders } from "./services/reminders.js";
 import { fetchAndStoreNews }  from "./services/newsFetcher.js";
 
@@ -87,9 +86,6 @@ async function start() {
   try {
     logger.info("Running migrations...");
     await runMigrations();
-
-    logger.info("Ingesting events...");
-    await ingestEvents();
 
     app.listen(PORT, () => {
       logger.info({ port: PORT }, "Server started");
