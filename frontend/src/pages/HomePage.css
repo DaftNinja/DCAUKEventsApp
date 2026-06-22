@@ -68,13 +68,13 @@
 
 /* ── Hero ── */
 .home-hero {
-  min-height: 100vh;
+  min-height: calc(100vh - 130px);
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 8rem 2rem 4rem;
+  padding: 2rem 2rem 4rem;
   gap: 4rem;
   position: relative;
 }
