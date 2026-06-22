@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
 import MeetMe from '../components/MeetMe';
-import EventForum from '../components/EventForum';
 import './EventDetailPage.css';
 
 function formatIcsDate(dateStr) {
@@ -52,7 +51,7 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [rsvpStatus, setRsvpStatus]       = useState(null);
+  const [rsvpStatus, setRsvpStatus] = useState(null);
   const [openToMeeting, setOpenToMeeting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
@@ -95,6 +94,18 @@ export default function EventDetailPage() {
       setSubmitting(true);
       await api.post(`/api/events/${id}/rsvp`, { status });
       setRsvpStatus(status);
+
+      // If Going, apply default Meet-Me preference from profile
+      if (status === 'going') {
+        const userData = await api.get('/api/users/me');
+        if (userData.defaultOpenToMeeting) {
+          const updated = await api.put(`/api/events/${id}/rsvp/meeting`, { openToMeeting: true });
+          setOpenToMeeting(updated.openToMeeting);
+        }
+      } else {
+        setOpenToMeeting(false);
+      }
+
       const updated = await api.get(`/api/events/${id}`);
       setEvent(updated);
     } catch (err) {
@@ -128,7 +139,7 @@ export default function EventDetailPage() {
   if (error)   return <div className="event-detail"><p>Error: {error}</p></div>;
   if (!event)  return <div className="event-detail"><p>Event not found</p></div>;
 
-  const goingCount = event.attendees?.filter(r => r.status === 'going').length ?? 0;
+  const goingCount      = event.attendees?.filter(r => r.status === 'going').length ?? 0;
   const interestedCount = event.attendees?.filter(r => r.status === 'interested').length ?? 0;
 
   return (
@@ -174,16 +185,12 @@ export default function EventDetailPage() {
               </div>
             )}
 
+            {/* Meet-Me section */}
             <MeetMe
               eventId={id}
               rsvpStatus={rsvpStatus}
               openToMeeting={openToMeeting}
               onToggle={handleMeetMeToggle}
-            />
-
-            <EventForum
-              eventId={id}
-              rsvpStatus={rsvpStatus}
             />
           </div>
 

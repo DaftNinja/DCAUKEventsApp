@@ -2,19 +2,25 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import pino from "pino";
 import pinoHttp from "pino-http";
-import cron from "node-cron";
 import adminRoutes  from "./routes/admin.js";
 import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
 import newsRoutes   from "./routes/news.js";
 import groupRoutes  from "./routes/groups.js";
-import eventPostRoutes from "./routes/eventPosts.js";
-import { runMigrations }     from "./db/migrate.js";
+import { runMigrations }    from "./db/migrate.js";
 import { sendEventReminders } from "./services/reminders.js";
 import { fetchAndStoreNews }  from "./services/newsFetcher.js";
-import { logger }             from "./utils/logger.js";
+
+// ─── Logger ───────────────────────────────────────────────────────────────────
+export const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  ...(process.env.NODE_ENV !== "production" && {
+    transport: { target: "pino-pretty", options: { colorize: true } },
+  }),
+});
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 const app  = express();
@@ -42,7 +48,6 @@ app.use("/api/users",  userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/news",   newsRoutes);
 app.use("/api/groups", groupRoutes);
-app.use("/api/events/:id/posts", eventPostRoutes);
 
 // ─── Serve React frontend ─────────────────────────────────────────────────────
 const frontendDist = path.join(__dirname, "../frontend/dist");
@@ -64,22 +69,15 @@ app.use((err, req, res, _next) => {
 
 // ─── Scheduler ────────────────────────────────────────────────────────────────
 function startScheduler() {
-  // Run immediately on startup to populate on first deploy
-  sendEventReminders().catch(err => logger.error({ err }, "Initial reminder run failed"));
-  fetchAndStoreNews().catch(err => logger.error({ err }, "Initial news fetch failed"));
+  sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
+  fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
 
-  // Run at the top of every hour — cron prevents execution drift vs setInterval
-  cron.schedule("0 * * * *", async () => {
-    try {
-      logger.info("Running scheduled hourly tasks...");
-      await sendEventReminders();
-      await fetchAndStoreNews();
-    } catch (err) {
-      logger.error({ err }, "Scheduled tasks failed");
-    }
-  });
+  setInterval(() => {
+    sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
+    fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
+  }, 60 * 60 * 1000);
 
-  logger.info("Scheduler started — cron running at top of every hour");
+  logger.info("Scheduler started (reminders + news, hourly)");
 }
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
