@@ -84,6 +84,23 @@ router.get("/linkedin/callback", async (req, res) => {
       .from(users)
       .where(eq(users.linkedinId, linkedinId));
 
+    // Fallback: look up by email if not found by linkedinId
+    if (existingUser.length === 0) {
+      existingUser = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email));
+
+      // If found by email, update their linkedinId to match current login
+      if (existingUser.length > 0) {
+        console.log("🔄 Found user by email, updating linkedinId...");
+        await db
+          .update(users)
+          .set({ linkedinId, name, avatarUrl, updatedAt: new Date() })
+          .where(eq(users.email, email));
+      }
+    }
+
     console.log("✓ User query completed, result length:", existingUser.length);
 
     if (existingUser.length === 0) {
