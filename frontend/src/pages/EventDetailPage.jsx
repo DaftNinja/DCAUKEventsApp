@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
 import MeetMe from '../components/MeetMe';
+import EventForum from '../components/EventForum';
 import './EventDetailPage.css';
 
 function formatIcsDate(dateStr) {
@@ -191,6 +192,11 @@ export default function EventDetailPage() {
               rsvpStatus={rsvpStatus}
               openToMeeting={openToMeeting}
               onToggle={handleMeetMeToggle}
+            />
+
+            <EventForum
+              eventId={id}
+              rsvpStatus={rsvpStatus}
             />
           </div>
 
