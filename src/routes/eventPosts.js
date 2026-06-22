@@ -117,19 +117,26 @@ router.post("/", authenticateToken, validate(createPostSchema), async (req, res)
         );
       }
 
-      // @mention detection — notify mentioned users by name
-      const mentionPattern = /@([A-Za-z][A-Za-z0-9 ]{1,40}?)(?=[^A-Za-z0-9]|$)/g;
+      // @mention detection — notify mentioned users by first name or full name
+      const mentionPattern = /@([A-Za-z][A-Za-z0-9]*(?:\s[A-Za-z][A-Za-z0-9]*)?)/g;
       const mentionedNames = [...new Set(
         [...post.content.matchAll(mentionPattern)].map(m => m[1].trim().toLowerCase())
       )];
 
       if (mentionedNames.length > 0) {
-        const allUsers = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.status, "active"));
+        const allUsers = await db
+          .select({ id: users.id, name: users.name, email: users.email })
+          .from(users)
+          .where(eq(users.status, "active"));
+
         for (const mentionedName of mentionedNames) {
-          const matched = allUsers.find(u =>
-            u.name?.toLowerCase() === mentionedName &&
-            u.email !== author.email
-          );
+          // Match on full name or first name
+          const matched = allUsers.find(u => {
+            if (!u.name || u.email === author.email) return false;
+            const fullName = u.name.toLowerCase();
+            const firstName = fullName.split(' ')[0];
+            return fullName === mentionedName || firstName === mentionedName;
+          });
           if (matched) {
             sendMentionNotification({ event, post, author, recipient: matched }).catch(
               err => console.error("Failed to send mention notification:", err)

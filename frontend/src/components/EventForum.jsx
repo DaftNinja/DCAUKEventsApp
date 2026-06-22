@@ -22,8 +22,8 @@ function Avatar({ user }) {
 }
 
 function renderContent(text) {
-  // Split on @mention patterns and highlight them
-  const parts = text.split(/(@[A-Za-z][A-Za-z0-9 ]{1,40}?)(?=[^A-Za-z0-9]|$)/);
+  // Match @FirstName or @First Last — same pattern as backend
+  const parts = text.split(/(@[A-Za-z][A-Za-z0-9]*(?:\s[A-Za-z][A-Za-z0-9]*)?)/);
   return parts.map((part, i) =>
     part.startsWith('@')
       ? <span key={i} className="ef-mention">{part}</span>
