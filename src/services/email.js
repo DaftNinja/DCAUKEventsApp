@@ -154,8 +154,40 @@ export async function sendNewEventNotification({ event, recipients }) {
 }
 
 /**
- * Sent to the organiser when their submitted event is approved.
+ * Sent to all Going/Interested attendees when someone posts in an event forum.
+ * Excludes the post author.
  */
+export async function sendEventForumNotification({ event, post, author, recipients }) {
+  if (!process.env.RESEND_API_KEY || !recipients.length) return;
+
+  const content = `
+    <h1>New discussion post</h1>
+    <p>A new message has been posted in the discussion for an event you're attending:</p>
+    <div class="event-card">
+      <div class="event-title">${event.title}</div>
+      <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
+      ${event.location ? `<div class="event-meta">📍 ${event.location}</div>` : ""}
+    </div>
+    <div style="background:#f8fafc;border-left:3px solid #06b6d4;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;">
+      <p style="font-size:13px;color:#64748b;margin:0 0 6px;"><strong>${author.name}</strong> posted:</p>
+      <p style="margin:0;color:#1e293b;font-size:15px;">${post.content}</p>
+    </div>
+    <a href="${SITE_URL}/events/${event.id}" class="btn">Join the discussion →</a>
+  `;
+
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BATCH_SIZE);
+    await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: FROM_ADDRESS,
+      bcc: batch.map(r => r.email),
+      subject: `New post in: ${event.title}`,
+      html: baseTemplate(content),
+    });
+  }
+}
+
 export async function sendEventApproved({ event }) {
   if (!process.env.RESEND_API_KEY || !event.organizerEmail) return;
 

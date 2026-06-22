@@ -18,6 +18,8 @@ import {
   sendRsvpConfirmation,
   sendRsvpCancellation,
   sendNewEventNotification,
+  sendEventApproved,
+  sendEventRejected,
 } from "../services/email.js";
 
 const router = Router();
@@ -163,7 +165,13 @@ router.post("/:id/approve", authenticateToken, requireAdmin, async (req, res) =>
       await sendNewEventNotification({ event: updated, recipients: allUsers });
     } catch (emailErr) {
       console.error("Failed to send new event notification:", emailErr);
-      // Don't fail the request if email fails
+    }
+
+    // Notify the organiser their event was approved
+    try {
+      await sendEventApproved({ event: updated });
+    } catch (emailErr) {
+      console.error("Failed to send approval email to organiser:", emailErr);
     }
 
     res.json(updated);
@@ -183,6 +191,14 @@ router.post("/:id/reject", authenticateToken, requireAdmin, async (req, res) => 
       .returning();
 
     if (!updated) return res.status(404).json({ error: "Event not found" });
+
+    // Notify the organiser their event was rejected
+    try {
+      await sendEventRejected({ event: updated });
+    } catch (emailErr) {
+      console.error("Failed to send rejection email to organiser:", emailErr);
+    }
+
     res.json(updated);
   } catch (error) {
     console.error("Failed to reject event:", error);

@@ -448,3 +448,58 @@
 .pp-link-btn:hover {
   color: #0891b2;
 }
+
+/* ─── My Groups ───────────────────────────────────────────────────── */
+.pp-groups-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.pp-group-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pp-group-row:hover { border-color: #06b6d4; box-shadow: 0 2px 8px rgba(6,182,212,0.08); }
+
+.pp-group-info { display: flex; flex-direction: column; gap: 0.125rem; }
+.pp-group-name { font-size: 0.875rem; font-weight: 600; color: #0f172a; }
+.pp-group-count { font-size: 0.75rem; color: #94a3b8; }
+.pp-group-arrow { font-size: 0.875rem; color: #94a3b8; }
+
+/* ─── My Submissions ──────────────────────────────────────────── */
+.pp-submissions-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.pp-submission-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  gap: 1rem;
+}
+.pp-submission-row[style*="cursor"] { cursor: pointer; }
+.pp-submission-row:has(.approved) { cursor: pointer; }
+.pp-submission-row:has(.approved):hover { border-color: #06b6d4; }
+
+.pp-submission-info { display: flex; flex-direction: column; gap: 0.125rem; flex: 1; min-width: 0; }
+.pp-submission-title { font-size: 0.875rem; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-submission-date { font-size: 0.75rem; color: #94a3b8; }
+
+.pp-submission-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pp-submission-badge.approved  { background: #d1fae5; color: #065f46; }
+.pp-submission-badge.rejected  { background: #fee2e2; color: #991b1b; }
+.pp-submission-badge.pending   { background: #fef3c7; color: #92400e; }
+

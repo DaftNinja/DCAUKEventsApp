@@ -8,6 +8,8 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [myEvents, setMyEvents] = useState([]);
+  const [myGroups, setMyGroups] = useState([]);
+  const [mySubmissions, setMySubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
@@ -18,9 +20,10 @@ export default function ProfilePage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [userData, allEvents] = await Promise.all([
+      const [userData, allEvents, allGroups] = await Promise.all([
         api.get('/api/users/me'),
         api.get('/api/events'),
+        api.get('/api/groups'),
       ]);
       setUser(userData);
       setFormData(userData);
@@ -36,6 +39,13 @@ export default function ProfilePage() {
         .filter(e => new Date(e.startDate) < now)
         .sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
       setMyEvents({ upcoming, past });
+
+      // Groups the user has joined
+      setMyGroups(allGroups.filter(g => g.isMember));
+
+      // Events submitted by this user (by organizerId)
+      const userId = localStorage.getItem('userId');
+      setMySubmissions(allEvents.filter(e => e.organizerId === userId));
     } catch (error) {
       console.error('Failed to fetch data:', error);
       navigate('/');
@@ -194,6 +204,47 @@ export default function ProfilePage() {
             </>
           )}
         </div>
+
+        {/* My Groups */}
+        {myGroups.length > 0 && (
+          <div className="pp-card">
+            <h2 className="pp-card-title">My Groups</h2>
+            <div className="pp-groups-list">
+              {myGroups.map(g => (
+                <div key={g.id} className="pp-group-row" onClick={() => navigate(`/groups/${g.slug}`)}>  
+                  <div className="pp-group-info">
+                    <span className="pp-group-name">{g.name}</span>
+                    <span className="pp-group-count">{g.memberCount} members</span>
+                  </div>
+                  <span className="pp-group-arrow">→</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* My Submissions */}
+        {mySubmissions.length > 0 && (
+          <div className="pp-card">
+            <h2 className="pp-card-title">My Event Submissions</h2>
+            <div className="pp-submissions-list">
+              {mySubmissions.map(e => {
+                const statusColour = e.status === 'approved' ? 'approved' : e.status === 'rejected' ? 'rejected' : 'pending';
+                const statusLabel  = e.status === 'approved' ? '✓ Approved' : e.status === 'rejected' ? '✗ Rejected' : '⏳ Pending review';
+                return (
+                  <div key={e.id} className="pp-submission-row" onClick={() => e.status === 'approved' && navigate(`/events/${e.id}`)}>  
+                    <div className="pp-submission-info">
+                      <span className="pp-submission-title">{e.title}</span>
+                      <span className="pp-submission-date">{new Date(e.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                    <span className={`pp-submission-badge ${statusColour}`}>{statusLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
-import { eventPosts, rsvps, users } from "../db/schema.js";
+import { eventPosts, rsvps, users, events } from "../db/schema.js";
 import { eq, and, desc } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
 import { attachUser } from "../middleware/authorize.js";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
+import { sendEventForumNotification } from "../services/email.js";
 
 const router = Router({ mergeParams: true }); // inherits :id from events route
 
@@ -94,6 +95,30 @@ router.post("/", authenticateToken, validate(createPostSchema), async (req, res)
       .limit(1);
 
     res.status(201).json({ ...post, author });
+
+    // Fire-and-forget: notify other attendees about the new post
+    try {
+      const [event] = await db.select().from(events).where(eq(events.id, req.params.id)).limit(1);
+      const attendees = await db
+        .select({ email: users.email })
+        .from(rsvps)
+        .innerJoin(users, eq(rsvps.userId, users.id))
+        .where(
+          and(
+            eq(rsvps.eventId, req.params.id),
+            eq(users.status, "active")
+          )
+        );
+      // Exclude the post author from notifications
+      const recipients = attendees.filter(a => a.email !== author.email);
+      if (event && recipients.length > 0) {
+        sendEventForumNotification({ event, post, author, recipients }).catch(
+          err => console.error("Failed to send forum notification:", err)
+        );
+      }
+    } catch (notifyErr) {
+      console.error("Forum notification setup failed:", notifyErr);
+    }
   } catch (error) {
     console.error("Failed to create event post:", error);
     res.status(500).json({ error: "Failed to create event post" });
