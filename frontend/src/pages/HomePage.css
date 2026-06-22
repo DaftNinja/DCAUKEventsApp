@@ -34,11 +34,14 @@
 }
 
 .home-logo {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
-  font-size: 1.5rem;
-  color: #0f172a;
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: center;
+}
+
+.home-logo-img {
+  height: 100px;
+  width: auto;
+  display: block;
 }
 
 .home-logo span {
