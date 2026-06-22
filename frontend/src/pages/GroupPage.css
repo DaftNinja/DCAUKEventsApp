@@ -1,0 +1,166 @@
+.group-page { min-height: 100vh; background: #f8fafc; }
+.gp-loading, .gp-error { padding: 2rem 1.5rem; color: #94a3b8; }
+.gp-error { color: #ef4444; }
+
+.gp-content { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+.gp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.gp-title { font-size: 1.75rem; font-weight: 800; color: #0f172a; margin: 0 0 0.375rem; }
+.gp-description { color: #475569; margin: 0 0 0.375rem; font-size: 0.9rem; }
+.gp-meta { font-size: 0.775rem; color: #94a3b8; margin: 0; }
+
+.gp-btn {
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gp-btn.join  { background: #06b6d4; color: white; }
+.gp-btn.join:hover  { background: #0891b2; }
+.gp-btn.leave { background: #f1f5f9; color: #64748b; }
+.gp-btn.leave:hover { background: #e2e8f0; }
+
+.gp-body {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* Composer */
+.gp-composer {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gp-composer-input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  color: #1e293b;
+}
+.gp-composer-input:focus { border-color: #06b6d4; }
+
+.gp-composer-footer { display: flex; justify-content: flex-end; }
+.gp-post-btn {
+  background: #06b6d4;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.gp-post-btn:hover:not(:disabled) { background: #0891b2; }
+.gp-post-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.gp-post-error { font-size: 0.8rem; color: #ef4444; margin: 0; }
+
+.gp-empty { color: #94a3b8; font-size: 0.875rem; padding: 1.5rem 0; }
+
+/* Posts */
+.gp-posts { display: flex; flex-direction: column; gap: 1rem; }
+
+.gp-post {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.gp-post-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+
+.gp-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.gp-initials {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gp-post-author { flex: 1; min-width: 0; }
+.gp-author-name { display: block; font-size: 0.85rem; font-weight: 600; color: #1e293b; }
+.gp-author-headline { display: block; font-size: 0.75rem; color: #94a3b8; }
+
+.gp-post-time { font-size: 0.72rem; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+.gp-post-delete {
+  background: none; border: none; color: #cbd5e1;
+  font-size: 1.1rem; cursor: pointer; padding: 0 0.25rem;
+  flex-shrink: 0; transition: color 0.15s;
+}
+.gp-post-delete:hover { color: #ef4444; }
+.gp-post-content { font-size: 0.875rem; color: #334155; line-height: 1.6; margin: 0; white-space: pre-wrap; word-break: break-word; }
+
+/* Sidebar */
+.gp-sidebar {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  position: sticky;
+  top: 100px;
+}
+
+.gp-sidebar-title { font-size: 0.875rem; font-weight: 700; color: #0f172a; margin: 0 0 0.875rem; }
+
+.gp-members { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.gp-member { display: flex; align-items: center; gap: 0.625rem; }
+.gp-member-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.gp-member-info { min-width: 0; }
+.gp-member-name { display: block; font-size: 0.8rem; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gp-member-company { display: block; font-size: 0.72rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 768px) {
+  .gp-body { grid-template-columns: 1fr; }
+  .gp-sidebar { position: static; }
+}

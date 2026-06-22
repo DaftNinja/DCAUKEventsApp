@@ -12,6 +12,8 @@ import AdminPage from "./pages/AdminPage";
 import AuthCallback from "./pages/AuthCallback";
 import ProfilePage from "./pages/ProfilePage";
 import MembersPage from "./pages/MembersPage";
+import GroupsPage from "./pages/GroupsPage";
+import GroupPage from "./pages/GroupPage";
 import "./App.css";
 
 export default function App() {
@@ -44,6 +46,8 @@ export default function App() {
         <Route path="/admin"           element={auth(<AdminPage />)} />
         <Route path="/profile"         element={auth(<ProfilePage />)} />
         <Route path="/members"         element={auth(<MembersPage />)} />
+        <Route path="/groups"           element={auth(<GroupsPage />)} />
+        <Route path="/groups/:slug"     element={auth(<GroupPage />)} />
       </Routes>
     </Router>
   );
