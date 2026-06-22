@@ -274,4 +274,72 @@ router.delete("/:id/rsvp", authenticateToken, async (req, res) => {
   }
 });
 
+// ─── PUT /api/events/:id/rsvp/meeting ────────────────────────────────────────────
+router.put("/:id/rsvp/meeting", authenticateToken, async (req, res) => {
+  try {
+    const { openToMeeting } = req.body;
+
+    const [rsvp] = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id)))
+      .limit(1);
+
+    if (!rsvp) return res.status(404).json({ error: "You have no RSVP for this event" });
+    if (rsvp.status !== "going") return res.status(400).json({ error: "Meet-Me is only available when you are Going" });
+
+    const [updated] = await db
+      .update(rsvps)
+      .set({ openToMeeting: Boolean(openToMeeting), updatedAt: new Date() })
+      .where(and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id)))
+      .returning();
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Failed to update meet-me status:", error);
+    res.status(500).json({ error: "Failed to update meet-me status" });
+  }
+});
+
+// ─── GET /api/events/:id/meeting ──────────────────────────────────────────────────
+router.get("/:id/meeting", authenticateToken, async (req, res) => {
+  try {
+    const [myRsvp] = await db
+      .select()
+      .from(rsvps)
+      .where(and(eq(rsvps.userId, req.userId), eq(rsvps.eventId, req.params.id)))
+      .limit(1);
+
+    if (!myRsvp || myRsvp.status !== "going") {
+      return res.status(403).json({ error: "Only Going attendees can view Meet-Me profiles" });
+    }
+
+    const attendees = await db
+      .select({
+        id:            users.id,
+        name:          users.name,
+        headline:      users.headline,
+        company:       users.company,
+        avatarUrl:     users.avatarUrl,
+        linkedinId:    users.linkedinId,
+        openToMeeting: rsvps.openToMeeting,
+      })
+      .from(rsvps)
+      .innerJoin(users, eq(rsvps.userId, users.id))
+      .where(
+        and(
+          eq(rsvps.eventId, req.params.id),
+          eq(rsvps.status, "going"),
+          eq(rsvps.openToMeeting, true),
+          eq(users.status, "active")
+        )
+      );
+
+    res.json(attendees);
+  } catch (error) {
+    console.error("Failed to fetch meeting attendees:", error);
+    res.status(500).json({ error: "Failed to fetch meeting attendees" });
+  }
+});
+
 export default router;
