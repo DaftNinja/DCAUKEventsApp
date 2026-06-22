@@ -4,6 +4,9 @@ import * as schema from "./schema.js";
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 10,                    // maximum pool size
+  idleTimeoutMillis: 30000,   // close idle clients after 30s
+  connectionTimeoutMillis: 2000, // error if connection takes > 2s
 });
 
 export const db = drizzle(pool, { schema });

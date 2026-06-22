@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { logger } from "../index.js";
+import { logger } from "../utils/logger.js";
 
 // ─── Token blocklist ──────────────────────────────────────────────────────────
 // In-memory store of invalidated token JTIs (JWT IDs).

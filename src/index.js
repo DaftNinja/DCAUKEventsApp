@@ -2,24 +2,18 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import pino from "pino";
 import pinoHttp from "pino-http";
+import cron from "node-cron";
 import adminRoutes  from "./routes/admin.js";
 import authRoutes   from "./routes/auth.js";
 import userRoutes   from "./routes/users.js";
 import eventRoutes  from "./routes/events.js";
 import newsRoutes   from "./routes/news.js";
-import { runMigrations }    from "./db/migrate.js";
+import groupRoutes  from "./routes/groups.js";
+import { runMigrations }     from "./db/migrate.js";
 import { sendEventReminders } from "./services/reminders.js";
 import { fetchAndStoreNews }  from "./services/newsFetcher.js";
-
-// ─── Logger ───────────────────────────────────────────────────────────────────
-export const logger = pino({
-  level: process.env.LOG_LEVEL || "info",
-  ...(process.env.NODE_ENV !== "production" && {
-    transport: { target: "pino-pretty", options: { colorize: true } },
-  }),
-});
+import { logger }             from "./utils/logger.js";
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 const app  = express();
@@ -30,7 +24,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use(cors());
 app.use(express.json());
 
-// HTTP request logging — skips /health to keep logs clean
 app.use(pinoHttp({
   logger,
   autoLogging: { ignore: (req) => req.url === "/health" },
@@ -47,8 +40,9 @@ app.use("/api/auth",   authRoutes);
 app.use("/api/users",  userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/news",   newsRoutes);
+app.use("/api/groups", groupRoutes);
 
-// ─── Serve React frontend (production) ───────────────────────────────────────
+// ─── Serve React frontend ─────────────────────────────────────────────────────
 const frontendDist = path.join(__dirname, "../frontend/dist");
 app.use(express.static(frontendDist));
 app.get("*", (req, res) => {
@@ -56,7 +50,6 @@ app.get("*", (req, res) => {
 });
 
 // ─── Central error handler ────────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500;
   logger.error({ err, url: req.url, method: req.method }, "Unhandled error");
@@ -69,16 +62,22 @@ app.use((err, req, res, _next) => {
 
 // ─── Scheduler ────────────────────────────────────────────────────────────────
 function startScheduler() {
-  // Run immediately on startup, then every hour
-  sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
-  fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
+  // Run immediately on startup to populate on first deploy
+  sendEventReminders().catch(err => logger.error({ err }, "Initial reminder run failed"));
+  fetchAndStoreNews().catch(err => logger.error({ err }, "Initial news fetch failed"));
 
-  setInterval(() => {
-    sendEventReminders().catch(err => logger.error({ err }, "Reminder run failed"));
-    fetchAndStoreNews().catch(err => logger.error({ err }, "News fetch failed"));
-  }, 60 * 60 * 1000);
+  // Run at the top of every hour — cron prevents execution drift vs setInterval
+  cron.schedule("0 * * * *", async () => {
+    try {
+      logger.info("Running scheduled hourly tasks...");
+      await sendEventReminders();
+      await fetchAndStoreNews();
+    } catch (err) {
+      logger.error({ err }, "Scheduled tasks failed");
+    }
+  });
 
-  logger.info("Scheduler started (reminders + news, hourly)");
+  logger.info("Scheduler started — cron running at top of every hour");
 }
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
