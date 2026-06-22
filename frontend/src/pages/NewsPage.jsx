@@ -31,10 +31,26 @@ function timeAgo(dateStr) {
 
 export default function NewsPage() {
   const navigate = useNavigate();
-  const [items, setItems]   = useState([]);
+  const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [error, setError]     = useState(null);
+  const [filter, setFilter]   = useState('all');
+  const [saved, setSaved]     = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('savedNews') || '[]')); }
+    catch { return new Set(); }
+  });
+  const [showSaved, setShowSaved] = useState(false);
+
+  function toggleSave(e, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    setSaved(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      localStorage.setItem('savedNews', JSON.stringify([...next]));
+      return next;
+    });
+  }
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -47,7 +63,9 @@ export default function NewsPage() {
   }, [navigate]);
 
   const sources = ['all', ...new Set(items.map(i => i.source))].slice(0, 8);
-  const filtered = filter === 'all' ? items : items.filter(i => i.source === filter);
+  const filtered = showSaved
+    ? items.filter(i => saved.has(i.id))
+    : filter === 'all' ? items : items.filter(i => i.source === filter);
 
   if (loading) return <div className="news-page"><Navbar /><p className="news-loading">Loading news...</p></div>;
   if (error)   return <div className="news-page"><Navbar /><p className="news-error">Error: {error}</p></div>;
@@ -65,12 +83,18 @@ export default function NewsPage() {
 
         {/* Source filter */}
         <div className="news-filters">
+          <button
+            className={`news-filter-btn ${showSaved ? 'active saved-active' : ''}`}
+            onClick={() => { setShowSaved(true); setFilter('all'); }}
+          >
+            🔖 Saved {saved.size > 0 && <span className="news-saved-count">{saved.size}</span>}
+          </button>
           {sources.map(s => (
             <button
               key={s}
-              className={`news-filter-btn ${filter === s ? 'active' : ''}`}
-              onClick={() => setFilter(s)}
-              style={filter === s && s !== 'all' ? {
+              className={`news-filter-btn ${!showSaved && filter === s ? 'active' : ''}`}
+              onClick={() => { setFilter(s); setShowSaved(false); }}
+              style={!showSaved && filter === s && s !== 'all' ? {
                 background: sourceColor(s) + '20',
                 color: sourceColor(s),
                 borderColor: sourceColor(s) + '40',
@@ -108,7 +132,16 @@ export default function NewsPage() {
                     >
                       {item.source}
                     </span>
-                    <span className="news-time">{timeAgo(item.publishedAt)}</span>
+                    <div className="news-card-meta-right">
+                      <span className="news-time">{timeAgo(item.publishedAt)}</span>
+                      <button
+                        className={`news-bookmark-btn ${saved.has(item.id) ? 'saved' : ''}`}
+                        onClick={e => toggleSave(e, item.id)}
+                        title={saved.has(item.id) ? 'Remove bookmark' : 'Save article'}
+                      >
+                        {saved.has(item.id) ? '🔖' : '📎'}
+                      </button>
+                    </div>
                   </div>
                   <h3 className="news-card-title">{item.title}</h3>
                   {item.summary && (

@@ -156,6 +156,48 @@
 
 .news-error { color: #ef4444; }
 
+.news-card-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.news-bookmark-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0.4;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.news-bookmark-btn:hover { opacity: 1; transform: scale(1.15); }
+.news-bookmark-btn.saved { opacity: 1; }
+
+.news-filter-btn.saved-active {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.news-saved-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f59e0b;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  padding: 0 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 @media (max-width: 640px) {
   .news-grid {
     grid-template-columns: 1fr;

@@ -6,7 +6,7 @@ import { authenticateToken } from "../middleware/auth.js";
 import { attachUser } from "../middleware/authorize.js";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
-import { sendEventForumNotification } from "../services/email.js";
+import { sendEventForumNotification, sendMentionNotification } from "../services/email.js";
 
 const router = Router({ mergeParams: true }); // inherits :id from events route
 
@@ -115,6 +115,27 @@ router.post("/", authenticateToken, validate(createPostSchema), async (req, res)
         sendEventForumNotification({ event, post, author, recipients }).catch(
           err => console.error("Failed to send forum notification:", err)
         );
+      }
+
+      // @mention detection — notify mentioned users by name
+      const mentionPattern = /@([A-Za-z][A-Za-z0-9 ]{1,40}?)(?=[^A-Za-z0-9]|$)/g;
+      const mentionedNames = [...new Set(
+        [...post.content.matchAll(mentionPattern)].map(m => m[1].trim().toLowerCase())
+      )];
+
+      if (mentionedNames.length > 0) {
+        const allUsers = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.status, "active"));
+        for (const mentionedName of mentionedNames) {
+          const matched = allUsers.find(u =>
+            u.name?.toLowerCase() === mentionedName &&
+            u.email !== author.email
+          );
+          if (matched) {
+            sendMentionNotification({ event, post, author, recipient: matched }).catch(
+              err => console.error("Failed to send mention notification:", err)
+            );
+          }
+        }
       }
     } catch (notifyErr) {
       console.error("Forum notification setup failed:", notifyErr);

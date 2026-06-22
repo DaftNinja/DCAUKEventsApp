@@ -154,6 +154,35 @@ export async function sendNewEventNotification({ event, recipients }) {
 }
 
 /**
+ * Sent to a user when they are @mentioned in an event forum post.
+ */
+export async function sendMentionNotification({ event, post, author, recipient }) {
+  if (!process.env.RESEND_API_KEY || !recipient.email) return;
+
+  const content = `
+    <h1>You were mentioned in a discussion</h1>
+    <p>Hi ${recipient.name || 'there'},</p>
+    <p><strong>${author.name}</strong> mentioned you in the discussion for:</p>
+    <div class="event-card">
+      <div class="event-title">${event.title}</div>
+      <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
+    </div>
+    <div style="background:#f8fafc;border-left:3px solid #06b6d4;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;">
+      <p style="font-size:13px;color:#64748b;margin:0 0 6px;"><strong>${author.name}</strong> wrote:</p>
+      <p style="margin:0;color:#1e293b;font-size:15px;">${post.content}</p>
+    </div>
+    <a href="${SITE_URL}/events/${event.id}" class="btn">View discussion →</a>
+  `;
+
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: recipient.email,
+    subject: `${author.name} mentioned you in: ${event.title}`,
+    html: baseTemplate(content),
+  });
+}
+
+/**
  * Sent to all Going/Interested attendees when someone posts in an event forum.
  * Excludes the post author.
  */

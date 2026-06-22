@@ -171,7 +171,7 @@ export default function EventsPage() {
                 return (
                   <div
                     key={event.id}
-                    className={`ep-event-card${isRegistered ? " ep-card-going" : ""}`}
+                    className={`ep-event-card${isRegistered ? " ep-card-going" : ""}${event.featured ? " ep-card-featured" : ""}`}
                     onClick={() => navigate(`/events/${event.id}`)}
                   >
                     <div className="ep-card-top">
@@ -181,6 +181,7 @@ export default function EventsPage() {
                       </div>
                       {isRegistered && <span className="ep-status-badge going">✓ Going</span>}
                       {isInterested && !isRegistered && <span className="ep-status-badge interested">★ Interested</span>}
+                      {event.featured && !isRegistered && !isInterested && <span className="ep-status-badge featured">★ Featured</span>}
                     </div>
                     <h3 className="ep-card-title">{event.title}</h3>
                     {event.location && (

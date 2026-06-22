@@ -382,6 +382,16 @@
   color: #166534;
 }
 
+.ep-card-featured {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 1px #fbbf2440;
+}
+
+.ep-status-badge.featured {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .ep-status-badge.interested {
   background: #e0f2fe;
   color: #0369a1;

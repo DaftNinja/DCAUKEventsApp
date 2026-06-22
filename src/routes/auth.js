@@ -153,6 +153,19 @@ router.get("/linkedin/callback", async (req, res) => {
   }
 });
 
+// ─── POST /api/auth/refresh ──────────────────────────────────────────────────
+// Issues a new token if the current one is still valid.
+// Invalidates the old token (blocklist its jti) and returns a fresh one.
+router.post("/refresh", authenticateToken, (req, res) => {
+  // Blocklist the old token
+  if (req.tokenJti && req.tokenExp) {
+    blockToken(req.tokenJti, req.tokenExp * 1000);
+  }
+  // Issue a fresh token for the same user
+  const newToken = generateToken(req.userId);
+  res.json({ token: newToken });
+});
+
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
 // Invalidates the current token server-side by adding its jti to the blocklist
 router.post("/logout", authenticateToken, (req, res) => {

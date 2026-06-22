@@ -29,6 +29,7 @@ export const events = pgTable("events", {
   organizerId:    uuid("organizerId").references(() => users.id, { onDelete: "set null" }),
   eventUrl:       text("eventUrl"),
   status:         text("status").default("pending"),
+  featured:       boolean("featured").default(false).notNull(),
   approvedAt:     timestamp("approvedAt"),
   createdAt:      timestamp("createdAt").defaultNow(),
   updatedAt:      timestamp("updatedAt").defaultNow(),

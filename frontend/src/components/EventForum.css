@@ -240,3 +240,11 @@
 }
 
 .ef-post-link:hover { text-decoration: underline; }
+
+.ef-mention {
+  color: #0284c7;
+  font-weight: 600;
+  background: #e0f2fe;
+  border-radius: 4px;
+  padding: 1px 4px;
+}

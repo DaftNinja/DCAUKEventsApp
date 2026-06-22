@@ -21,13 +21,23 @@ function Avatar({ user }) {
     : <div className="ef-avatar ef-avatar-initials">{initials}</div>;
 }
 
+function renderContent(text) {
+  // Split on @mention patterns and highlight them
+  const parts = text.split(/(@[A-Za-z][A-Za-z0-9 ]{1,40}?)(?=[^A-Za-z0-9]|$)/);
+  return parts.map((part, i) =>
+    part.startsWith('@')
+      ? <span key={i} className="ef-mention">{part}</span>
+      : part
+  );
+}
+
 export default function EventForum({ eventId, rsvpStatus }) {
-  const [posts, setPosts]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [content, setContent]   = useState('');
-  const [linkUrl, setLinkUrl]   = useState('');
-  const [showLink, setShowLink] = useState(false);
-  const [posting, setPosting]   = useState(false);
+  const [posts, setPosts]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [content, setContent]     = useState('');
+  const [linkUrl, setLinkUrl]     = useState('');
+  const [showLink, setShowLink]   = useState(false);
+  const [posting, setPosting]     = useState(false);
   const [postError, setPostError] = useState(null);
 
   const currentUserId   = localStorage.getItem('userId');
@@ -83,7 +93,7 @@ export default function EventForum({ eventId, rsvpStatus }) {
         <form className="ef-composer" onSubmit={handlePost}>
           <textarea
             className="ef-composer-input"
-            placeholder="Share a question, tip, or update about this event..."
+            placeholder="Share a question, tip, or update… Use @Name to mention someone"
             value={content}
             onChange={e => setContent(e.target.value)}
             rows={3}
@@ -151,7 +161,7 @@ export default function EventForum({ eventId, rsvpStatus }) {
                   >×</button>
                 )}
               </div>
-              <p className="ef-post-content">{post.content}</p>
+              <p className="ef-post-content">{renderContent(post.content)}</p>
               {post.linkUrl && (
                 <a
                   href={post.linkUrl}

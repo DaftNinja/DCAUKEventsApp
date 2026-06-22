@@ -29,6 +29,25 @@ export default function App() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
+  // Silent token refresh on app load — if token exists and is valid, swap it for a fresh one
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.token) {
+          localStorage.setItem("token", data.token);
+        }
+      })
+      .catch(() => {
+        // Refresh failed silently — user will get a 401 on next API call
+      });
+  }, []);
+
   const auth = (el) => isAuthenticated ? el : <Navigate to="/" replace />;
 
   return (

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
 import { events, rsvps, users } from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
 import {
   requireAdmin,
@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
       }
     }
 
-    const allEvents = await db.select().from(events).orderBy(events.startDate);
+    const allEvents = await db.select().from(events).orderBy(desc(events.featured), events.startDate);
 
     if (userId) {
       // Single query for all RSVPs for this user — no N+1
@@ -145,6 +145,23 @@ router.put("/:id", authenticateToken, fetchEvent, requireOwnerOrAdmin, validate(
   } catch (error) {
     console.error("Failed to update event:", error);
     res.status(500).json({ error: "Failed to update event" });
+  }
+});
+
+// ─── POST /api/events/:id/feature ───────────────────────────────────────────
+router.post("/:id/feature", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [current] = await db.select({ featured: events.featured }).from(events).where(eq(events.id, req.params.id)).limit(1);
+    if (!current) return res.status(404).json({ error: "Event not found" });
+    const [updated] = await db
+      .update(events)
+      .set({ featured: !current.featured, updatedAt: new Date() })
+      .where(eq(events.id, req.params.id))
+      .returning();
+    res.json(updated);
+  } catch (error) {
+    console.error("Failed to toggle featured:", error);
+    res.status(500).json({ error: "Failed to toggle featured" });
   }
 });
 

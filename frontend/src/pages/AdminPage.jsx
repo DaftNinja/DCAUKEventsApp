@@ -22,9 +22,10 @@ export default function AdminPage() {
 
   const [adminTab, setAdminTab] = useState('users');
 
-  const [pendingEvents, setPendingEvents] = useState([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [eventsError, setEventsError]     = useState(null);
+  const [allAdminEvents, setAllAdminEvents] = useState([]);
+  const [pendingEvents, setPendingEvents]   = useState([]);
+  const [eventsLoading, setEventsLoading]   = useState(false);
+  const [eventsError, setEventsError]       = useState(null);
 
   const [users, setUsers]           = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -60,6 +61,7 @@ export default function AdminPage() {
     setEventsError(null);
     try {
       const all = await api.get('/api/events');
+      setAllAdminEvents(all);
       setPendingEvents(all.filter(e => e.status === 'pending'));
     } catch (e) {
       setEventsError('Failed to load pending events');
@@ -70,8 +72,9 @@ export default function AdminPage() {
 
   async function handleApprove(eventId) {
     try {
-      await api.post(`/api/events/${eventId}/approve`);
+      const updated = await api.post(`/api/events/${eventId}/approve`);
       setPendingEvents(prev => prev.filter(e => e.id !== eventId));
+      setAllAdminEvents(prev => prev.map(e => e.id === eventId ? { ...e, status: 'approved' } : e));
     } catch (e) {
       console.error('Failed to approve event:', e);
     }
@@ -82,8 +85,18 @@ export default function AdminPage() {
     try {
       await api.post(`/api/events/${eventId}/reject`);
       setPendingEvents(prev => prev.filter(e => e.id !== eventId));
+      setAllAdminEvents(prev => prev.map(e => e.id === eventId ? { ...e, status: 'rejected' } : e));
     } catch (e) {
       console.error('Failed to reject event:', e);
+    }
+  }
+
+  async function handleToggleFeature(eventId) {
+    try {
+      const updated = await api.post(`/api/events/${eventId}/feature`);
+      setAllAdminEvents(prev => prev.map(e => e.id === eventId ? { ...e, featured: updated.featured } : e));
+    } catch (e) {
+      console.error('Failed to toggle featured:', e);
     }
   }
 
@@ -357,6 +370,40 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
+
+            {/* Featured / approved events list */}
+            {allAdminEvents.filter(e => e.status === 'approved').length > 0 && (
+              <>
+                <div className="admin-events-header" style={{marginTop:'2rem'}}>
+                  <h2>Approved Events — Feature Toggle</h2>
+                  <p>Pin events to the top of the events list.</p>
+                </div>
+                {allAdminEvents
+                  .filter(e => e.status === 'approved')
+                  .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
+                  .map(event => (
+                    <div key={event.id} className={`admin-event-card ${event.featured ? 'featured' : ''}`}>
+                      <div className="admin-event-info">
+                        {event.featured && <span className="admin-featured-badge">★ Featured</span>}
+                        <h3 className="admin-event-title">{event.title}</h3>
+                        <div className="admin-event-meta">
+                          <span>📅 {new Date(event.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          {event.location && <span>📍 {event.location}</span>}
+                        </div>
+                      </div>
+                      <div className="admin-event-actions">
+                        <button
+                          className={`admin-event-feature ${event.featured ? 'on' : 'off'}`}
+                          onClick={() => handleToggleFeature(event.id)}
+                        >
+                          {event.featured ? '★ Unpin' : '☆ Pin'}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                }
+              </>
+            )}
           </div>
         )}
 
