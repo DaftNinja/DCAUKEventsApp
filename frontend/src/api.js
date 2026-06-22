@@ -54,8 +54,18 @@ export async function updateProfile(data) {
   return updated;
 }
 
-// Log out: clear all auth state from localStorage.
-export function logout() {
+// Log out: invalidate token server-side then clear local auth state.
+export async function logout() {
+  const token = localStorage.getItem("token");
+  if (token) {
+    // Fire and forget — don't block UI on server response
+    fetch(`${BASE_URL}/api/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {}); // silently ignore network errors
+  }
   localStorage.removeItem("token");
+  localStorage.removeItem("userId");
   localStorage.removeItem("user");
+  localStorage.removeItem("role");
 }

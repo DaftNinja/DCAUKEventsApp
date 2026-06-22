@@ -3,7 +3,7 @@ import axios from "axios";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-import { generateToken } from "../middleware/auth.js";
+import { generateToken, blockToken, authenticateToken } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -133,6 +133,16 @@ router.get("/linkedin/callback", async (req, res) => {
     }
     res.redirect(`/?error=${encodeURIComponent("Authentication failed: " + error.message)}`);
   }
+});
+
+// ─── POST /api/auth/logout ────────────────────────────────────────────────────
+// Invalidates the current token server-side by adding its jti to the blocklist
+router.post("/logout", authenticateToken, (req, res) => {
+  if (req.tokenJti && req.tokenExp) {
+    // expiresAt in ms — token can't be used after this anyway
+    blockToken(req.tokenJti, req.tokenExp * 1000);
+  }
+  res.json({ success: true });
 });
 
 export default router;
