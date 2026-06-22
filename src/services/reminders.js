@@ -4,7 +4,7 @@ import { eq, and, gte, lte } from "drizzle-orm";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_ADDRESS = process.env.EMAIL_FROM || "ThEventGuide <hello@theventguide.com>";
+const FROM_ADDRESS = process.env.EMAIL_FROM || "theventguide.com <hello@theventguide.com>";
 const SITE_URL = process.env.FRONTEND_URL || "https://dcaevents-production.up.railway.app";
 
 function formatEventDate(dateStr) {
@@ -44,10 +44,10 @@ function baseTemplate(content) {
 </head>
 <body>
   <div class="wrapper">
-    <div class="header"><div class="logo">Th<span>EventGuide</span></div></div>
+    <div class="header"><div class="logo">theventguide.com</div></div>
     <div class="body">${content}</div>
     <div class="footer">
-      ThEventGuide Community · <a href="${SITE_URL}" style="color:#06b6d4;">ThEventGuide</a><br/>
+      theventguide.com · <a href="${SITE_URL}" style="color:#06b6d4;">theventguide.com</a><br/>
       You're receiving this because you RSVPd as Going to this event.
     </div>
   </div>

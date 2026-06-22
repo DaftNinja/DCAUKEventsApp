@@ -156,7 +156,9 @@ export default function HomePage() {
     <div className="home">
       <nav className={`home-nav${scrolled ? " scrolled" : ""}`}>
         <div className="home-nav-inner">
-          <span className="home-logo">Th<span>EventGuide</span></span>
+          <span className="home-logo">
+            <img src="/logo.png" alt="theventguide.com" className="home-logo-img" />
+          </span>
           {isLoggedIn ? (
             <button className="nav-signin-btn" onClick={() => navigate("/events")}>
               View Events →
@@ -176,7 +178,7 @@ export default function HomePage() {
           <div className="hero-grid" />
         </div>
         <div className="hero-content">
-          <div className="hero-badge">ThEventGuide Community</div>
+          <div className="hero-badge">theventguide.com</div>
           <h1 className="hero-title">
             Where the industry<br />
             <span className="hero-title-accent">comes together</span>
@@ -287,7 +289,9 @@ export default function HomePage() {
 
       <footer className="home-footer">
         <div className="footer-inner">
-          <span className="home-logo">Th<span>EventGuide</span></span>
+          <span className="home-logo">
+            <img src="/logo.png" alt="theventguide.com" className="home-logo-img" />
+          </span>
           <p>Community platform for event professionals.</p>
         </div>
       </footer>

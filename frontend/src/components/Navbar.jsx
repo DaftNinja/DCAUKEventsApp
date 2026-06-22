@@ -23,7 +23,7 @@ export default function Navbar({
       <div className="navbar-inner">
         <div className="navbar-left">
           <button className="navbar-logo" onClick={() => navigate('/')}>
-            Th<span>EventGuide</span>
+            <img src="/logo.png" alt="theventguide.com" className="navbar-logo-img" />
           </button>
           {showBack && (
             <button className="navbar-back" onClick={() => navigate(backTo)}>

@@ -84,7 +84,7 @@ export default function SubmitEventPage() {
           <div className="sep-success">
             <div className="sep-success-icon">✓</div>
             <h1>Event submitted!</h1>
-            <p>Thank you for submitting your event. The ThEventGuide team will review it shortly. You'll be notified once it's approved and visible to the community.</p>
+            <p>Thank you for submitting your event. The theventguide.com team will review it shortly. You'll be notified once it's approved and visible to the community.</p>
             <div className="sep-success-actions">
               <button className="sep-btn-primary" onClick={() => navigate('/events')}>Browse events</button>
               <button className="sep-btn-ghost" onClick={() => { setSubmitted(false); setForm({ title: '', organiser: '', organizerEmail: '', startDate: '', startTime: '', endDate: '', endTime: '', location: '', eventUrl: '', description: '' }); }}>Submit another</button>
@@ -101,7 +101,7 @@ export default function SubmitEventPage() {
       <div className="sep-body">
         <div className="sep-header">
           <h1>Submit an event</h1>
-          <p>Know about an event the community should hear about? Submit it here and the ThEventGuide team will review and publish it.</p>
+          <p>Know about an event the community should hear about? Submit it here and the theventguide.com team will review and publish it.</p>
         </div>
 
         <form className="sep-form" onSubmit={handleSubmit} noValidate>
