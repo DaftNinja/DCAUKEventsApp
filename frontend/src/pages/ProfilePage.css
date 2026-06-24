@@ -568,3 +568,29 @@
 
 .pp-prefs-cal-hint { font-size: 0.75rem; color: #94a3b8; margin: 0; }
 
+.pp-prefs-unsub-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 0.75rem;
+  text-decoration: underline;
+  display: block;
+}
+.pp-prefs-unsub-btn:hover { color: #ef4444; }
+
+.pp-prefs-unsubscribed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #166534;
+}
+

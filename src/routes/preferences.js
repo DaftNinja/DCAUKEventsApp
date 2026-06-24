@@ -78,4 +78,18 @@ router.put("/", authenticateToken, async (req, res) => {
   }
 });
 
+// ─── DELETE /api/preferences ─────────────────────────────────────────────────────
+// Unsubscribe — deletes preferences row and invalidates the calendar feed token
+router.delete("/", authenticateToken, async (req, res) => {
+  try {
+    await db
+      .delete(userPreferences)
+      .where(eq(userPreferences.userId, req.userId));
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete preferences:", error);
+    res.status(500).json({ error: "Failed to unsubscribe" });
+  }
+});
+
 export default router;

@@ -292,6 +292,10 @@ export default function HomePage() {
             <img src="/logo.png" alt="theventguide.com" className="home-logo-img" />
           </span>
           <p>Community platform for event professionals.</p>
+          <nav className="footer-links">
+            <a href="/privacy" className="footer-link">Privacy Policy</a>
+            <a href="mailto:hello@theventguide.com" className="footer-link">Contact</a>
+          </nav>
         </div>
       </footer>
     </div>

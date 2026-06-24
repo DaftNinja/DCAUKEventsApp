@@ -15,6 +15,7 @@ import MembersPage from "./pages/MembersPage";
 import MemberProfilePage from "./pages/MemberProfilePage";
 import GroupsPage from "./pages/GroupsPage";
 import GroupPage from "./pages/GroupPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import "./App.css";
 
 export default function App() {
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/members/:id"      element={auth(<MemberProfilePage />)} />
         <Route path="/groups"           element={auth(<GroupsPage />)} />
         <Route path="/groups/:slug"     element={auth(<GroupPage />)} />
+        <Route path="/privacy"           element={<PrivacyPage />} />
       </Routes>
     </Router>
   );

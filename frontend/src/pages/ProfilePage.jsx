@@ -11,6 +11,7 @@ function PreferencesPanel() {
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
   const [copied, setCopied]       = useState(false);
+  const [unsubscribed, setUnsubscribed] = useState(false);
 
   useEffect(() => {
     api.get('/api/preferences').then(p => {
@@ -46,6 +47,28 @@ function PreferencesPanel() {
     const url = `webcal://${window.location.host}/api/calendar/subscribe/${prefs.calToken}`;
     window.location.href = url;
   }
+
+  async function handleUnsubscribe() {
+    if (!confirm('This will delete your preferences and invalidate your calendar feed URL. Are you sure?')) return;
+    try {
+      await api.delete('/api/preferences');
+      setPrefs(null);
+      setKeywords('');
+      setLocations('');
+      setUnsubscribed(true);
+    } catch (e) {
+      console.error('Failed to unsubscribe:', e);
+    }
+  }
+
+  if (unsubscribed) return (
+    <div className="pp-prefs-unsubscribed">
+      <p>✓ You've been unsubscribed. Your calendar feed is no longer active.</p>
+      <button className="pp-prefs-cal-btn primary" onClick={() => { setUnsubscribed(false); api.get('/api/preferences').then(p => { setPrefs(p); setKeywords(p.keywords || ''); setLocations(p.locations || ''); }); }}>
+        Set up a new subscription
+      </button>
+    </div>
+  );
 
   if (!prefs) return <p className="pp-prefs-loading">Loading...</p>;
 
@@ -100,6 +123,9 @@ function PreferencesPanel() {
         <p className="pp-prefs-cal-hint">
           For Google Calendar: open Google Calendar → Other calendars → From URL → paste the feed URL.
         </p>
+        <button className="pp-prefs-unsub-btn" onClick={handleUnsubscribe}>
+          Unsubscribe &amp; delete preferences
+        </button>
       </div>
     </div>
   );
