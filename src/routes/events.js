@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
-import { events, rsvps, users } from "../db/schema.js";
+import { events, rsvps, users, userPreferences } from "../db/schema.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
 import {
@@ -20,6 +20,7 @@ import {
   sendNewEventNotification,
   sendEventApproved,
   sendEventRejected,
+  sendPreferenceMatchNotification,
 } from "../services/email.js";
 
 const router = Router();
@@ -267,6 +268,35 @@ router.post("/:id/approve", authenticateToken, requireAdmin, async (req, res) =>
       await sendEventApproved({ event: updated });
     } catch (emailErr) {
       console.error("Failed to send approval email to organiser:", emailErr);
+    }
+
+    // Notify users whose preferences match this event
+    try {
+      const allPrefs = await db
+        .select()
+        .from(userPreferences)
+        .innerJoin(users, eq(userPreferences.userId, users.id));
+
+      const eventText = `${updated.title} ${updated.description || ""} ${updated.organiser || ""}`.toLowerCase();
+      const eventLoc  = (updated.location || "").toLowerCase();
+
+      for (const row of allPrefs) {
+        const prefs = row.user_preferences;
+        const user  = row.users;
+        const keywords  = (prefs.keywords  || "").split(",").map(k => k.trim().toLowerCase()).filter(Boolean);
+        const locations = (prefs.locations || "").split(",").map(l => l.trim().toLowerCase()).filter(Boolean);
+        // Skip users with no filters set
+        if (keywords.length === 0 && locations.length === 0) continue;
+        const keyMatch = keywords.length  === 0 || keywords.some(k  => eventText.includes(k));
+        const locMatch = locations.length === 0 || locations.some(l  => eventLoc.includes(l));
+        if (keyMatch && locMatch) {
+          sendPreferenceMatchNotification({ event: updated, user }).catch(
+            err => console.error("Failed to send preference notification:", err)
+          );
+        }
+      }
+    } catch (prefErr) {
+      console.error("Failed to check preferences on approve:", prefErr);
     }
 
     res.json(updated);

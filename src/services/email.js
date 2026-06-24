@@ -268,6 +268,38 @@ export async function sendEventRejected({ event }) {
 }
 
 /**
+ * Sent to a user when a newly approved event matches their preferences.
+ */
+export async function sendPreferenceMatchNotification({ event, user }) {
+  if (!process.env.RESEND_API_KEY || !user.email) return;
+
+  const content = `
+    <h1>New event matches your preferences</h1>
+    <p>Hi ${user.name || 'there'},</p>
+    <p>A new event has been added to theventguide.com that matches your subscription criteria:</p>
+    <div class="event-card">
+      <div class="event-title">${event.title}</div>
+      <div class="event-meta">📅 ${formatEventDate(event.startDate)}</div>
+      ${event.location  ? `<div class="event-meta">📍 ${event.location}</div>`  : ''}
+      ${event.organiser ? `<div class="event-meta">🏢 ${event.organiser}</div>` : ''}
+    </div>
+    ${event.description ? `<p style="color:#475569;font-size:0.9rem;">${event.description}</p>` : ''}
+    <a href="${SITE_URL}/events/${event.id}" class="btn">View Event →</a>
+    <p style="font-size:0.8rem;color:#94a3b8;margin-top:2rem;">
+      You're receiving this because it matches your event preferences on theventguide.com.
+      <a href="${SITE_URL}/profile" style="color:#06b6d4;">Update your preferences</a>
+    </p>
+  `;
+
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: user.email,
+    subject: `New event: ${event.title}`,
+    html: baseTemplate(content),
+  });
+}
+
+/**
  * Sent to admin when a member requests organiser role.
  */
 export async function sendOrganiserRequest({ requester }) {

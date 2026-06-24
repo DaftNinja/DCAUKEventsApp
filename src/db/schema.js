@@ -102,6 +102,16 @@ export const groupPosts = pgTable("group_posts", {
   updatedAt:      timestamp("updated_at").defaultNow(),
 });
 
+export const userPreferences = pgTable("user_preferences", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  userId:    uuid("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  keywords:  text("keywords").default(""),
+  locations: text("locations").default(""),
+  calToken:  text("cal_token").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const eventPosts = pgTable("event_posts", {
   id:        uuid("id").primaryKey().defaultRandom(),
   eventId:   uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),

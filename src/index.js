@@ -11,6 +11,8 @@ import eventRoutes  from "./routes/events.js";
 import newsRoutes   from "./routes/news.js";
 import groupRoutes  from "./routes/groups.js";
 import eventPostRoutes from "./routes/eventPosts.js";
+import preferenceRoutes from "./routes/preferences.js";
+import calendarRoutes   from "./routes/calendar.js";
 import { runMigrations }    from "./db/migrate.js";
 import { sendEventReminders } from "./services/reminders.js";
 import { fetchAndStoreNews }  from "./services/newsFetcher.js";
@@ -42,6 +44,8 @@ app.use("/api/events", eventRoutes);
 app.use("/api/news",   newsRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/events/:id/posts", eventPostRoutes);
+app.use("/api/preferences", preferenceRoutes);
+app.use("/api/calendar",    calendarRoutes);
 
 // ─── Serve React frontend ─────────────────────────────────────────────────────
 const frontendDist = path.join(__dirname, "../frontend/dist");

@@ -512,3 +512,59 @@
 .pp-submission-badge.rejected  { background: #fee2e2; color: #991b1b; }
 .pp-submission-badge.pending   { background: #fef3c7; color: #92400e; }
 
+/* ─── Preferences & Calendar Feed ──────────────────────────────── */
+.pp-prefs { display: flex; flex-direction: column; gap: 1.5rem; margin-top: 0.75rem; }
+.pp-prefs-desc { font-size: 0.875rem; color: #64748b; margin: -0.75rem 0 0; line-height: 1.55; }
+.pp-prefs-loading { font-size: 0.875rem; color: #94a3b8; }
+
+.pp-prefs-fields { display: flex; flex-direction: column; gap: 0.875rem; }
+.pp-prefs-field  { display: flex; flex-direction: column; gap: 0.25rem; }
+.pp-prefs-label  { font-size: 0.8rem; font-weight: 600; color: #374151; }
+
+.pp-prefs-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: #0f172a;
+  background: #f8fafc;
+  transition: border-color 0.15s;
+}
+.pp-prefs-input:focus {
+  outline: none;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgba(6,182,212,0.1);
+  background: white;
+}
+.pp-prefs-input::placeholder { color: #94a3b8; }
+.pp-prefs-hint  { font-size: 0.75rem; color: #94a3b8; margin: 0; }
+.pp-prefs-save  { align-self: flex-start; }
+
+.pp-prefs-cal {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.625rem;
+  padding: 1rem 1.25rem;
+}
+.pp-prefs-cal-title { font-size: 0.9rem; font-weight: 700; color: #0f172a; margin: 0 0 0.375rem; }
+.pp-prefs-cal-desc  { font-size: 0.825rem; color: #64748b; margin: 0 0 0.875rem; line-height: 1.5; }
+
+.pp-prefs-cal-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.625rem; }
+
+.pp-prefs-cal-btn {
+  padding: 0.45rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pp-prefs-cal-btn.primary { background: #06b6d4; color: white; border: none; }
+.pp-prefs-cal-btn.primary:hover { background: #0891b2; }
+.pp-prefs-cal-btn.ghost   { background: white; color: #475569; border: 1px solid #e2e8f0; }
+.pp-prefs-cal-btn.ghost:hover { background: #f1f5f9; }
+
+.pp-prefs-cal-hint { font-size: 0.75rem; color: #94a3b8; margin: 0; }
+

@@ -1,8 +1,109 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
 import './ProfilePage.css';
+
+function PreferencesPanel() {
+  const [prefs, setPrefs]         = useState(null);
+  const [keywords, setKeywords]   = useState('');
+  const [locations, setLocations] = useState('');
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [copied, setCopied]       = useState(false);
+
+  useEffect(() => {
+    api.get('/api/preferences').then(p => {
+      setPrefs(p);
+      setKeywords(p.keywords  || '');
+      setLocations(p.locations || '');
+    }).catch(console.error);
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await api.put('/api/preferences', { keywords, locations });
+      setPrefs(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      console.error('Failed to save preferences:', e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function copyFeedUrl() {
+    const url = `${window.location.origin}/api/calendar/subscribe/${prefs.calToken}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function openInCalendar() {
+    const url = `webcal://${window.location.host}/api/calendar/subscribe/${prefs.calToken}`;
+    window.location.href = url;
+  }
+
+  if (!prefs) return <p className="pp-prefs-loading">Loading...</p>;
+
+  return (
+    <div className="pp-prefs">
+      <div className="pp-prefs-fields">
+        <div className="pp-prefs-field">
+          <label className="pp-prefs-label">Keywords</label>
+          <input
+            className="pp-prefs-input"
+            type="text"
+            placeholder="e.g. sustainability, AI, networking"
+            value={keywords}
+            onChange={e => setKeywords(e.target.value)}
+          />
+          <p className="pp-prefs-hint">Comma-separated. Matched against event title, description and organiser.</p>
+        </div>
+        <div className="pp-prefs-field">
+          <label className="pp-prefs-label">Locations</label>
+          <input
+            className="pp-prefs-input"
+            type="text"
+            placeholder="e.g. London, Amsterdam, Virtual"
+            value={locations}
+            onChange={e => setLocations(e.target.value)}
+          />
+          <p className="pp-prefs-hint">Comma-separated. Leave both fields empty to receive all events.</p>
+        </div>
+        <button
+          className="pp-btn-primary pp-prefs-save"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saved ? '\u2713 Saved' : saving ? 'Saving...' : 'Save preferences'}
+        </button>
+      </div>
+
+      <div className="pp-prefs-cal">
+        <h3 className="pp-prefs-cal-title">📅 Calendar subscription</h3>
+        <p className="pp-prefs-cal-desc">
+          Add this feed to Google Calendar, Apple Calendar, or Outlook.
+          It updates automatically as new matching events are approved.
+        </p>
+        <div className="pp-prefs-cal-actions">
+          <button className="pp-prefs-cal-btn primary" onClick={openInCalendar}>
+            Subscribe in Calendar app
+          </button>
+          <button className="pp-prefs-cal-btn ghost" onClick={copyFeedUrl}>
+            {copied ? '\u2713 Copied!' : 'Copy feed URL'}
+          </button>
+        </div>
+        <p className="pp-prefs-cal-hint">
+          For Google Calendar: open Google Calendar → Other calendars → From URL → paste the feed URL.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -267,6 +368,13 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* Event Preferences & Calendar Subscription */}
+        <div className="pp-card">
+          <h2 className="pp-card-title">Event Preferences &amp; Calendar Feed</h2>
+          <p className="pp-prefs-desc">Subscribe to a personalised calendar feed. New events matching your criteria will appear in your calendar automatically, and you'll be notified by email.</p>
+          <PreferencesPanel />
+        </div>
 
       </div>
     </div>
