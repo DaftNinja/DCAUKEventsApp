@@ -8,28 +8,17 @@ import crypto from "crypto";
 const router = Router();
 
 // ─── GET /api/preferences ─────────────────────────────────────────────────────
-// Get or create preferences for the logged-in user
+// Returns preferences if they exist, or null if the user hasn't subscribed yet
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    let [prefs] = await db
+    const [prefs] = await db
       .select()
       .from(userPreferences)
       .where(eq(userPreferences.userId, req.userId))
       .limit(1);
 
-    if (!prefs) {
-      [prefs] = await db
-        .insert(userPreferences)
-        .values({
-          userId:    req.userId,
-          keywords:  "",
-          locations: "",
-          calToken:  crypto.randomBytes(32).toString("hex"),
-        })
-        .returning();
-    }
-
-    res.json(prefs);
+    // Return null if not yet subscribed — don't auto-create
+    res.json(prefs || null);
   } catch (error) {
     console.error("Failed to fetch preferences:", error);
     res.status(500).json({ error: "Failed to fetch preferences" });

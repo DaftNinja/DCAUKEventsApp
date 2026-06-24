@@ -5,7 +5,7 @@ import Navbar from '../components/Navbar';
 import './ProfilePage.css';
 
 function PreferencesPanel() {
-  const [prefs, setPrefs]         = useState(null);
+  const [prefs, setPrefs]         = useState(undefined); // undefined = loading, null = not subscribed
   const [keywords, setKeywords]   = useState('');
   const [locations, setLocations] = useState('');
   const [saving, setSaving]       = useState(false);
@@ -15,13 +15,16 @@ function PreferencesPanel() {
 
   useEffect(() => {
     api.get('/api/preferences').then(p => {
-      setPrefs(p);
-      setKeywords(p.keywords  || '');
-      setLocations(p.locations || '');
+      setPrefs(p); // null if not yet subscribed
+      if (p) {
+        setKeywords(p.keywords  || '');
+        setLocations(p.locations || '');
+      }
     }).catch(console.error);
   }, []);
 
   async function handleSave() {
+    if (!keywords.trim() && !locations.trim()) return; // require at least one filter
     setSaving(true);
     try {
       const updated = await api.put('/api/preferences', { keywords, locations });
@@ -55,25 +58,19 @@ function PreferencesPanel() {
       setPrefs(null);
       setKeywords('');
       setLocations('');
-      setUnsubscribed(true);
+      setUnsubscribed(false);
     } catch (e) {
       console.error('Failed to unsubscribe:', e);
     }
   }
 
-  if (unsubscribed) return (
-    <div className="pp-prefs-unsubscribed">
-      <p>✓ You've been unsubscribed. Your calendar feed is no longer active.</p>
-      <button className="pp-prefs-cal-btn primary" onClick={() => { setUnsubscribed(false); api.get('/api/preferences').then(p => { setPrefs(p); setKeywords(p.keywords || ''); setLocations(p.locations || ''); }); }}>
-        Set up a new subscription
-      </button>
-    </div>
-  );
-
-  if (!prefs) return <p className="pp-prefs-loading">Loading...</p>;
+  // Still loading
+  if (prefs === undefined) return <p className="pp-prefs-loading">Loading...</p>;
 
   return (
     <div className="pp-prefs">
+
+      {/* Filter setup — always shown */}
       <div className="pp-prefs-fields">
         <div className="pp-prefs-field">
           <label className="pp-prefs-label">Keywords</label>
@@ -84,7 +81,7 @@ function PreferencesPanel() {
             value={keywords}
             onChange={e => setKeywords(e.target.value)}
           />
-          <p className="pp-prefs-hint">Comma-separated. Matched against event title, description and organiser.</p>
+          <p className="pp-prefs-hint">Comma-separated. Matched against event title, description and organiser name. An event only needs to match one keyword.</p>
         </div>
         <div className="pp-prefs-field">
           <label className="pp-prefs-label">Locations</label>
@@ -95,38 +92,54 @@ function PreferencesPanel() {
             value={locations}
             onChange={e => setLocations(e.target.value)}
           />
-          <p className="pp-prefs-hint">Comma-separated. Leave both fields empty to receive all events.</p>
+          <p className="pp-prefs-hint">Comma-separated. Matched against the event location field.</p>
         </div>
+        {!keywords.trim() && !locations.trim() && (
+          <p className="pp-prefs-warning">
+            ⚠️ You must set at least one keyword or location to subscribe — otherwise you’d receive every event.
+          </p>
+        )}
         <button
           className="pp-btn-primary pp-prefs-save"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || (!keywords.trim() && !locations.trim())}
         >
-          {saved ? '\u2713 Saved' : saving ? 'Saving...' : 'Save preferences'}
+          {saved ? '\u2713 Saved' : saving ? 'Saving...' : prefs ? 'Update preferences' : 'Save & subscribe'}
         </button>
       </div>
 
-      <div className="pp-prefs-cal">
-        <h3 className="pp-prefs-cal-title">📅 Calendar subscription</h3>
-        <p className="pp-prefs-cal-desc">
-          Add this feed to Google Calendar, Apple Calendar, or Outlook.
-          It updates automatically as new matching events are approved.
-        </p>
-        <div className="pp-prefs-cal-actions">
-          <button className="pp-prefs-cal-btn primary" onClick={openInCalendar}>
-            Subscribe in Calendar app
-          </button>
-          <button className="pp-prefs-cal-btn ghost" onClick={copyFeedUrl}>
-            {copied ? '\u2713 Copied!' : 'Copy feed URL'}
+      {/* Calendar section — only shown once subscribed */}
+      {prefs && (
+        <div className="pp-prefs-cal">
+          <h3 className="pp-prefs-cal-title">📅 Your calendar feed is active</h3>
+          <p className="pp-prefs-cal-desc">
+            Your feed is filtered to events matching: <strong>{[keywords, locations].filter(Boolean).join(' · ') || 'all events'}</strong>.
+            Add it to your calendar app and it will update automatically as new matching events are approved.
+          </p>
+          <div className="pp-prefs-cal-actions">
+            <button className="pp-prefs-cal-btn primary" onClick={openInCalendar}>
+              Subscribe in Calendar app
+            </button>
+            <button className="pp-prefs-cal-btn ghost" onClick={copyFeedUrl}>
+              {copied ? '\u2713 Copied!' : 'Copy feed URL'}
+            </button>
+          </div>
+          <p className="pp-prefs-cal-hint">
+            For Google Calendar: open Google Calendar → Other calendars → From URL → paste the feed URL.
+          </p>
+          <button className="pp-prefs-unsub-btn" onClick={handleUnsubscribe}>
+            Unsubscribe &amp; delete preferences
           </button>
         </div>
-        <p className="pp-prefs-cal-hint">
-          For Google Calendar: open Google Calendar → Other calendars → From URL → paste the feed URL.
-        </p>
-        <button className="pp-prefs-unsub-btn" onClick={handleUnsubscribe}>
-          Unsubscribe &amp; delete preferences
-        </button>
-      </div>
+      )}
+
+      {/* Not yet subscribed — explain what will happen */}
+      {!prefs && (
+        <div className="pp-prefs-inactive">
+          <p>💡 Once you save preferences above, you’ll get a personal calendar feed URL and email alerts when matching events are approved.</p>
+        </div>
+      )}
+
     </div>
   );
 }
