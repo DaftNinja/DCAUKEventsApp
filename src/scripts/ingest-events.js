@@ -103,7 +103,8 @@ export async function ingestEvents() {
             id, title, description, "startDate", "endDate",
             location, "eventUrl", "organizerId", "organizerEmail",
             status, "createdAt", "updatedAt"
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+          ON CONFLICT (title) DO NOTHING`,
           [
             eventId,
             eventName,
