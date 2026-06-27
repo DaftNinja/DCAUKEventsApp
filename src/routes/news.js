@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
 import { newsItems } from "../db/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, gte, lt, and } from "drizzle-orm";
 import { authenticateToken } from "../middleware/auth.js";
 import { attachUser, requireAdmin } from "../middleware/authorize.js";
 import { z } from "zod";
@@ -20,15 +20,32 @@ const createNewsSchema = z.object({
 
 // ─── GET /api/news ────────────────────────────────────────────────────────────
 // Public — no auth required (used by homepage carousel for logged-out visitors)
+// ?day=N — returns articles published N days ago (0 = today, 1 = yesterday, …)
+// Maximum window is 7 days. Omitting ?day returns day 0 (today).
 router.get("/", async (req, res) => {
   try {
+    const MAX_DAYS = 7;
+    const day = Math.min(Math.max(parseInt(req.query.day ?? "0", 10) || 0, 0), MAX_DAYS - 1);
+
+    // Build a UTC midnight-aligned window for the requested day
+    const now   = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day));
+    const end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day + 1));
+
     const items = await db
       .select()
       .from(newsItems)
+      .where(
+        day === 0
+          // Day 0: everything from UTC midnight today onwards (catches items published "today")
+          ? gte(newsItems.publishedAt, start)
+          : and(gte(newsItems.publishedAt, start), lt(newsItems.publishedAt, end))
+      )
       .orderBy(desc(newsItems.publishedAt))
-      .limit(40);
+      .limit(60);
 
-    res.json(items);
+    // Tell the client whether there are more days left to load
+    res.json({ items, day, hasMore: day < MAX_DAYS - 1 });
   } catch (error) {
     console.error("Failed to fetch news:", error);
     res.status(500).json({ error: "Failed to fetch news" });

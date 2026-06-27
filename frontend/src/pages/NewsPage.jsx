@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
@@ -31,10 +31,13 @@ function timeAgo(dateStr) {
 
 export default function NewsPage() {
   const navigate = useNavigate();
-  const [items, setItems]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
-  const [filter, setFilter]   = useState('all');
+  const [items, setItems]       = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError]       = useState(null);
+  const [filter, setFilter]     = useState('all');
+  const [currentDay, setCurrentDay] = useState(0);
+  const [hasMore, setHasMore]   = useState(false);
   const [saved, setSaved]     = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('savedNews') || '[]')); }
     catch { return new Set(); }
@@ -52,15 +55,23 @@ export default function NewsPage() {
     });
   }
 
+  const fetchDay = useCallback((day, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
+    api.get(`/api/news?day=${day}`)
+      .then(data => {
+        setItems(prev => append ? [...prev, ...data.items] : data.items);
+        setCurrentDay(data.day);
+        setHasMore(data.hasMore);
+      })
+      .catch(e => setError(e.message))
+      .finally(() => { setLoading(false); setLoadingMore(false); });
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/'); return; }
-
-    api.get('/api/news')
-      .then(setItems)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [navigate]);
+    fetchDay(0);
+  }, [navigate, fetchDay]);
 
   const sources = ['all', ...new Set(items.map(i => i.source))].slice(0, 8);
   const filtered = showSaved
@@ -110,47 +121,67 @@ export default function NewsPage() {
             <p>No news items yet — check back soon.</p>
           </div>
         ) : (
-          <div className="news-grid">
-            {filtered.map(item => (
-              <a
-                key={item.id}
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="news-card"
-              >
-                {item.imageUrl && (
-                  <div className="news-card-image">
-                    <img src={item.imageUrl} alt="" loading="lazy" />
-                  </div>
-                )}
-                <div className="news-card-body">
-                  <div className="news-card-meta">
-                    <span
-                      className="news-source"
-                      style={{ color: sourceColor(item.source) }}
-                    >
-                      {item.source}
-                    </span>
-                    <div className="news-card-meta-right">
-                      <span className="news-time">{timeAgo(item.publishedAt)}</span>
-                      <button
-                        className={`news-bookmark-btn ${saved.has(item.id) ? 'saved' : ''}`}
-                        onClick={e => toggleSave(e, item.id)}
-                        title={saved.has(item.id) ? 'Remove bookmark' : 'Save article'}
-                      >
-                        {saved.has(item.id) ? '🔖' : '📎'}
-                      </button>
+          <>
+            <div className="news-grid">
+              {filtered.map(item => (
+                <a
+                  key={item.id}
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="news-card"
+                >
+                  {item.imageUrl && (
+                    <div className="news-card-image">
+                      <img src={item.imageUrl} alt="" loading="lazy" />
                     </div>
-                  </div>
-                  <h3 className="news-card-title">{item.title}</h3>
-                  {item.summary && (
-                    <p className="news-card-summary">{item.summary}</p>
                   )}
-                </div>
-              </a>
-            ))}
-          </div>
+                  <div className="news-card-body">
+                    <div className="news-card-meta">
+                      <span
+                        className="news-source"
+                        style={{ color: sourceColor(item.source) }}
+                      >
+                        {item.source}
+                      </span>
+                      <div className="news-card-meta-right">
+                        <span className="news-time">{timeAgo(item.publishedAt)}</span>
+                        <button
+                          className={`news-bookmark-btn ${saved.has(item.id) ? 'saved' : ''}`}
+                          onClick={e => toggleSave(e, item.id)}
+                          title={saved.has(item.id) ? 'Remove bookmark' : 'Save article'}
+                        >
+                          {saved.has(item.id) ? '🔖' : '📎'}
+                        </button>
+                      </div>
+                    </div>
+                    <h3 className="news-card-title">{item.title}</h3>
+                    {item.summary && (
+                      <p className="news-card-summary">{item.summary}</p>
+                    )}
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            {/* Show more — only when not filtering by source or saved, and more days remain */}
+            {!showSaved && filter === 'all' && hasMore && (
+              <div className="news-show-more">
+                <button
+                  className="news-show-more-btn"
+                  onClick={() => fetchDay(currentDay + 1, true)}
+                  disabled={loadingMore}
+                >
+                  {loadingMore
+                    ? 'Loading…'
+                    : `Show articles from ${currentDay + 1} day${currentDay + 1 === 1 ? '' : 's'} ago`}
+                </button>
+                <span className="news-show-more-hint">
+                  Day {currentDay + 1} of 7
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
